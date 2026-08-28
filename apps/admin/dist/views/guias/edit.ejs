@@ -1,0 +1,61 @@
+<%- include('../partials/header') %>
+
+<div class="max-w-3xl mx-auto">
+  <h1 class="text-3xl font-bold mb-8">Editar Guía Ornitólogo</h1>
+
+  <form action="<%= listPath %>/<%= row.id %>/edit" method="POST" enctype="multipart/form-data" class="bg-white rounded-lg shadow p-6 space-y-4">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Nombre Completo</label>
+        <input type="text" name="nombre" value="<%= row.nombre %>" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Especialidad</label>
+        <input type="text" name="especialidad" value="<%= row.especialidad %>" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Años de Experiencia</label>
+        <input type="text" name="experiencia" value="<%= row.experiencia %>" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Idiomas</label>
+        <input type="text" name="idiomas" value="<%= row.idiomas %>" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Orden de visualización</label>
+        <input type="number" name="orden" value="<%= row.orden %>" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
+      </div>
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-gray-700 mb-1">Biografía / Descripción del Guía</label>
+      <textarea name="descripcion" rows="3" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"><%= row.descripcion %></textarea>
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-gray-700 mb-1">Foto del Guía</label>
+      <% if (row.foto) { %>
+      <div class="mb-2">
+        <img src="<%= row.foto %>" alt="<%= row.nombre %>" class="h-16 w-16 object-cover rounded-full border">
+      </div>
+      <% } %>
+      <input type="url" name="foto" value="<%= row.foto || '' %>" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
+      <input type="file" name="image" accept="image/*" class="mt-2 block w-full text-sm text-gray-500">
+    </div>
+
+    <div class="flex items-center gap-2">
+      <input type="checkbox" id="activo" name="activo" <%= row.activo ? 'checked' : '' %> class="w-4 h-4 text-blue-600 rounded">
+      <label for="activo" class="text-sm font-medium text-gray-700">Guía Activo</label>
+    </div>
+
+    <div class="flex gap-3 pt-4">
+      <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 font-semibold">Guardar Cambios</button>
+      <a href="<%= listPath %>" class="bg-gray-200 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-300">Cancelar</a>
+    </div>
+  </form>
+</div>
+
+<%- include('../partials/footer') %>

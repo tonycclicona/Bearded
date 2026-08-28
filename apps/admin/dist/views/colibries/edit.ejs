@@ -1,0 +1,96 @@
+<%- include('../partials/header') %>
+
+<div class="max-w-4xl mx-auto space-y-6">
+  <div class="bg-white dark:bg-[#131B15] p-6 rounded-3xl border border-gray-200 dark:border-[#24301f] shadow-sm">
+    <div class="flex items-center gap-2 text-xs text-[#C5A880] uppercase tracking-wider font-bold mb-1">
+      <span>Ornitología & Catálogo</span>
+    </div>
+    <h1 class="text-2xl md:text-3xl font-serif font-bold text-[#1E2C22] dark:text-white">
+      Editar Especie: <%= row.nombreComun %>
+    </h1>
+    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+      Actualiza los datos taxonómicos, fotografía en WebP y archivo de audio del canto.
+    </p>
+  </div>
+
+  <form action="<%= listPath %>/<%= row.id %>/edit" method="POST" enctype="multipart/form-data" class="bg-white dark:bg-[#131B15] rounded-3xl border border-gray-200 dark:border-[#24301f] shadow-sm p-6 sm:p-8 space-y-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div>
+        <label class="block text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300 mb-1">Nombre Común</label>
+        <input type="text" name="nombreComun" value="<%= row.nombreComun %>" required class="w-full px-4 py-2.5 bg-gray-50 dark:bg-[#0E1511] border border-gray-200 dark:border-[#24301f] rounded-xl text-xs focus:ring-2 focus:ring-[#C5A880] focus:outline-none">
+      </div>
+      <div>
+        <label class="block text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300 mb-1">Nombre Científico</label>
+        <input type="text" name="nombreCientifico" value="<%= row.nombreCientifico %>" required class="w-full px-4 py-2.5 bg-gray-50 dark:bg-[#0E1511] border border-gray-200 dark:border-[#24301f] rounded-xl text-xs focus:ring-2 focus:ring-[#C5A880] focus:outline-none italic">
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div>
+        <label class="block text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300 mb-1">Familia</label>
+        <input type="text" name="familia" value="<%= row.familia %>" required class="w-full px-4 py-2.5 bg-gray-50 dark:bg-[#0E1511] border border-gray-200 dark:border-[#24301f] rounded-xl text-xs focus:ring-2 focus:ring-[#C5A880] focus:outline-none">
+      </div>
+      <div>
+        <label class="block text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300 mb-1">Estado IUCN</label>
+        <select name="estadoIUCN" required class="w-full px-4 py-2.5 bg-gray-50 dark:bg-[#0E1511] border border-gray-200 dark:border-[#24301f] rounded-xl text-xs focus:ring-2 focus:ring-[#C5A880] focus:outline-none">
+          <option value="En Peligro Crítico (CR)" <%= row.estadoIUCN === 'En Peligro Crítico (CR)' ? 'selected' : '' %>>En Peligro Crítico (CR)</option>
+          <option value="En Peligro (EN)" <%= row.estadoIUCN === 'En Peligro (EN)' ? 'selected' : '' %>>En Peligro (EN)</option>
+          <option value="Vulnerable (VU)" <%= row.estadoIUCN === 'Vulnerable (VU)' ? 'selected' : '' %>>Vulnerable (VU)</option>
+          <option value="Casi Amenazado (NT)" <%= row.estadoIUCN === 'Casi Amenazado (NT)' ? 'selected' : '' %>>Casi Amenazado (NT)</option>
+          <option value="Preocupación Menor (LC)" <%= row.estadoIUCN === 'Preocupación Menor (LC)' ? 'selected' : '' %>>Preocupación Menor (LC)</option>
+        </select>
+      </div>
+      <div class="flex items-center pt-5">
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" name="endemicoPeru" <%= row.endemicoPeru ? 'checked' : '' %> class="w-4 h-4 text-purple-600 rounded border-gray-300">
+          <span class="text-xs font-bold text-gray-700 dark:text-gray-300">🇵🇪 Endémico de Perú</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div>
+        <label class="block text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300 mb-1">Altitud Mínima (msnm)</label>
+        <input type="number" name="altitudMinMsnm" value="<%= row.altitudMinMsnm %>" class="w-full px-4 py-2.5 bg-gray-50 dark:bg-[#0E1511] border border-gray-200 dark:border-[#24301f] rounded-xl text-xs focus:ring-2 focus:ring-[#C5A880] focus:outline-none">
+      </div>
+      <div>
+        <label class="block text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300 mb-1">Altitud Máxima (msnm)</label>
+        <input type="number" name="altitudMaxMsnm" value="<%= row.altitudMaxMsnm %>" class="w-full px-4 py-2.5 bg-gray-50 dark:bg-[#0E1511] border border-gray-200 dark:border-[#24301f] rounded-xl text-xs focus:ring-2 focus:ring-[#C5A880] focus:outline-none">
+      </div>
+    </div>
+
+    <div>
+      <label class="block text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300 mb-1">Descripción Taxonómica y Hábitat</label>
+      <textarea name="descripcion" rows="3" required class="w-full px-4 py-2.5 bg-gray-50 dark:bg-[#0E1511] border border-gray-200 dark:border-[#24301f] rounded-xl text-xs focus:ring-2 focus:ring-[#C5A880] focus:outline-none"><%= row.descripcion %></textarea>
+    </div>
+
+    <!-- FOTO PRINCIPAL CON DRAG & DROP Y PREVIEW -->
+    <div class="p-5 bg-gray-50/70 dark:bg-[#0E1511]/70 rounded-2xl border border-gray-200 dark:border-[#24301f] space-y-2">
+      <label class="block text-xs font-bold uppercase tracking-wider text-[#1E2C22] dark:text-[#C5A880]">
+        📸 Foto Principal de la Especie (Optimización WebP)
+      </label>
+      <input type="url" name="fotoPrincipal" value="<%= row.fotoPrincipal || '' %>" placeholder="URL externa directa" class="w-full px-4 py-2.5 bg-white dark:bg-[#131B15] border border-gray-200 dark:border-[#24301f] rounded-xl text-xs focus:ring-2 focus:ring-[#C5A880] focus:outline-none mb-2">
+      <input type="file" name="image" accept="image/*,.webp,.jpg,.jpeg,.png" class="block w-full text-sm text-gray-500">
+    </div>
+
+    <!-- AUDIO DEL CANTO CON DRAG & DROP Y PREVIEW -->
+    <div class="p-5 bg-gray-50/70 dark:bg-[#0E1511]/70 rounded-2xl border border-gray-200 dark:border-[#24301f] space-y-2">
+      <label class="block text-xs font-bold uppercase tracking-wider text-[#1E2C22] dark:text-[#C5A880]">
+        🎵 Registro de Audio / Canto Bioacústico (MP3, WAV, OGG, M4A)
+      </label>
+      <input type="url" name="audioCantoUrl" value="<%= row.audioCantoUrl || '' %>" placeholder="https://www.xeno-canto.org/sounds/... o sube un archivo" class="w-full px-4 py-2.5 bg-white dark:bg-[#131B15] border border-gray-200 dark:border-[#24301f] rounded-xl text-xs focus:ring-2 focus:ring-[#C5A880] focus:outline-none mb-2">
+      <input type="file" name="audioFile" accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac,.flac" class="block w-full text-sm text-gray-500">
+    </div>
+
+    <div class="flex gap-3 pt-4 border-t border-gray-100 dark:border-[#24301f]">
+      <button type="submit" class="bg-[#1E2C22] hover:bg-[#C5A880] text-white hover:text-[#1E2C22] px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-sm">
+        Guardar Cambios
+      </button>
+      <a href="<%= listPath %>" class="bg-gray-100 dark:bg-[#1E2C22]/50 text-gray-700 dark:text-gray-300 px-6 py-2.5 rounded-xl text-xs font-semibold hover:bg-gray-200 transition-colors">
+        Cancelar
+      </a>
+    </div>
+  </form>
+</div>
+
+<%- include('../partials/footer') %>

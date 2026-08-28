@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin - Bearded Mountaineer & GIS Colibríes</title>
+  <link rel="icon" href="/admin/static/logo_BEARDEDMOUNTANIER.png" type="image/png">
+  
+  <!-- Tipografía Google Fonts estandarizada con el Frontend -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,600;0,700;1,400&display=swap" rel="stylesheet">
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Outfit', 'sans-serif'],
+            serif: ['Playfair Display', 'serif']
+          },
+          colors: {
+            primary: {
+              DEFAULT: '#2C3E2B',
+              solid: '#1E2C22',
+              dark: '#131B15'
+            },
+            accent: {
+              DEFAULT: '#C5A880',
+              hover: '#B39366',
+              light: '#EBE2D5'
+            }
+          }
+        }
+      }
+    };
+  </script>
+  <link rel="stylesheet" href="/admin/static/dark.css">
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('admin-theme');
+        if (t !== 'light') {
+          document.documentElement.classList.add('dark');
+        }
+      } catch (e) {}
+    })();
+  </script>
+</head>
+<body class="bg-gray-50 text-gray-900 font-sans antialiased">
+  <div class="flex min-h-screen">
+    
+    <!-- SIDEBAR ESTANDARIZADO -->
+    <aside class="w-64 bg-[#1E2C22] text-white shrink-0 border-r border-[#2C3E2B] flex flex-col justify-between shadow-xl">
+      <div>
+        <!-- Logo y Branding -->
+        <div class="p-5 border-b border-white/10 flex items-center gap-3">
+          <div class="w-9 h-9 rounded-xl bg-white/10 border border-[#C5A880]/30 flex items-center justify-center font-serif text-lg font-bold text-[#C5A880]">
+            🦅
+          </div>
+          <div>
+            <h1 class="text-sm font-serif font-bold text-white tracking-wide">Bearded Mountaineer</h1>
+            <p class="text-[10px] text-[#C5A880] uppercase tracking-widest font-semibold">Panel de Control</p>
+          </div>
+        </div>
+
+        <% 
+          const path = typeof currentPath !== 'undefined' ? currentPath : ''; 
+          function isActive(prefix) {
+            if (prefix === '/admin' && (path === '/admin' || path === '/admin/')) return true;
+            if (prefix !== '/admin' && path.startsWith(prefix)) return true;
+            return false;
+          }
+        %>
+
+        <!-- Menú de Navegación por Módulos -->
+        <nav class="p-3 space-y-5 overflow-y-auto max-h-[calc(100vh-160px)] text-xs">
+          
+          <!-- General -->
+          <div>
+            <div class="px-3 mb-1.5 text-[10px] font-bold uppercase tracking-wider text-white/40">General</div>
+            <div class="space-y-0.5">
+              <a href="/admin" class="flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all font-medium <%= isActive('/admin') ? 'bg-[#C5A880] text-[#1E2C22] font-bold shadow-sm' : 'text-white/80 hover:bg-white/10 hover:text-white' %>">
+                <span>📊</span>
+                <span>Dashboard & Métricas</span>
+              </a>
+              <a href="/admin/bookings" class="flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all font-medium <%= isActive('/admin/bookings') ? 'bg-[#C5A880] text-[#1E2C22] font-bold shadow-sm' : 'text-white/80 hover:bg-white/10 hover:text-white' %>">
+                <span>📋</span>
+                <span>Reservas & Yape</span>
+              </a>
+            </div>
+          </div>
+
+          <!-- Ornitología & GIS -->
+          <div>
+            <div class="px-3 mb-1.5 text-[10px] font-bold uppercase tracking-wider text-emerald-300/60">Ornitología & GIS Perú</div>
+            <div class="space-y-0.5">
+              <a href="/admin/puntos-gis" class="flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all font-medium <%= isActive('/admin/puntos-gis') ? 'bg-[#C5A880] text-[#1E2C22] font-bold shadow-sm' : 'text-white/80 hover:bg-white/10 hover:text-white' %>">
+                <span>🗺️</span>
+                <span>Puntos & Hotspots GIS</span>
+              </a>
+              <a href="/admin/colibries" class="flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all font-medium <%= isActive('/admin/colibries') ? 'bg-[#C5A880] text-[#1E2C22] font-bold shadow-sm' : 'text-white/80 hover:bg-white/10 hover:text-white' %>">
+                <span>🦅</span>
+                <span>Catálogo Colibríes</span>
+              </a>
+              <a href="/admin/tours" class="flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all font-medium <%= isActive('/admin/tours') ? 'bg-[#C5A880] text-[#1E2C22] font-bold shadow-sm' : 'text-white/80 hover:bg-white/10 hover:text-white' %>">
+                <span>🧭</span>
+                <span>Tours & Expediciones</span>
+              </a>
+              <a href="/admin/guias" class="flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all font-medium <%= isActive('/admin/guias') ? 'bg-[#C5A880] text-[#1E2C22] font-bold shadow-sm' : 'text-white/80 hover:bg-white/10 hover:text-white' %>">
+                <span>👨‍🌾</span>
+                <span>Guías Ornitólogos</span>
+              </a>
+            </div>
+          </div>
+
+          <!-- Santuario & Hospedaje -->
+          <div>
+            <div class="px-3 mb-1.5 text-[10px] font-bold uppercase tracking-wider text-amber-300/60">Santuario & Hospedaje</div>
+            <div class="space-y-0.5">
+              <a href="/admin/passes" class="flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all font-medium <%= isActive('/admin/passes') ? 'bg-[#C5A880] text-[#1E2C22] font-bold shadow-sm' : 'text-white/80 hover:bg-white/10 hover:text-white' %>">
+                <span>🎫</span>
+                <span>Pases Diarios</span>
+              </a>
+              <a href="/admin/spots" class="flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all font-medium <%= isActive('/admin/spots') ? 'bg-[#C5A880] text-[#1E2C22] font-bold shadow-sm' : 'text-white/80 hover:bg-white/10 hover:text-white' %>">
+                <span>📸</span>
+                <span>Escenarios de Observación</span>
+              </a>
+              <a href="/admin/rooms" class="flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all font-medium <%= isActive('/admin/rooms') ? 'bg-[#C5A880] text-[#1E2C22] font-bold shadow-sm' : 'text-white/80 hover:bg-white/10 hover:text-white' %>">
+                <span>🛏️</span>
+                <span>Habitaciones Lodge</span>
+              </a>
+              <a href="/admin/experiences" class="flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all font-medium <%= isActive('/admin/experiences') ? 'bg-[#C5A880] text-[#1E2C22] font-bold shadow-sm' : 'text-white/80 hover:bg-white/10 hover:text-white' %>">
+                <span>✨</span>
+                <span>Experiencias de Aventura</span>
+              </a>
+            </div>
+          </div>
+
+          <!-- Galería & Pedidos -->
+          <div>
+            <div class="px-3 mb-1.5 text-[10px] font-bold uppercase tracking-wider text-cyan-300/60">Galería & Tienda</div>
+            <div class="space-y-0.5">
+              <a href="/admin/photos" class="flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all font-medium <%= isActive('/admin/photos') ? 'bg-[#C5A880] text-[#1E2C22] font-bold shadow-sm' : 'text-white/80 hover:bg-white/10 hover:text-white' %>">
+                <span>🖼️</span>
+                <span>Fotos de Naturaleza</span>
+              </a>
+              <a href="/admin/workshops" class="flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all font-medium <%= isActive('/admin/workshops') ? 'bg-[#C5A880] text-[#1E2C22] font-bold shadow-sm' : 'text-white/80 hover:bg-white/10 hover:text-white' %>">
+                <span>🎓</span>
+                <span>Talleres Fotográficos</span>
+              </a>
+              <a href="/admin/orders" class="flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all font-medium <%= isActive('/admin/orders') ? 'bg-[#C5A880] text-[#1E2C22] font-bold shadow-sm' : 'text-white/80 hover:bg-white/10 hover:text-white' %>">
+                <span>🛒</span>
+                <span>Pedidos & Ventas</span>
+              </a>
+            </div>
+          </div>
+        </nav>
+      </div>
+
+      <!-- Footer del Sidebar -->
+      <div class="p-3 border-t border-white/10 space-y-1.5 text-xs">
+        <a href="http://localhost:3000" target="_blank" rel="noopener noreferrer" class="flex items-center justify-between px-3 py-2 rounded-xl text-white/80 hover:bg-white/10 hover:text-[#C5A880] transition-all">
+          <span class="flex items-center gap-2"><span>🌐</span> Ver Sitio Web</span>
+          <span class="text-[10px] text-white/40">↗</span>
+        </a>
+        <button id="adminThemeToggle" onclick="toggleAdminTheme()" class="w-full flex items-center justify-between px-3 py-2 rounded-xl text-white/80 hover:bg-white/10 transition-all text-left">
+          <span class="flex items-center gap-2">
+            <span id="adminThemeIcon"></span>
+            <span id="adminThemeLabel">Modo</span>
+          </span>
+        </button>
+        <a href="/admin/logout" class="flex items-center gap-2 px-3 py-2 rounded-xl text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-all font-semibold">
+          <span>🚪</span>
+          <span>Cerrar Sesión</span>
+        </a>
+      </div>
+
+      <script>
+        var ICON_DARK = '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
+        var ICON_LIGHT = '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path stroke-linecap="round" d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>';
+        function renderAdminTheme() {
+          var dark = document.documentElement.classList.contains('dark');
+          document.getElementById('adminThemeLabel').textContent = dark ? 'Modo Claro' : 'Modo Oscuro';
+          document.getElementById('adminThemeIcon').innerHTML = dark ? ICON_LIGHT : ICON_DARK;
+        }
+        function toggleAdminTheme() {
+          document.documentElement.classList.toggle('dark');
+          localStorage.setItem('admin-theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+          renderAdminTheme();
+        }
+        renderAdminTheme();
+      </script>
+    </aside>
+
+    <!-- ÁREA PRINCIPAL -->
+    <main class="flex-1 p-6 md:p-10 overflow-auto bg-gray-50 dark:bg-[#0B110D]">

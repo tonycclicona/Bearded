@@ -1,0 +1,101 @@
+<%- include('../partials/header') %>
+
+<div class="max-w-7xl mx-auto">
+  <div class="flex justify-between items-center mb-8">
+    <div>
+      <h1 class="text-3xl font-bold text-gray-900">Reservas & Pagos Yape</h1>
+      <p class="text-sm text-gray-500 mt-1">Gestión de reservas, comprobantes WhatsApp y lista de asistentes.</p>
+    </div>
+    <span class="bg-blue-50 text-blue-700 font-semibold px-4 py-2 rounded-xl text-sm border border-blue-200">
+      Total: <%= bookings.length %> reservas
+    </span>
+  </div>
+
+  <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+    <table class="w-full">
+      <thead class="bg-gray-50 border-b border-gray-200">
+        <tr>
+          <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Código & Fecha Reserva</th>
+          <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Servicio</th>
+          <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Titular</th>
+          <th class="px-6 py-3.5 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Personas</th>
+          <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Monto Total</th>
+          <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Estado</th>
+          <th class="px-6 py-3.5 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Acciones</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-200">
+        <% if (bookings.length === 0) { %>
+          <tr>
+            <td colspan="7" class="px-6 py-12 text-center text-gray-400">
+              No hay reservas registradas por el momento.
+            </td>
+          </tr>
+        <% } %>
+        <% bookings.forEach(b => { %>
+        <tr class="hover:bg-gray-50/80 transition-colors">
+          <td class="px-6 py-4">
+            <span class="font-mono font-bold text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded border border-gray-300">
+              <%= b.bookingCode %>
+            </span>
+            <div class="text-xs text-gray-500 mt-1">
+              Visita: <strong class="text-gray-700"><%= new Date(b.bookingDate).toLocaleDateString('es-PE', { timeZone: 'UTC' }) %></strong>
+            </div>
+          </td>
+          <td class="px-6 py-4">
+            <span class="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-100 text-amber-800">
+              <%= b.serviceType %>
+            </span>
+            <div class="font-semibold text-sm text-gray-900 mt-1"><%= b.serviceTitle %></div>
+          </td>
+          <td class="px-6 py-4">
+            <div class="text-sm font-semibold text-gray-900"><%= b.primaryName %></div>
+            <div class="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
+              <span>📱 <%= b.primaryPhone %></span>
+            </div>
+            <div class="text-xs text-gray-400"><%= b.primaryEmail %></div>
+          </td>
+          <td class="px-6 py-4 text-center">
+            <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-blue-100 text-blue-800 font-bold text-xs">
+              <%= b.guestCount %>
+            </span>
+          </td>
+          <td class="px-6 py-4">
+            <div class="text-sm font-bold text-gray-900">
+              <%= b.currency === 'USD' ? '$' : 'S/.' %> <%= Number(b.totalAmount).toFixed(2) %> <%= b.currency %>
+            </div>
+            <div class="text-[11px] text-gray-400">Vía <%= b.paymentMethod %></div>
+          </td>
+          <td class="px-6 py-4">
+            <% if (b.status === 'CONFIRMADA') { %>
+              <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                Confirmada
+              </span>
+            <% } else if (b.status === 'COMPROBANTE_ENVIADO') { %>
+              <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 border border-blue-200">
+                Comprobante Enviado
+              </span>
+            <% } else if (b.status === 'CANCELADA') { %>
+              <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-800 border border-red-200">
+                Cancelada
+              </span>
+            <% } else { %>
+              <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-200">
+                Pendiente Pago
+              </span>
+            <% } %>
+          </td>
+          <td class="px-6 py-4 text-right text-sm space-x-2 whitespace-nowrap">
+            <a href="/admin/bookings/<%= b.id %>" class="text-blue-600 hover:text-blue-800 font-medium">Ver Ficha</a>
+            <form action="/admin/bookings/<%= b.id %>/delete" method="POST" class="inline" onsubmit="return confirm('¿Eliminar esta reserva?')">
+              <button type="submit" class="text-red-600 hover:text-red-800 font-medium">Eliminar</button>
+            </form>
+          </td>
+        </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<%- include('../partials/footer') %>

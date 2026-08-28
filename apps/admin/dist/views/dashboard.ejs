@@ -1,0 +1,186 @@
+<%- include('partials/header') %>
+
+<div class="max-w-7xl mx-auto space-y-8">
+  
+  <!-- Encabezado del Dashboard -->
+  <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white dark:bg-[#131B15] p-6 md:p-8 rounded-3xl border border-gray-200 dark:border-[#24301f] shadow-sm">
+    <div>
+      <span class="text-xs uppercase tracking-widest font-bold text-[#C5A880] block mb-1">
+        Bearded Mountaineer Lodge & GIS Perú
+      </span>
+      <h1 class="font-serif text-2xl md:text-4xl font-bold text-[#1E2C22] dark:text-white">
+        Panel de Control Principal
+      </h1>
+      <p class="text-xs md:text-sm text-gray-500 dark:text-gray-400 mt-1">
+        Gestión centralizada de georreferenciación GIS, catálogo taxonómico de colibríes, santuario y reservas.
+      </p>
+    </div>
+    
+    <div class="flex items-center gap-3">
+      <a href="http://localhost:3000" target="_blank" rel="noopener noreferrer" class="px-4 py-2.5 bg-[#1E2C22] hover:bg-[#C5A880] text-white hover:text-[#1E2C22] rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 shadow-sm">
+        <span>🌐 Ver Web Pública</span>
+        <span>↗</span>
+      </a>
+    </div>
+  </div>
+
+  <!-- 1. ORNITOLOGÍA & PLATAFORMA GIS -->
+  <div class="space-y-4">
+    <div class="flex items-center justify-between">
+      <h2 class="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 flex items-center gap-2">
+        <span>🗺️</span> Ornitología & Plataforma GIS de Perú
+      </h2>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+      <a href="/admin/puntos-gis" class="bg-white dark:bg-[#131B15] rounded-2xl border border-gray-200 dark:border-[#24301f] p-5 hover:border-[#C5A880] hover:shadow-lg transition-all flex flex-col justify-between group">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-2xl">📍</span>
+          <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">Macro-Rutas</span>
+        </div>
+        <div>
+          <h3 class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Puntos GIS</h3>
+          <p class="text-3xl font-serif font-bold text-[#1E2C22] dark:text-white mt-1"><%= stats.puntosGis || 0 %></p>
+        </div>
+        <span class="text-[11px] text-[#C5A880] font-semibold mt-3 group-hover:translate-x-1 transition-transform block">Gestionar marcadores →</span>
+      </a>
+
+      <a href="/admin/colibries" class="bg-white dark:bg-[#131B15] rounded-2xl border border-gray-200 dark:border-[#24301f] p-5 hover:border-[#C5A880] hover:shadow-lg transition-all flex flex-col justify-between group">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-2xl">🦅</span>
+          <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">Bioacústica</span>
+        </div>
+        <div>
+          <h3 class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Especies de Colibrí</h3>
+          <p class="text-3xl font-serif font-bold text-[#1E2C22] dark:text-white mt-1"><%= stats.colibries || 0 %></p>
+        </div>
+        <span class="text-[11px] text-[#C5A880] font-semibold mt-3 group-hover:translate-x-1 transition-transform block">Gestionar catálogo →</span>
+      </a>
+
+      <a href="/admin/tours" class="bg-white dark:bg-[#131B15] rounded-2xl border border-gray-200 dark:border-[#24301f] p-5 hover:border-[#C5A880] hover:shadow-lg transition-all flex flex-col justify-between group">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-2xl">🧭</span>
+          <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-cyan-100 text-cyan-800 dark:bg-cyan-950 dark:text-cyan-300">Expediciones</span>
+        </div>
+        <div>
+          <h3 class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Tours & Rutas GIS</h3>
+          <p class="text-3xl font-serif font-bold text-[#1E2C22] dark:text-white mt-1"><%= stats.tours || 0 %></p>
+        </div>
+        <span class="text-[11px] text-[#C5A880] font-semibold mt-3 group-hover:translate-x-1 transition-transform block">Gestionar tours →</span>
+      </a>
+
+      <a href="/admin/guias" class="bg-white dark:bg-[#131B15] rounded-2xl border border-gray-200 dark:border-[#24301f] p-5 hover:border-[#C5A880] hover:shadow-lg transition-all flex flex-col justify-between group">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-2xl">👨‍🌾</span>
+          <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300">Biólogos</span>
+        </div>
+        <div>
+          <h3 class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Guías Ornitólogos</h3>
+          <p class="text-3xl font-serif font-bold text-[#1E2C22] dark:text-white mt-1"><%= stats.guias || 0 %></p>
+        </div>
+        <span class="text-[11px] text-[#C5A880] font-semibold mt-3 group-hover:translate-x-1 transition-transform block">Gestionar guías →</span>
+      </a>
+    </div>
+  </div>
+
+  <!-- 2. SANTUARIO SAN SALVADOR & HOSPEDAJE -->
+  <div class="space-y-4">
+    <div class="flex items-center justify-between">
+      <h2 class="text-xs font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400 flex items-center gap-2">
+        <span>🏡</span> Santuario de San Salvador & Hospedaje
+      </h2>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+      <a href="/admin/passes" class="bg-white dark:bg-[#131B15] rounded-2xl border border-gray-200 dark:border-[#24301f] p-5 hover:border-[#C5A880] hover:shadow-lg transition-all flex flex-col justify-between group">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-2xl">🎫</span>
+        </div>
+        <div>
+          <h3 class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Pases Diarios</h3>
+          <p class="text-3xl font-serif font-bold text-[#1E2C22] dark:text-white mt-1"><%= stats.passes %></p>
+        </div>
+        <span class="text-[11px] text-[#C5A880] font-semibold mt-3 group-hover:translate-x-1 transition-transform block">Editar pases →</span>
+      </a>
+
+      <a href="/admin/spots" class="bg-white dark:bg-[#131B15] rounded-2xl border border-gray-200 dark:border-[#24301f] p-5 hover:border-[#C5A880] hover:shadow-lg transition-all flex flex-col justify-between group">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-2xl">📸</span>
+        </div>
+        <div>
+          <h3 class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Escenarios de Observación</h3>
+          <p class="text-3xl font-serif font-bold text-[#1E2C22] dark:text-white mt-1"><%= stats.spots %></p>
+        </div>
+        <span class="text-[11px] text-[#C5A880] font-semibold mt-3 group-hover:translate-x-1 transition-transform block">Editar escenarios →</span>
+      </a>
+
+      <a href="/admin/rooms" class="bg-white dark:bg-[#131B15] rounded-2xl border border-gray-200 dark:border-[#24301f] p-5 hover:border-[#C5A880] hover:shadow-lg transition-all flex flex-col justify-between group">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-2xl">🛏️</span>
+        </div>
+        <div>
+          <h3 class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Habitaciones Lodge</h3>
+          <p class="text-3xl font-serif font-bold text-[#1E2C22] dark:text-white mt-1"><%= stats.rooms %></p>
+        </div>
+        <span class="text-[11px] text-[#C5A880] font-semibold mt-3 group-hover:translate-x-1 transition-transform block">Editar habitaciones →</span>
+      </a>
+
+      <a href="/admin/experiences" class="bg-white dark:bg-[#131B15] rounded-2xl border border-gray-200 dark:border-[#24301f] p-5 hover:border-[#C5A880] hover:shadow-lg transition-all flex flex-col justify-between group">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-2xl">✨</span>
+        </div>
+        <div>
+          <h3 class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Experiencias & Actividades</h3>
+          <p class="text-3xl font-serif font-bold text-[#1E2C22] dark:text-white mt-1"><%= stats.experiences %></p>
+        </div>
+        <span class="text-[11px] text-[#C5A880] font-semibold mt-3 group-hover:translate-x-1 transition-transform block">Editar experiencias →</span>
+      </a>
+    </div>
+  </div>
+
+  <!-- 3. GALERÍA & VENTAS -->
+  <div class="space-y-4">
+    <div class="flex items-center justify-between">
+      <h2 class="text-xs font-bold uppercase tracking-wider text-cyan-700 dark:text-cyan-400 flex items-center gap-2">
+        <span>🎨</span> Galería de Naturaleza & Tienda
+      </h2>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-5">
+      <a href="/admin/photos" class="bg-white dark:bg-[#131B15] rounded-2xl border border-gray-200 dark:border-[#24301f] p-5 hover:border-[#C5A880] hover:shadow-lg transition-all flex flex-col justify-between group">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-2xl">🖼️</span>
+        </div>
+        <div>
+          <h3 class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Fotos EXIF</h3>
+          <p class="text-3xl font-serif font-bold text-[#1E2C22] dark:text-white mt-1"><%= stats.photos %></p>
+        </div>
+        <span class="text-[11px] text-[#C5A880] font-semibold mt-3 group-hover:translate-x-1 transition-transform block">Administrar fotos →</span>
+      </a>
+
+      <a href="/admin/workshops" class="bg-white dark:bg-[#131B15] rounded-2xl border border-gray-200 dark:border-[#24301f] p-5 hover:border-[#C5A880] hover:shadow-lg transition-all flex flex-col justify-between group">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-2xl">🎓</span>
+        </div>
+        <div>
+          <h3 class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Talleres Fotográficos</h3>
+          <p class="text-3xl font-serif font-bold text-[#1E2C22] dark:text-white mt-1"><%= stats.workshops %></p>
+        </div>
+        <span class="text-[11px] text-[#C5A880] font-semibold mt-3 group-hover:translate-x-1 transition-transform block">Administrar talleres →</span>
+      </a>
+
+      <a href="/admin/orders" class="bg-white dark:bg-[#131B15] rounded-2xl border border-gray-200 dark:border-[#24301f] p-5 hover:border-[#C5A880] hover:shadow-lg transition-all flex flex-col justify-between group">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-2xl">🛒</span>
+        </div>
+        <div>
+          <h3 class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Pedidos & Ventas</h3>
+          <p class="text-3xl font-serif font-bold text-[#1E2C22] dark:text-white mt-1"><%= stats.orders %></p>
+        </div>
+        <span class="text-[11px] text-[#C5A880] font-semibold mt-3 group-hover:translate-x-1 transition-transform block">Ver pedidos →</span>
+      </a>
+    </div>
+  </div>
+</div>
+
+<%- include('partials/footer') %>

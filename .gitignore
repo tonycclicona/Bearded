@@ -2,11 +2,9 @@
 node_modules/
 .pnpm-store/
 
-# Build outputs
-dist/
+# Build outputs (permitir dist, out y public_html para despliegue en Hostinger)
 build/
 .next/
-out/
 
 # Environment files
 .env
