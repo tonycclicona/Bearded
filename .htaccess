@@ -2,12 +2,21 @@
   RewriteEngine On
   RewriteBase /
 
-  # Servir archivos estáticos si existen
+  # 1. Servir archivos estáticos reales directamente
   RewriteCond %{REQUEST_FILENAME} -f [OR]
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
 
-  # Fallback a index.html para rutas SPA
+  # 2. Enrutar /api y /admin a la aplicación Node.js (Gateway en puerto 8080 o el asignado por Hostinger)
+  RewriteCond %{HTTP_HOST} ^api\. [NC,OR]
+  RewriteCond %{REQUEST_URI} ^/api [NC]
+  RewriteRule ^(.*)$ http://127.0.0.1:8080/$1 [P,L]
+
+  RewriteCond %{HTTP_HOST} ^admin\. [NC,OR]
+  RewriteCond %{REQUEST_URI} ^/admin [NC]
+  RewriteRule ^(.*)$ http://127.0.0.1:8080/$1 [P,L]
+
+  # 3. Fallback de Next.js SPA
   RewriteRule ^foto/.*$ /foto/[slug]/index.html [L]
   RewriteRule ^.*$ /index.html [L]
 </IfModule>
