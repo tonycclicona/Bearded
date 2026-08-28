@@ -1,9 +1,9 @@
 /**
  * Gateway Monorrepo - Reverse Proxy Express con Soporte Multidominio & Subdominios
  * Dominios configurados:
- * - Frontend:   beardedmountaineer.com / www.beardedmountaineer.com
- * - Admin:      admin.beardedmountaineer.com
- * - Backend:    api.beardedmountaineer.com
+ * - Frontend:   beardedmountaineerlodge.com / www.beardedmountaineerlodge.com
+ * - Admin:      admin.beardedmountaineerlodge.com
+ * - Backend:    api.beardedmountaineerlodge.com
  */
 
 import express from 'express';
@@ -19,9 +19,9 @@ const ADMIN_TARGET = process.env.ADMIN_TARGET || 'http://localhost:3002';
 
 console.log('🚀 Inicializando Gateway Monorrepo...');
 console.log(`   - Gateway Port: ${GATEWAY_PORT}`);
-console.log(`   - Frontend Target (beardedmountaineer.com):       ${FRONTEND_TARGET}`);
-console.log(`   - Admin Target    (admin.beardedmountaineer.com): ${ADMIN_TARGET}`);
-console.log(`   - Backend Target  (api.beardedmountaineer.com):   ${BACKEND_TARGET}`);
+console.log(`   - Frontend Target (beardedmountaineerlodge.com):       ${FRONTEND_TARGET}`);
+console.log(`   - Admin Target    (admin.beardedmountaineerlodge.com): ${ADMIN_TARGET}`);
+console.log(`   - Backend Target  (api.beardedmountaineerlodge.com):   ${BACKEND_TARGET}`);
 
 // 1. Health check del Gateway
 app.get('/gateway-health', (_req, res) => {
@@ -30,9 +30,9 @@ app.get('/gateway-health', (_req, res) => {
     environment: process.env.NODE_ENV || 'production',
     timestamp: new Date().toISOString(),
     domains: {
-      frontend: 'https://beardedmountaineer.com',
-      admin: 'https://admin.beardedmountaineer.com',
-      api: 'https://api.beardedmountaineer.com'
+      frontend: 'https://beardedmountaineerlodge.com',
+      admin: 'https://admin.beardedmountaineerlodge.com',
+      api: 'https://api.beardedmountaineerlodge.com'
     },
     targets: {
       frontend: FRONTEND_TARGET,
