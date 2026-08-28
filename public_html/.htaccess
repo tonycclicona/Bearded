@@ -2,11 +2,22 @@
   RewriteEngine On
   RewriteBase /
 
-  # 1. Servir archivos estáticos reales directamente si existen en public_html
+  # 1. Rutas de la API -> Reenviar a Node.js en puerto 8080
+  RewriteCond %{HTTP_HOST} ^api\. [NC,OR]
+  RewriteCond %{REQUEST_URI} ^/api [NC]
+  RewriteRule ^(.*)$ http://127.0.0.1:8080/$1 [P,L]
+
+  # 2. Rutas del Admin -> Reenviar a Node.js en puerto 8080
+  RewriteCond %{HTTP_HOST} ^admin\. [NC,OR]
+  RewriteCond %{REQUEST_URI} ^/admin [NC]
+  RewriteRule ^(.*)$ http://127.0.0.1:8080/$1 [P,L]
+
+  # 3. Servir archivos estáticos reales directamente
   RewriteCond %{REQUEST_FILENAME} -f [OR]
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
 
-  # 2. Enrutar al Gateway universal index.php (que lee directamente de hbuilds/current/nodejs/public_html)
-  RewriteRule ^ index.php [L]
+  # 4. Fallback de Next.js SPA
+  RewriteRule ^foto/.*$ /foto/[slug]/index.html [L]
+  RewriteRule ^.*$ /index.html [L]
 </IfModule>
