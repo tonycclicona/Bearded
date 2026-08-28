@@ -1,0 +1,199 @@
+    </main>
+  </div>
+
+  <!-- SCRIPT GLOBAL DE DRAG & DROP Y PREVISUALIZACIÓN MULTIMEDIA (IMÁGENES, AUDIOS Y VIDEOS) -->
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      const fileInputs = document.querySelectorAll('input[type="file"]');
+
+      fileInputs.forEach((input) => {
+        const isAudioInput = input.name.toLowerCase().includes('audio') || (input.accept && input.accept.includes('audio'));
+        const isVideoInput = input.name.toLowerCase().includes('video') || (input.accept && input.accept.includes('video'));
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'media-dropzone-wrapper mt-2 space-y-2';
+
+        const dropzone = document.createElement('div');
+        dropzone.className = 'border-2 border-dashed border-gray-300 dark:border-[#2C3E2B] rounded-2xl p-4 text-center cursor-pointer hover:border-[#C5A880] transition-colors bg-gray-50/60 dark:bg-[#131B15]/60 flex flex-col items-center justify-center min-h-[130px] relative';
+        
+        let promptIcon = '📁';
+        let promptTitle = 'Arrastra y suelta tu archivo aquí, o <span class="text-[#C5A880] underline">haz clic para explorar</span>';
+        let promptSub = 'Formatos soportados: JPG, PNG, WEBP, GIF, MP4 • <span class="text-emerald-600 dark:text-emerald-400 font-semibold">⚡ Optimización WebP</span>';
+
+        if (isAudioInput) {
+          promptIcon = '🎵';
+          promptTitle = 'Arrastra y suelta tu archivo de audio (MP3, WAV, OGG, M4A) aquí, o <span class="text-[#C5A880] underline">haz clic para explorar</span>';
+          promptSub = 'Formatos: MP3, WAV, OGG, M4A, AAC, FLAC • <span class="text-purple-600 dark:text-purple-400 font-semibold">Bioacústica de Alta Fidelidad</span>';
+        } else if (isVideoInput) {
+          promptIcon = '🎬';
+          promptTitle = 'Arrastra y suelta tu video aquí, o <span class="text-[#C5A880] underline">haz clic para explorar</span>';
+          promptSub = 'Formatos: MP4, WEBM, MOV';
+        } else {
+          promptIcon = '📸';
+          promptTitle = 'Arrastra y suelta tu imagen aquí, o <span class="text-[#C5A880] underline">haz clic para explorar</span>';
+        }
+
+        dropzone.innerHTML = `
+          <div class="dropzone-prompt flex flex-col items-center gap-1.5 pointer-events-none">
+            <div class="w-10 h-10 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-xl mb-1">
+              ${promptIcon}
+            </div>
+            <p class="text-xs font-bold text-gray-700 dark:text-gray-300 text-center">
+              ${promptTitle}
+            </p>
+            <p class="text-[11px] text-gray-500 dark:text-gray-400 text-center">
+              ${promptSub}
+            </p>
+          </div>
+          <div class="preview-container hidden w-full flex flex-col items-center gap-2"></div>
+        `;
+
+        input.parentNode.insertBefore(wrapper, input);
+        wrapper.appendChild(dropzone);
+        input.style.display = 'none';
+        wrapper.appendChild(input);
+
+        dropzone.addEventListener('click', (e) => {
+          if (!e.target.closest('.remove-preview-btn') && !e.target.closest('audio') && !e.target.closest('video')) {
+            input.click();
+          }
+        });
+
+        ['dragenter', 'dragover'].forEach((eventName) => {
+          dropzone.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropzone.classList.add('border-[#C5A880]', 'bg-amber-50/20', 'dark:bg-[#1E2C22]/30');
+          }, false);
+        });
+
+        ['dragleave', 'drop'].forEach((eventName) => {
+          dropzone.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropzone.classList.remove('border-[#C5A880]', 'bg-amber-50/20', 'dark:bg-[#1E2C22]/30');
+          }, false);
+        });
+
+        dropzone.addEventListener('drop', (e) => {
+          const dt = e.dataTransfer;
+          const files = dt.files;
+          if (files && files.length > 0) {
+            input.files = files;
+            renderPreview(files[0]);
+          }
+        });
+
+        input.addEventListener('change', () => {
+          if (input.files && input.files[0]) {
+            renderPreview(input.files[0]);
+          }
+        });
+
+        function renderPreview(file) {
+          const prompt = dropzone.querySelector('.dropzone-prompt');
+          const container = dropzone.querySelector('.preview-container');
+          prompt.classList.add('hidden');
+          container.classList.remove('hidden');
+
+          const isAudio = file.type.startsWith('audio/') || /\.(mp3|wav|ogg|m4a|aac|flac)$/i.test(file.name);
+          const isVideo = file.type.startsWith('video/') || /\.(mp4|webm|ogg|mov)$/i.test(file.name);
+          const fileUrl = URL.createObjectURL(file);
+          const fileSizeKb = (file.size / 1024).toFixed(1);
+          const fileSizeFormatted = fileSizeKb > 1024 ? `${(fileSizeKb / 1024).toFixed(2)} MB` : `${fileSizeKb} KB`;
+
+          let mediaHtml = '';
+          if (isAudio) {
+            mediaHtml = `
+              <div class="w-full max-w-md p-3 bg-white dark:bg-[#1E2C22] rounded-xl border border-gray-200 dark:border-[#2C3E2B] shadow-sm flex flex-col gap-2">
+                <div class="flex items-center gap-2 text-xs font-bold text-emerald-700 dark:text-emerald-400">
+                  <span>🎵</span> Preescucha de Audio Bioacústico
+                </div>
+                <audio src="${fileUrl}" controls class="w-full h-10"></audio>
+              </div>
+            `;
+          } else if (isVideo) {
+            mediaHtml = `
+              <video src="${fileUrl}" controls class="max-h-48 max-w-full rounded-xl border border-gray-200 dark:border-[#2C3E2B] shadow-sm"></video>
+            `;
+          } else {
+            mediaHtml = `
+              <img src="${fileUrl}" alt="Preview" class="max-h-48 max-w-full object-contain rounded-xl border border-gray-200 dark:border-[#2C3E2B] shadow-sm" />
+            `;
+          }
+
+          container.innerHTML = `
+            <div class="relative group/preview w-full flex flex-col items-center">
+              ${mediaHtml}
+              <div class="mt-2 flex items-center justify-between w-full max-w-md px-3 py-1.5 bg-white dark:bg-[#1E2C22] rounded-xl border border-gray-200 dark:border-[#2C3E2B] text-xs">
+                <div class="truncate max-w-[220px]">
+                  <span class="font-bold text-gray-800 dark:text-gray-200 truncate block">${file.name}</span>
+                  <span class="text-[10px] text-gray-500 block">Tamaño: ${fileSizeFormatted}</span>
+                </div>
+                <button type="button" class="remove-preview-btn px-2.5 py-1 bg-red-100 dark:bg-red-950 text-red-600 dark:text-red-300 hover:bg-red-200 rounded-lg text-[11px] font-bold transition-colors">
+                  Quitar
+                </button>
+              </div>
+            </div>
+          `;
+
+          const removeBtn = container.querySelector('.remove-preview-btn');
+          removeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            input.value = '';
+            container.innerHTML = '';
+            container.classList.add('hidden');
+            prompt.classList.remove('hidden');
+          });
+        }
+
+        const form = input.closest('form');
+        if (form) {
+          if (isAudioInput) {
+            const urlInput = form.querySelector('input[name="audioCantoUrl"]');
+            if (urlInput && urlInput.value && urlInput.value.trim() !== '') {
+              const prompt = dropzone.querySelector('.dropzone-prompt');
+              const container = dropzone.querySelector('.preview-container');
+              const val = urlInput.value.trim();
+              prompt.classList.add('hidden');
+              container.classList.remove('hidden');
+              container.innerHTML = `
+                <div class="relative group/preview w-full flex flex-col items-center">
+                  <div class="w-full max-w-md p-3 bg-white dark:bg-[#1E2C22] rounded-xl border border-gray-200 dark:border-[#2C3E2B] shadow-sm flex flex-col gap-2">
+                    <div class="flex items-center gap-2 text-xs font-bold text-emerald-700 dark:text-emerald-400">
+                      <span>🎵</span> Audio Actual Guardado
+                    </div>
+                    <audio src="${val}" controls class="w-full h-10"></audio>
+                  </div>
+                  <div class="mt-2 flex items-center justify-between w-full max-w-md px-3 py-1.5 bg-white dark:bg-[#1E2C22] rounded-xl border border-gray-200 dark:border-[#2C3E2B] text-xs">
+                    <span class="text-[11px] text-gray-600 dark:text-gray-400 truncate">Audio existente</span>
+                    <span class="text-[10px] text-[#C5A880] font-bold">Haz clic en el cuadro para reemplazar</span>
+                  </div>
+                </div>
+              `;
+            }
+          } else {
+            const urlInput = form.querySelector('input[name="imageUrl"], input[name="fotoPrincipal"], input[name="foto_url"]');
+            if (urlInput && urlInput.value && urlInput.value.trim() !== '') {
+              const prompt = dropzone.querySelector('.dropzone-prompt');
+              const container = dropzone.querySelector('.preview-container');
+              const val = urlInput.value.trim();
+              prompt.classList.add('hidden');
+              container.classList.remove('hidden');
+              container.innerHTML = `
+                <div class="relative group/preview w-full flex flex-col items-center">
+                  <img src="${val}" alt="Actual" class="max-h-48 max-w-full object-contain rounded-xl border border-gray-200 dark:border-[#2C3E2B] shadow-sm" onerror="this.style.display='none'" />
+                  <div class="mt-2 flex items-center justify-between w-full max-w-md px-3 py-1.5 bg-white dark:bg-[#1E2C22] rounded-xl border border-gray-200 dark:border-[#2C3E2B] text-xs">
+                    <span class="text-[11px] text-gray-600 dark:text-gray-400 truncate">Imagen actual guardada</span>
+                    <span class="text-[10px] text-[#C5A880] font-bold">Haz clic en el cuadro para reemplazar</span>
+                  </div>
+                </div>
+              `;
+            }
+          }
+        }
+      });
+    });
+  </script>
+</body>
+</html>

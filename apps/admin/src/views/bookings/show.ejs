@@ -1,0 +1,145 @@
+<%- include('../partials/header') %>
+
+<div class="max-w-4xl mx-auto">
+  <div class="flex items-center justify-between mb-6">
+    <div class="flex items-center gap-3">
+      <a href="/admin/bookings" class="text-gray-500 hover:text-gray-700 bg-white p-2 rounded-lg border border-gray-200">
+        ← Volver
+      </a>
+      <div>
+        <h1 class="text-2xl font-bold text-gray-900">Ficha de Reserva: <%= booking.bookingCode %></h1>
+        <span class="text-xs text-gray-500">Registrada el <%= new Date(booking.createdAt).toLocaleString('es-PE') %></span>
+      </div>
+    </div>
+
+    <!-- Formulario para cambiar estado -->
+    <form action="/admin/bookings/<%= booking.id %>/status" method="POST" class="flex items-center gap-2">
+      <select name="status" class="text-xs font-semibold px-3 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+        <option value="PENDIENTE_PAGO" <%= booking.status === 'PENDIENTE_PAGO' ? 'selected' : '' %>>⏳ Pendiente Pago</option>
+        <option value="COMPROBANTE_ENVIADO" <%= booking.status === 'COMPROBANTE_ENVIADO' ? 'selected' : '' %>>📩 Comprobante Enviado</option>
+        <option value="CONFIRMADA" <%= booking.status === 'CONFIRMADA' ? 'selected' : '' %>>✅ Confirmada</option>
+        <option value="CANCELADA" <%= booking.status === 'CANCELADA' ? 'selected' : '' %>>❌ Cancelada</option>
+      </select>
+      <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-3.5 py-2 rounded-lg">
+        Actualizar
+      </button>
+    </form>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <!-- Columna Izquierda: Detalles del Servicio y Pago -->
+    <div class="md:col-span-2 space-y-6">
+      <!-- Tarjeta del Servicio -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-4">
+        <div class="flex justify-between items-start">
+          <div>
+            <span class="text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-amber-100 text-amber-800 inline-block mb-1">
+              <%= booking.serviceType %>
+            </span>
+            <h2 class="text-xl font-bold text-gray-900"><%= booking.serviceTitle %></h2>
+          </div>
+          <div class="text-right">
+            <span class="text-xs text-gray-500 block">Inversión Total</span>
+            <span class="text-2xl font-bold text-gray-900">
+              <%= booking.currency === 'USD' ? '$' : 'S/.' %> <%= Number(booking.totalAmount).toFixed(2) %> <%= booking.currency %>
+            </span>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-4 border-t border-gray-100 text-sm">
+          <div>
+            <span class="text-xs text-gray-500 block">Fecha Programada</span>
+            <strong class="text-gray-900 text-base">
+              <%= new Date(booking.bookingDate).toLocaleDateString('es-PE', { timeZone: 'UTC' }) %>
+            </strong>
+          </div>
+          <div>
+            <span class="text-xs text-gray-500 block">Cantidad Asistentes</span>
+            <strong class="text-gray-900 text-base"><%= booking.guestCount %> personas</strong>
+          </div>
+          <div>
+            <span class="text-xs text-gray-500 block">Precio Unitario</span>
+            <span class="text-gray-700 font-semibold"><%= booking.currency === 'USD' ? '$' : 'S/.' %> <%= Number(booking.unitPrice).toFixed(2) %></span>
+          </div>
+        </div>
+
+        <% if (booking.notes) { %>
+          <div class="bg-gray-50 p-3.5 rounded-lg border border-gray-200 text-xs text-gray-700">
+            <strong class="block text-gray-900 mb-0.5">Notas adicionales:</strong>
+            <%= booking.notes %>
+          </div>
+        <% } %>
+      </div>
+
+      <!-- Lista de Asistentes Registrados -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-4">
+        <h3 class="text-base font-bold text-gray-900 flex items-center justify-between">
+          <span>👥 Lista de Asistentes (<%= booking.guests.length %>)</span>
+        </h3>
+
+        <div class="divide-y divide-gray-100">
+          <% booking.guests.forEach((g, i) => { %>
+            <div class="py-3 flex items-center justify-between text-sm">
+              <div class="flex items-center gap-3">
+                <span class="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs">
+                  <%= i + 1 %>
+                </span>
+                <div>
+                  <strong class="text-gray-900"><%= g.name %></strong>
+                  <% if (g.isPrimary) { %>
+                    <span class="ml-2 text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">Titular</span>
+                  <% } %>
+                </div>
+              </div>
+              <div class="text-xs text-gray-500">
+                <%= g.documentId ? 'Doc: ' + g.documentId : 'Sin documento registrado' %>
+              </div>
+            </div>
+          <% }) %>
+        </div>
+      </div>
+    </div>
+
+    <!-- Columna Derecha: Datos del Titular y Acciones Rápidas -->
+    <div class="space-y-6">
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-4">
+        <h3 class="text-sm font-bold uppercase tracking-wider text-gray-500">Titular del Pago</h3>
+        
+        <div class="space-y-3 text-sm">
+          <div>
+            <span class="text-xs text-gray-500 block">Nombre Completo</span>
+            <strong class="text-gray-900"><%= booking.primaryName %></strong>
+          </div>
+          <div>
+            <span class="text-xs text-gray-500 block">WhatsApp / Teléfono</span>
+            <a href="https://wa.me/<%= booking.primaryPhone.replace(/[^0-9]/g, '') %>" target="_blank" class="text-emerald-700 font-semibold hover:underline flex items-center gap-1">
+              📱 <%= booking.primaryPhone %>
+            </a>
+          </div>
+          <div>
+            <span class="text-xs text-gray-500 block">Correo Electrónico</span>
+            <a href="mailto:<%= booking.primaryEmail %>" class="text-blue-600 hover:underline">
+              ✉️ <%= booking.primaryEmail %>
+            </a>
+          </div>
+          <% if (booking.primaryDoc) { %>
+            <div>
+              <span class="text-xs text-gray-500 block">DNI / Pasaporte</span>
+              <span class="text-gray-700 font-medium"><%= booking.primaryDoc %></span>
+            </div>
+          <% } %>
+        </div>
+
+        <div class="pt-4 border-t border-gray-100">
+          <a href="https://wa.me/<%= booking.primaryPhone.replace(/[^0-9]/g, '') %>?text=<%= encodeURIComponent('¡Hola ' + booking.primaryName + '! Nos comunicamos de Bearded Mountaineer respecto a su reserva ' + booking.bookingCode + ' para el ' + new Date(booking.bookingDate).toLocaleDateString('es-PE') + '.') %>"
+             target="_blank"
+             class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs py-2.5 px-4 rounded-lg flex items-center justify-center gap-2">
+            Contactar por WhatsApp
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<%- include('../partials/footer') %>

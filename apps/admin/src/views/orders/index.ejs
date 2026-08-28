@@ -1,0 +1,43 @@
+<%- include('../partials/header') %>
+
+<div class="max-w-7xl mx-auto">
+  <div class="flex justify-between items-center mb-8">
+    <h1 class="text-3xl font-bold">Pedidos</h1>
+  </div>
+
+  <div class="bg-white rounded-lg shadow overflow-hidden">
+    <table class="w-full">
+      <thead class="bg-gray-50">
+        <tr>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Pago</th>
+          <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">ítems</th>
+          <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Acciones</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-200">
+        <% orders.forEach(order => { %>
+        <tr>
+          <td class="px-6 py-4 text-sm text-gray-600"><%= order.createdAt.toLocaleString() %></td>
+          <td class="px-6 py-4 text-sm font-medium text-gray-900"><%= order.customerName %><br><span class="text-xs text-gray-500"><%= order.customerEmail %></span></td>
+          <td class="px-6 py-4 text-sm text-gray-600">S/. <%= order.total %></td>
+          <td class="px-6 py-4 text-sm"><span class="px-2 py-1 rounded-full text-xs font-medium <%= order.status === 'completed' ? 'bg-green-100 text-green-800' : order.status === 'cancelled' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800' %>"><%= order.status %></span></td>
+          <td class="px-6 py-4 text-sm text-gray-600"><%= order.paymentStatus %></td>
+          <td class="px-6 py-4 text-center text-sm text-gray-600"><%= order.items.length %></td>
+          <td class="px-6 py-4 text-right text-sm space-x-2">
+            <a href="/admin/orders/<%= order.id %>" class="text-blue-600 hover:underline">Ver</a>
+            <form action="/admin/orders/<%= order.id %>/delete" method="POST" class="inline" onsubmit="return confirm('¿Eliminar este pedido?')">
+              <button type="submit" class="text-red-600 hover:underline">Eliminar</button>
+            </form>
+          </td>
+        </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<%- include('../partials/footer') %>

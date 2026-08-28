@@ -1,0 +1,68 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  color-scheme: light;
+  --background: #faf9f6; /* Blanco roto / crema */
+  --foreground: #2c3e2b; /* Verde musgo oscuro */
+
+  --primary: #2c3e2b;
+  --primary-solid: #2c3e2b; /* Relleno sólido de marca (navbar, featured, footer) */
+  --accent: #c5a85a; /* Dorado solar */
+  --secondary: #8fa882; /* Verde claro */
+  --terracotta: #8c6239; /* Terracota */
+
+  --card-bg: #ffffff;
+  --border-color: #e5e3dd;
+}
+
+.dark {
+  /* Paleta nocturna profesional (naturaleza nocturna) */
+  color-scheme: dark;
+  --background: #0b100e; /* Bosque profundo */
+  --foreground: #e4ead9; /* Bruma lunar */
+
+  --primary: #dbe4d1; /* Salvia pálida: texto sobre superficies oscuras */
+  --primary-solid: #1b2a20; /* Verde bosque profundo: rellenos sólidos */
+  --accent: #d3b26a; /* Luna dorada */
+  --secondary: #9db48f; /* Musgo luminoso */
+  --terracotta: #c98d5f; /* Terracota brasa */
+
+  --card-bg: #131a16; /* Tarjeta nocturna */
+  --border-color: #232e27; /* Borde de bosque */
+}
+
+@theme {
+  --color-primary: var(--primary);
+  --color-primary-solid: var(--primary-solid);
+  --color-accent: var(--accent);
+  --color-secondary: var(--secondary);
+  --color-terracotta: var(--terracotta);
+  --color-bg-card: var(--card-bg);
+  --color-border-custom: var(--border-color);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --font-serif: var(--font-serif), serif;
+  --font-sans: var(--font-sans), sans-serif;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}
+
+/* Clases de utilidad para scroll suave y estética general */
+.font-title {
+  font-family: var(--font-serif);
+}
+
+.text-gold {
+  color: var(--accent);
+}
+
+.bg-moss {
+  background-color: var(--primary-solid);
+}

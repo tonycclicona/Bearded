@@ -1,0 +1,332 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Difficulty {
+  FACIL
+  MODERADO
+  DIFICIL
+}
+
+enum PhotographCategory {
+  NATURALEZA
+  AVES
+  PAISAJES
+  OTROS
+}
+
+enum PhotoType {
+  AVES
+  PAISAJE
+}
+
+model HummingbirdPass {
+  id          String   @id @default(cuid())
+  title       String
+  price       Float
+  priceUSD    Float?
+  showPEN     Boolean  @default(true)
+  showUSD     Boolean  @default(false)
+  description String
+  features    String[]
+  featured    Boolean  @default(false)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("hummingbird_passes")
+}
+
+model HummingbirdSpot {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  benefits    String[]
+  imageUrl    String   @default("")
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("hummingbird_spots")
+}
+
+model Route {
+  id          String     @id @default(cuid())
+  title       String
+  difficulty  Difficulty
+  duration    String
+  price       Float
+  priceUSD    Float?
+  showPEN     Boolean    @default(true)
+  showUSD     Boolean    @default(false)
+  description String
+  startPoint  String
+  sortOrder   Int        @default(0)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@map("routes")
+}
+
+model Room {
+  id               String   @id @default(cuid())
+  name             String
+  pricePerNight    Float
+  pricePerNightUSD Float?
+  showPEN          Boolean  @default(true)
+  showUSD          Boolean  @default(false)
+  capacity         Int
+  amenities        String[]
+  imageUrl         String
+  gallery          String[] @default([])
+  featured         Boolean  @default(false)
+  sortOrder        Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@map("rooms")
+}
+
+model LodgeExperience {
+  id          String   @id @default(cuid())
+  title       String
+  price       Float
+  priceUSD    Float?
+  showPEN     Boolean  @default(true)
+  showUSD     Boolean  @default(false)
+  duration    String
+  description String
+  included    String[]
+  imageUrl    String?
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("lodge_experiences")
+}
+
+model PhotoProduct {
+  id          String     @id @default(cuid())
+  title       String
+  slug        String     @unique
+  price       Float
+  priceUSD    Float?
+  showPEN     Boolean    @default(true)
+  showUSD     Boolean    @default(false)
+  description String
+  imageUrl    String
+  species     String?
+  location    String?
+  camera      String?
+  resolution  String?
+  type        PhotoType  @default(AVES)
+  featured    Boolean    @default(false)
+  sortOrder   Int        @default(0)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@map("photo_products")
+}
+
+model PhotoWorkshop {
+  id          String             @id @default(cuid())
+  title       String
+  category    PhotographCategory
+  price       Float
+  priceUSD    Float?
+  showPEN     Boolean            @default(true)
+  showUSD     Boolean            @default(false)
+  duration    String
+  description String
+  included    String[]
+  featured    Boolean            @default(false)
+  sortOrder   Int                @default(0)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@map("photo_workshops")
+}
+
+model Order {
+  id              String      @id @default(cuid())
+  status          String      @default("pending")
+  total           Float
+  customerName    String
+  customerEmail   String
+  customerPhone   String
+  paymentMethod   String      @default("transfer")
+  paymentStatus   String      @default("pending")
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  items           OrderItem[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id        String   @id @default(cuid())
+  productId String
+  quantity  Int
+  price     Float
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id])
+
+  @@map("order_items")
+}
+
+model Booking {
+  id            String         @id @default(cuid())
+  bookingCode   String         @unique
+  serviceType   String         // "LODGE", "EXPERIENCIA", "PASE", "TOUR", "TALLER", "GENERAL"
+  serviceId     String?
+  serviceTitle  String
+  bookingDate   DateTime
+  guestCount    Int            @default(1)
+  unitPrice     Float
+  totalAmount   Float
+  currency      String         @default("PEN") // "PEN" | "USD"
+  status        String         @default("PENDIENTE_PAGO") // "PENDIENTE_PAGO", "COMPROBANTE_ENVIADO", "CONFIRMADA", "CANCELADA"
+  paymentMethod String         @default("YAPE") // "YAPE", "TRANSFERENCIA", "WHATSAPP"
+  primaryName   String
+  primaryEmail  String
+  primaryPhone  String
+  primaryDoc    String?
+  notes         String?
+  guests        BookingGuest[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@map("bookings")
+}
+
+model BookingGuest {
+  id         String   @id @default(cuid())
+  bookingId  String
+  booking    Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  name       String
+  documentId String?
+  isPrimary  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@map("booking_guests")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  password  String
+  role      String   @default("admin")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+// 1. Especies de Colibríes (Catálogo Taxonómico)
+model EspecieColibri {
+  id               Int        @id @default(autoincrement())
+  nombreComun      String
+  nombreCientifico String     @unique
+  familia          String     @default("Trochilidae")
+  estadoIUCN       String     @default("En Peligro (EN)")
+  endemicoPeru     Boolean    @default(false)
+  altitudMinMsnm   Int        @default(1500)
+  altitudMaxMsnm   Int        @default(3200)
+  descripcion      String
+  fotoPrincipal    String
+  galeriaFotos     String?
+  audioCantoUrl    String?
+  hotspots         PuntoGIS[] @relation("EspecieHotspots")
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  @@map("especies_colibries")
+}
+
+// 2. Puntos Geográficos y Hotspots GIS
+model PuntoGIS {
+  id             Int              @id @default(autoincrement())
+  nombre         String
+  slug           String           @unique
+  categoria      String           // HOTSPOT_COMEDERO, OBSERVATORIO_SILVESTRE, ESPECIE_ENDEMICA, CAMPAMENTO_REFUGIO, LOGISTICA_PUNTO_ENCUENTRO
+  departamento   String
+  latitud        Decimal          @db.Decimal(10, 7)
+  longitud       Decimal          @db.Decimal(10, 7)
+  altitudMsnm    Int              @default(2000)
+  mejorTemporada String
+  acceso         String
+  descripcion    String
+  fotoUrl        String?
+  activo         Boolean          @default(true)
+  especies       EspecieColibri[] @relation("EspecieHotspots")
+  toursAsociados Tour[]           @relation("TourHotspots")
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@map("puntos_gis")
+}
+
+// 3. Rutas y Expediciones de Avistamiento (Tours)
+model Tour {
+  id                  Int          @id @default(autoincrement())
+  nombre              String
+  slug                String       @unique
+  descripcion         String
+  itinerario          String?
+  regionRuta          String       // "Ruta Norte", "Ruta Sur Manu", "Ruta Centro"
+  nivelCaminata       String       @default("Fácil / Fotografía")
+  equipoOpticoReq     String?
+  precio_adulto       Decimal      @db.Decimal(10, 2)
+  precio_adulto_usd   Decimal?     @db.Decimal(10, 2)
+  precio_nino         Decimal?     @db.Decimal(10, 2)
+  precio_nino_usd     Decimal?     @db.Decimal(10, 2)
+  showPEN             Boolean      @default(true)
+  showUSD             Boolean      @default(false)
+  duracion_dias       Int
+  cupos_disponibles   Int
+  servicios_incluidos String
+  servicios_excluidos String
+  que_llevar          String
+  activo              Boolean      @default(true)
+  destacado           Boolean      @default(false)
+  hotspots            PuntoGIS[]   @relation("TourHotspots")
+  imagenes            TourImagen[]
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  @@map("tours")
+}
+
+model TourImagen {
+  id        Int      @id @default(autoincrement())
+  tourId    Int
+  url       String
+  esPortada Boolean  @default(false)
+  tour      Tour     @relation(fields: [tourId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@map("tour_imagenes")
+}
+
+// 4. Guías Ornitólogos Especialistas
+model Guia {
+  id           Int      @id @default(autoincrement())
+  nombre       String
+  especialidad String
+  experiencia  String
+  idiomas      String
+  foto         String
+  descripcion  String
+  activo       Boolean  @default(true)
+  orden        Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("guias")
+}

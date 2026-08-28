@@ -1,0 +1,61 @@
+<%- include('../partials/header') %>
+
+<div class="max-w-7xl mx-auto">
+  <div class="flex justify-between items-center mb-8">
+    <div>
+      <h1 class="text-3xl font-bold">Tours & Expediciones Ornitológicas</h1>
+      <p class="text-xs text-gray-500 mt-1">Paquetes guiados para avistamiento de aves y fotografía en Perú</p>
+    </div>
+    <a href="<%= listPath %>/create" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-semibold">+ Nuevo Tour</a>
+  </div>
+
+  <div class="bg-white rounded-lg shadow overflow-hidden">
+    <table class="w-full">
+      <thead class="bg-gray-50">
+        <tr>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nombre</th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Región de Ruta</th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Días</th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dificultad</th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Precio</th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cupos</th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
+          <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Acciones</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-200">
+        <% rows.forEach(row => { %>
+        <tr>
+          <td class="px-6 py-4">
+            <div class="text-sm font-bold text-gray-900"><%= row.nombre %></div>
+            <div class="text-xs text-gray-400 font-mono"><%= row.slug %></div>
+          </td>
+          <td class="px-6 py-4 text-xs font-semibold text-gray-700"><%= row.regionRuta %></td>
+          <td class="px-6 py-4 text-sm text-gray-700"><%= row.duracion_dias %> d</td>
+          <td class="px-6 py-4 text-xs text-gray-600"><%= row.nivelCaminata %></td>
+          <td class="px-6 py-4 text-sm font-bold text-gray-900">S/. <%= Number(row.precio_adulto).toFixed(2) %></td>
+          <td class="px-6 py-4 text-sm text-gray-700"><%= row.cupos_disponibles %></td>
+          <td class="px-6 py-4">
+            <% if (row.destacado) { %>
+            <span class="text-xs text-amber-800 bg-amber-100 font-bold px-2 py-0.5 rounded">⭐ Destacado</span>
+            <% } %>
+            <% if (row.activo) { %>
+            <span class="text-xs text-green-700 bg-green-100 font-semibold px-2 py-0.5 rounded">Activo</span>
+            <% } else { %>
+            <span class="text-xs text-gray-500 bg-gray-100 font-semibold px-2 py-0.5 rounded">Inactivo</span>
+            <% } %>
+          </td>
+          <td class="px-6 py-4 text-right text-sm space-x-2">
+            <a href="<%= listPath %>/<%= row.id %>/edit" class="text-blue-600 hover:underline">Editar</a>
+            <form action="<%= listPath %>/<%= row.id %>/delete" method="POST" class="inline" onsubmit="return confirm('¿Eliminar este tour?')">
+              <button type="submit" class="text-red-600 hover:underline">Eliminar</button>
+            </form>
+          </td>
+        </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<%- include('../partials/footer') %>

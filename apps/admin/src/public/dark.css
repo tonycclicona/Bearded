@@ -1,0 +1,215 @@
+/* ========================================================
+   ANTIGRAVITY ADMIN - ESTILOS GLOBALES Y DARK MODE
+   Estandarizado con la paleta y diseño de la web pública
+   ======================================================== */
+
+:root {
+  --color-primary: #1E2C22;
+  --color-accent: #C5A880;
+  --color-accent-hover: #B39366;
+}
+
+body {
+  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+h1, h2, h3, .font-serif {
+  font-family: 'Playfair Display', Georgia, serif;
+}
+
+/* Estilo unificado para botones principales */
+.btn-primary, .bg-blue-600 {
+  background-color: #1E2C22 !important;
+  color: #ffffff !important;
+  border-radius: 0.75rem !important;
+  transition: all 0.2s ease !important;
+}
+
+.btn-primary:hover, .bg-blue-600:hover {
+  background-color: #C5A880 !important;
+  color: #1E2C22 !important;
+}
+
+.btn-accent {
+  background-color: #C5A880 !important;
+  color: #1E2C22 !important;
+  font-weight: 700 !important;
+  border-radius: 0.75rem !important;
+}
+
+.btn-accent:hover {
+  background-color: #B39366 !important;
+}
+
+/* Tablas y cards estilizadas */
+table thead th {
+  letter-spacing: 0.05em;
+  font-size: 0.7rem !important;
+  font-weight: 700 !important;
+}
+
+tbody tr:hover {
+  background-color: rgba(197, 168, 128, 0.05) !important;
+}
+
+/* Enlaces de edición */
+.text-blue-600 {
+  color: #C5A880 !important;
+  font-weight: 600 !important;
+}
+
+.text-blue-600:hover {
+  color: #1E2C22 !important;
+}
+
+/* ========================================================
+   DARK MODE OVERRIDES
+   ======================================================== */
+
+.dark body {
+  background-color: #0B110D !important;
+  color: #e4ead9 !important;
+}
+
+.dark .bg-white {
+  background-color: #131B15 !important;
+  border-color: #24301f !important;
+}
+
+.dark .bg-gray-50 {
+  background-color: #101712 !important;
+}
+
+.dark .bg-gray-100 {
+  background-color: #0B110D !important;
+}
+
+.dark .bg-gray-200 {
+  background-color: #1c2520 !important;
+}
+
+.dark .bg-gray-800 {
+  background-color: #0B110D !important;
+}
+
+.dark .text-gray-900 {
+  color: #ffffff !important;
+}
+
+.dark .text-gray-700 {
+  color: #cdd6c8 !important;
+}
+
+.dark .text-gray-600 {
+  color: #aab7a4 !important;
+}
+
+.dark .text-gray-500 {
+  color: #8a9783 !important;
+}
+
+.dark .text-gray-400 {
+  color: #7c8a78 !important;
+}
+
+.dark .border-gray-200,
+.dark .border-gray-300,
+.dark .border-gray-700 {
+  border-color: #24301f !important;
+}
+
+.dark .divide-gray-200 > * + * {
+  border-color: #24301f !important;
+}
+
+.dark .btn-primary, .dark .bg-blue-600 {
+  background-color: #C5A880 !important;
+  color: #1E2C22 !important;
+}
+
+.dark .btn-primary:hover, .dark .bg-blue-600:hover {
+  background-color: #ffffff !important;
+  color: #1E2C22 !important;
+}
+
+.dark .text-blue-600 {
+  color: #C5A880 !important;
+}
+
+.dark .text-blue-600:hover {
+  color: #ffffff !important;
+}
+
+.dark input,
+.dark select,
+.dark textarea {
+  background-color: #0E1511 !important;
+  color: #e4ead9 !important;
+  border-color: #24301f !important;
+}
+
+.dark input:focus,
+.dark select:focus,
+.dark textarea:focus {
+  border-color: #C5A880 !important;
+  outline: none !important;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #61705e !important;
+}
+
+/* Badges en Dark Mode */
+.dark .bg-red-100 {
+  background-color: #341b1b !important;
+}
+.dark .text-red-700,
+.dark .text-red-800 {
+  color: #f2a09a !important;
+}
+.dark .text-red-400,
+.dark .text-red-600 {
+  color: #ef8686 !important;
+}
+
+.dark .bg-green-100 {
+  background-color: #1a2e1e !important;
+}
+.dark .text-green-800,
+.dark .text-green-700 {
+  color: #a6d8a8 !important;
+}
+.dark .text-green-600 {
+  color: #7fd48a !important;
+}
+
+.dark .bg-yellow-100,
+.dark .bg-amber-100 {
+  background-color: #33290f !important;
+}
+.dark .text-yellow-800,
+.dark .text-amber-800 {
+  color: #e8cf7f !important;
+}
+
+.dark .bg-blue-100 {
+  background-color: #142838 !important;
+}
+.dark .text-blue-800 {
+  color: #93c5fd !important;
+}
+
+.dark .bg-purple-100 {
+  background-color: #28183c !important;
+}
+.dark .text-purple-800 {
+  color: #d8b4fe !important;
+}
+
+.dark .bg-cyan-100 {
+  background-color: #122b34 !important;
+}
+.dark .text-cyan-800 {
+  color: #67e8f9 !important;
+}

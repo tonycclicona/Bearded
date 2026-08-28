@@ -1,0 +1,1 @@
+export { AppError } from '@antigravity/shared/utils/errors';

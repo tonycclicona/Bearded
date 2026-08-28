@@ -1,0 +1,72 @@
+<%- include('../partials/header') %>
+
+<div class="max-w-7xl mx-auto">
+  <div class="flex justify-between items-center mb-8">
+    <div>
+      <h1 class="text-3xl font-bold">Catálogo Taxonómico de Colibríes</h1>
+      <p class="text-xs text-gray-500 mt-1">Especies de Trochilidae registradas en el Perú con audio de cantos y rango altitudinal</p>
+    </div>
+    <a href="<%= listPath %>/create" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-semibold">+ Nueva Especie</a>
+  </div>
+
+  <div class="bg-white rounded-lg shadow overflow-hidden">
+    <table class="w-full">
+      <thead class="bg-gray-50">
+        <tr>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Foto</th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nombre Común / Científico</th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado IUCN</th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Endémico</th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rango Altitudinal</th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Audio Canto</th>
+          <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Acciones</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-200">
+        <% rows.forEach(row => { %>
+        <tr>
+          <td class="px-6 py-4">
+            <% if (row.fotoPrincipal) { %>
+            <img src="<%= row.fotoPrincipal %>" alt="<%= row.nombreComun %>" class="h-10 w-14 object-cover rounded-md">
+            <% } else { %>
+            <span class="text-xs text-gray-400">—</span>
+            <% } %>
+          </td>
+          <td class="px-6 py-4">
+            <div class="text-sm font-bold text-gray-900"><%= row.nombreComun %></div>
+            <div class="text-xs text-gray-500 italic"><%= row.nombreCientifico %></div>
+          </td>
+          <td class="px-6 py-4">
+            <span class="inline-block text-[11px] font-semibold px-2 py-0.5 rounded-full <%= row.estadoIUCN.includes('EN') || row.estadoIUCN.includes('CR') ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800' %>">
+              <%= row.estadoIUCN %>
+            </span>
+          </td>
+          <td class="px-6 py-4">
+            <% if (row.endemicoPeru) { %>
+            <span class="text-xs text-purple-800 bg-purple-100 font-bold px-2 py-0.5 rounded-full">🇵🇪 Endémico</span>
+            <% } else { %>
+            <span class="text-xs text-gray-400">No</span>
+            <% } %>
+          </td>
+          <td class="px-6 py-4 text-xs text-gray-600"><%= row.altitudMinMsnm %> - <%= row.altitudMaxMsnm %> msnm</td>
+          <td class="px-6 py-4">
+            <% if (row.audioCantoUrl) { %>
+            <span class="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded font-mono">🔊 Audio disponible</span>
+            <% } else { %>
+            <span class="text-xs text-gray-400">—</span>
+            <% } %>
+          </td>
+          <td class="px-6 py-4 text-right text-sm space-x-2">
+            <a href="<%= listPath %>/<%= row.id %>/edit" class="text-blue-600 hover:underline">Editar</a>
+            <form action="<%= listPath %>/<%= row.id %>/delete" method="POST" class="inline" onsubmit="return confirm('¿Eliminar esta especie de colibrí?')">
+              <button type="submit" class="text-red-600 hover:underline">Eliminar</button>
+            </form>
+          </td>
+        </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<%- include('../partials/footer') %>

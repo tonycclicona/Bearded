@@ -1,0 +1,1 @@
+export { AppResponse } from '@antigravity/shared/utils/response';

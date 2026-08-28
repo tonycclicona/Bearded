@@ -1,25 +1,20 @@
-# Dependency directories
+# Dependencies
 node_modules/
+.pnpm-store/
 
-# Next.js build output
+# Build outputs
+dist/
+build/
 .next/
 out/
 
-# Environments
+# Environment files
 .env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
 .env*.local
-
-# OS files
-.DS_Store
-Thumbs.db
-desktop.ini
-
-# Zip files
-*.zip
 
 # IDEs and editors
 .idea/
@@ -29,3 +24,36 @@ desktop.ini
 *.njsproj
 *.sln
 *.sw?
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Testing
+coverage/
+
+# TypeScript
+*.tsbuildinfo
+
+# Prisma (migrations MUST be committed for deploys)
+apps/backend/prisma/*.js
+apps/backend/prisma/*.d.ts
+apps/backend/prisma/*.js.map
+
+# Uploaded media (runtime content)
+apps/admin/uploads/*
+!apps/admin/uploads/.gitkeep
+
+# Misc
+*.zip
+*.tar.gz
+*.tar.bz2
+*.tar.xz

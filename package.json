@@ -1,0 +1,47 @@
+{
+  "name": "antigravity",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:admin\" \"npm run dev:frontend\"",
+    "dev:all": "concurrently \"npm run dev:backend\" \"npm run dev:admin\" \"npm run dev:frontend\" \"node server.js\"",
+    "dev:backend": "npm run dev --workspace=apps/backend",
+    "dev:admin": "npm run dev --workspace=apps/admin",
+    "dev:frontend": "npm run dev --workspace=apps/frontend",
+    "build": "npm run build:shared && npm run build:backend && npm run build:admin && npm run build:frontend",
+    "build:shared": "npm run build --workspace=packages/shared",
+    "build:backend": "npm run build --workspace=apps/backend",
+    "build:admin": "npm run build --workspace=apps/admin",
+    "build:frontend": "npm run build --workspace=apps/frontend",
+    "start": "npm run start:gateway",
+    "start:gateway": "node server.js",
+    "lint": "npm run lint --workspaces",
+    "lint:fix": "npm run lint:fix --workspaces",
+    "typecheck": "npm run typecheck --workspaces",
+    "test": "npm run test --workspaces",
+    "db:migrate": "npm run db:migrate --workspace=apps/backend",
+    "db:push": "npm run db:push --workspace=apps/backend",
+    "db:seed": "npm run db:seed --workspace=apps/backend",
+    "db:studio": "npm run db:studio --workspace=apps/backend",
+    "prisma:generate": "prisma generate --schema=apps/backend/prisma/schema.prisma",
+    "postinstall": "prisma generate --schema=apps/backend/prisma/schema.prisma"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "http-proxy-middleware": "^3.0.3"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "prisma": "^6.19.3",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.67.0"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}
