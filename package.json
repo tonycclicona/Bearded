@@ -29,7 +29,7 @@
     "db:seed": "npm run db:seed --workspace=apps/backend",
     "db:studio": "npm run db:studio --workspace=apps/backend",
     "prisma:generate": "prisma generate --schema=apps/backend/prisma/schema.prisma",
-    "postinstall": "prisma generate --schema=apps/backend/prisma/schema.prisma"
+    "postinstall": "prisma generate --schema=apps/backend/prisma/schema.prisma && node scripts/sync-hostinger.mjs"
   },
   "dependencies": {
     "@types/cors": "^2.8.17",
