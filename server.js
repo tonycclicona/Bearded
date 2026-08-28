@@ -98,31 +98,32 @@ app.use((req, res, next) => {
 });
 
 // 5. Frontend Next.js (Servido desde public_html o apps/frontend/out)
-const staticDir = fs.existsSync(publicHtmlDir) ? publicHtmlDir : frontendOutDir;
+const staticDir = path.resolve(fs.existsSync(publicHtmlDir) ? publicHtmlDir : frontendOutDir);
 
 if (fs.existsSync(staticDir)) {
   console.log(`✅ [Unified Server] Frontend servido desde: ${staticDir}`);
   app.use(express.static(staticDir));
   
   app.use((req, res) => {
-    const directPath = path.join(staticDir, req.path);
+    const directPath = path.resolve(staticDir, '.' + req.path);
     if (fs.existsSync(directPath) && fs.statSync(directPath).isFile()) {
       return res.sendFile(directPath);
     }
 
-    const htmlPath = path.join(staticDir, `${req.path.replace(/\/$/, '')}.html`);
-    if (fs.existsSync(htmlPath)) {
+    const htmlPath = path.resolve(staticDir, `${req.path.replace(/\/$/, '')}.html`);
+    if (fs.existsSync(htmlPath) && fs.statSync(htmlPath).isFile()) {
       return res.sendFile(htmlPath);
     }
 
-    const subIndexPath = path.join(staticDir, req.path, 'index.html');
-    if (fs.existsSync(subIndexPath)) {
+    const subIndexPath = path.resolve(staticDir, '.' + req.path, 'index.html');
+    if (fs.existsSync(subIndexPath) && fs.statSync(subIndexPath).isFile()) {
       return res.sendFile(subIndexPath);
     }
 
-    const mainIndex = path.join(staticDir, 'index.html');
+    const mainIndex = path.resolve(staticDir, 'index.html');
     if (fs.existsSync(mainIndex)) {
-      return res.sendFile(mainIndex);
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      return res.send(fs.readFileSync(mainIndex, 'utf8'));
     }
 
     res.status(404).send('Página no encontrada');

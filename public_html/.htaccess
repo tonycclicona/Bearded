@@ -2,21 +2,21 @@
   RewriteEngine On
   RewriteBase /
 
-  # 1. Servir archivos estáticos reales directamente
-  RewriteCond %{REQUEST_FILENAME} -f [OR]
-  RewriteCond %{REQUEST_FILENAME} -d
-  RewriteRule ^ - [L]
-
-  # 2. Enrutar /api y /admin a la aplicación Node.js
+  # 1. Reenviar subdominio API o prefijo /api al servidor Node.js en hbuilds
   RewriteCond %{HTTP_HOST} ^api\. [NC,OR]
   RewriteCond %{REQUEST_URI} ^/api [NC]
   RewriteRule ^(.*)$ http://127.0.0.1:8080/$1 [P,L]
 
+  # 2. Reenviar subdominio Admin o prefijo /admin al servidor Node.js en hbuilds
   RewriteCond %{HTTP_HOST} ^admin\. [NC,OR]
   RewriteCond %{REQUEST_URI} ^/admin [NC]
   RewriteRule ^(.*)$ http://127.0.0.1:8080/$1 [P,L]
 
-  # 3. Fallback de Next.js SPA
-  RewriteRule ^foto/.*$ /foto/[slug]/index.html [L]
-  RewriteRule ^.*$ /index.html [L]
+  # 3. Servir archivos estáticos reales directamente si existen
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # 4. Enrutar todo el Frontend al servidor Node.js (hbuilds/current/nodejs)
+  RewriteRule ^(.*)$ http://127.0.0.1:8080/$1 [P,L]
 </IfModule>
