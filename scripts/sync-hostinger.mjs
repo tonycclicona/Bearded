@@ -4,27 +4,40 @@ import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const rootDir = path.join(__dirname, '..');
+const rootDir = path.resolve(__dirname, '..');
 
 const frontendOut = path.join(rootDir, 'apps/frontend/out');
 const adminUploads = path.join(rootDir, 'apps/admin/uploads');
 const localPublicHtml = path.join(rootDir, 'public_html');
 
-// Posibles ubicaciones de public_html en Hostinger
-const targetDirs = [localPublicHtml];
+// Recopilar todas las posibles ubicaciones reales de public_html en Hostinger
+const candidatePaths = [
+  localPublicHtml,
+  path.resolve(rootDir, '../public_html'),
+  path.resolve(rootDir, '../../public_html'), // ~/public_html cuando está en ~/hbuilds/last-source
+  path.resolve(rootDir, '../../../public_html')
+];
 
-// Si el repo fue clonado en un subdirectorio (ej: ~/bearded), detectar ~/public_html
-const parentPublicHtml = path.join(rootDir, '..', 'public_html');
-if (fs.existsSync(parentPublicHtml) && parentPublicHtml !== localPublicHtml) {
-  targetDirs.push(parentPublicHtml);
+if (process.env.HOME) {
+  candidatePaths.push(path.resolve(process.env.HOME, 'public_html'));
+  
+  // Buscar en subdominios/dominios de Hostinger
+  const domainsDir = path.resolve(process.env.HOME, 'domains');
+  if (fs.existsSync(domainsDir)) {
+    try {
+      const domains = fs.readdirSync(domainsDir);
+      for (const d of domains) {
+        candidatePaths.push(path.resolve(domainsDir, d, 'public_html'));
+      }
+    } catch (_) {}
+  }
 }
 
-const grandParentPublicHtml = path.join(rootDir, '..', '..', 'public_html');
-if (fs.existsSync(grandParentPublicHtml) && !targetDirs.includes(grandParentPublicHtml)) {
-  targetDirs.push(grandParentPublicHtml);
-}
+// Filtrar rutas únicas
+const targetDirs = Array.from(new Set(candidatePaths));
 
-console.log('📦 [Sync Hostinger] Sincronizando en las siguientes carpetas public_html:', targetDirs);
+console.log('📦 [Sync Hostinger] Sincronizando en las siguientes carpetas objetivo:');
+targetDirs.forEach(d => console.log('   👉 ' + d));
 
 const rootHtaccess = `<IfModule mod_rewrite.c>
   RewriteEngine On
@@ -76,6 +89,7 @@ const apiHtaccess = `<IfModule mod_rewrite.c>
 
 for (const pDir of targetDirs) {
   try {
+    // Si la carpeta existe o es la ruta directa de public_html
     fs.mkdirSync(pDir, { recursive: true });
     const adminDir = path.join(pDir, 'admin');
     const apiDir = path.join(pDir, 'api');
@@ -102,7 +116,7 @@ for (const pDir of targetDirs) {
 
     console.log(`✅ [Sync Hostinger] Sincronizado exitosamente en: ${pDir}`);
   } catch (err) {
-    console.error(`❌ [Sync Hostinger] Error sincronizando en ${pDir}:`, err.message);
+    console.warn(`⚠️ [Sync Hostinger] No se pudo escribir en ${pDir}:`, err.message);
   }
 }
 
