@@ -8,14 +8,14 @@ on:
 
 jobs:
   build-and-deploy:
-    name: Build & Deploy
+    name: Build & Deploy to Hostinger
     runs-on: ubuntu-latest
 
     steps:
       - name: 🔍 Obtener código fuente
         uses: actions/checkout@v4
 
-      - name: 🟢 Configurar Node.js
+      - name: 🟢 Configurar Node.js 22
         uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -24,27 +24,32 @@ jobs:
       - name: 📦 Instalar dependencias
         run: npm ci
 
-      - name: 🛠️ Compilar Shared Package
-        run: npm run build --workspace=packages/shared
+      - name: 🗄️ Generar cliente Prisma ORM
+        run: npm run prisma:generate
 
-      - name: 🛠️ Compilar Backend
-        run: npm run build --workspace=apps/backend
-
-      - name: 🛠️ Compilar Admin
-        run: npm run build --workspace=apps/admin
-
-      - name: 🛠️ Compilar Frontend
-        run: npm run build --workspace=apps/frontend
+      - name: 🛠️ Compilar Monorrepo Completo & Generar public_html
+        run: npm run build
         env:
-          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+          NODE_ENV: production
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL || 'https://api.beardedmountaineerlodge.com/api' }}
+          NEXT_PUBLIC_ADMIN_URL: ${{ secrets.NEXT_PUBLIC_ADMIN_URL || 'https://admin.beardedmountaineerlodge.com' }}
 
-      - name: 🚀 Sincronizar archivos con Hostinger vía FTP
+      - name: 🚀 Sincronizar archivos con Hostinger vía FTP / FTPS
+        if: ${{ env.FTP_SERVER != '' }}
         uses: SamKirkland/FTP-Deploy-Action@v4.4.0
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
         with:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
           port: ${{ secrets.FTP_PORT || 21 }}
-          local-dir: ./dist/
+          local-dir: ./
           server-dir: ${{ secrets.FTP_SERVER_DIR || 'public_html/' }}
           protocol: ${{ secrets.FTP_PROTOCOL || 'ftps' }}
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/node_modules/**
+            .agent/**
+            apps/frontend/src/**
