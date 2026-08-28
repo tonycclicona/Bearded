@@ -1,6 +1,12 @@
 /**
- * Servidor Unificado In-Process & Auto-Sync Engine — BEARDED MOUNTAINEER LODGE
- * Especialmente optimizado para Hostinger (Carpeta única / WebApp única / Git Auto-Deploy)
+ * Servidor Unificado In-Process — BEARDED MOUNTAINEER LODGE
+ * Diseñado para Hostinger (Node.js Web App en puerto único)
+ * 
+ * Funcionalidad:
+ * 1. Frontend: Sirve el export estático (public_html o apps/frontend/out)
+ * 2. Backend REST API: In-process para https://api.beardedmountaineerlodge.com y /api/*
+ * 3. Admin Panel EJS: In-process para https://admin.beardedmountaineerlodge.com y /admin/*
+ * 4. Static Uploads: Servidos directamente en /admin/uploads/* y /uploads/*
  */
 
 import express from 'express';
@@ -17,142 +23,14 @@ process.env.UNIFIED_SERVER = 'true';
 const app = express();
 const PORT = process.env.PORT || process.env.GATEWAY_PORT || 8080;
 
+const publicHtmlDir = path.join(__dirname, 'public_html');
 const frontendOutDir = path.join(__dirname, 'apps/frontend/out');
 const uploadsDir = path.join(__dirname, 'apps/admin/uploads');
 const adminPublicDir = path.join(__dirname, 'apps/admin/public');
-const localPublicHtml = path.join(__dirname, 'public_html');
 
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
-
-// Función de copia recursiva robusta
-function copyDirSync(src, dest) {
-  if (!fs.existsSync(src)) return;
-  fs.mkdirSync(dest, { recursive: true });
-  const entries = fs.readdirSync(src, { withFileTypes: true });
-  for (const entry of entries) {
-    const srcPath = path.join(src, entry.name);
-    const destPath = path.join(dest, entry.name);
-    try {
-      if (entry.isDirectory()) {
-        copyDirSync(srcPath, destPath);
-      } else {
-        fs.copyFileSync(srcPath, destPath);
-      }
-    } catch (_) {}
-  }
-}
-
-const rootHtaccess = `<IfModule mod_rewrite.c>
-  RewriteEngine On
-  RewriteBase /
-
-  # 1. Servir archivos estáticos reales directamente
-  RewriteCond %{REQUEST_FILENAME} -f [OR]
-  RewriteCond %{REQUEST_FILENAME} -d
-  RewriteRule ^ - [L]
-
-  # 2. Enrutar /api y /admin a la aplicación Node.js
-  RewriteCond %{HTTP_HOST} ^api\\. [NC,OR]
-  RewriteCond %{REQUEST_URI} ^/api [NC]
-  RewriteRule ^(.*)$ http://127.0.0.1:8080/$1 [P,L]
-
-  RewriteCond %{HTTP_HOST} ^admin\\. [NC,OR]
-  RewriteCond %{REQUEST_URI} ^/admin [NC]
-  RewriteRule ^(.*)$ http://127.0.0.1:8080/$1 [P,L]
-
-  # 3. Fallback de Next.js SPA
-  RewriteRule ^foto/.*$ /foto/[slug]/index.html [L]
-  RewriteRule ^.*$ /index.html [L]
-</IfModule>
-`;
-
-const adminHtaccess = `<IfModule mod_rewrite.c>
-  RewriteEngine On
-  RewriteBase /
-
-  RewriteCond %{REQUEST_FILENAME} -f [OR]
-  RewriteCond %{REQUEST_FILENAME} -d
-  RewriteRule ^ - [L]
-
-  RewriteRule ^(.*)$ http://127.0.0.1:8080/admin/$1 [P,L]
-</IfModule>
-`;
-
-const apiHtaccess = `<IfModule mod_rewrite.c>
-  RewriteEngine On
-  RewriteBase /
-
-  RewriteCond %{REQUEST_FILENAME} -f [OR]
-  RewriteCond %{REQUEST_FILENAME} -d
-  RewriteRule ^ - [L]
-
-  RewriteRule ^(.*)$ http://127.0.0.1:8080/api/$1 [P,L]
-</IfModule>
-`;
-
-// Función de Auto-Sincronización que restaura public_html permanentemente al arrancar
-function syncToPublicHtml() {
-  const candidatePaths = [
-    localPublicHtml,
-    path.resolve(__dirname, '../../public_html'), // ~/public_html desde ~/hbuilds/last-source
-    path.resolve(__dirname, '../../../public_html'),
-    path.resolve(__dirname, '../public_html')
-  ];
-
-  if (process.env.HOME) {
-    candidatePaths.push(path.resolve(process.env.HOME, 'public_html'));
-    const domainsDir = path.resolve(process.env.HOME, 'domains');
-    if (fs.existsSync(domainsDir)) {
-      try {
-        const domains = fs.readdirSync(domainsDir);
-        for (const d of domains) {
-          candidatePaths.push(path.resolve(domainsDir, d, 'public_html'));
-        }
-      } catch (_) {}
-    }
-  }
-
-  if (process.env.USER) {
-    candidatePaths.push(`/home/${process.env.USER}/public_html`);
-  }
-  candidatePaths.push('/home/u251936581/public_html');
-
-  const targetDirs = Array.from(new Set(candidatePaths));
-
-  for (const dest of targetDirs) {
-    try {
-      fs.mkdirSync(dest, { recursive: true });
-
-      if (fs.existsSync(frontendOutDir)) {
-        copyDirSync(frontendOutDir, dest);
-      }
-      if (fs.existsSync(localPublicHtml) && dest !== localPublicHtml) {
-        copyDirSync(localPublicHtml, dest);
-      }
-
-      const adminDir = path.join(dest, 'admin');
-      const apiDir = path.join(dest, 'api');
-      const upDir = path.join(dest, 'uploads');
-
-      fs.mkdirSync(adminDir, { recursive: true });
-      fs.mkdirSync(apiDir, { recursive: true });
-      fs.mkdirSync(upDir, { recursive: true });
-
-      if (fs.existsSync(uploadsDir)) {
-        copyDirSync(uploadsDir, upDir);
-      }
-
-      fs.writeFileSync(path.join(dest, '.htaccess'), rootHtaccess, 'utf8');
-      fs.writeFileSync(path.join(adminDir, '.htaccess'), adminHtaccess, 'utf8');
-      fs.writeFileSync(path.join(apiDir, '.htaccess'), apiHtaccess, 'utf8');
-    } catch (_) {}
-  }
-}
-
-// Ejecutar sincronización al iniciar el servidor
-syncToPublicHtml();
 
 // 1. Archivos estáticos globales (Uploads e Iconos)
 app.use('/admin/uploads', express.static(uploadsDir));
@@ -171,15 +49,9 @@ app.get('/gateway-health', (_req, res) => {
       admin: 'https://admin.beardedmountaineerlodge.com',
       api: 'https://api.beardedmountaineerlodge.com'
     },
-    frontendExportExists: fs.existsSync(frontendOutDir),
+    publicHtmlExists: fs.existsSync(publicHtmlDir),
     uploadsDirExists: fs.existsSync(uploadsDir)
   });
-});
-
-// Endpoint especial para forzar re-sincronización de public_html
-app.get('/sync-public', (_req, res) => {
-  syncToPublicHtml();
-  res.json({ status: 'ok', message: 'public_html sincronizado con éxito' });
 });
 
 // 3. Cargar dinámicamente Backend y Admin in-process
@@ -225,30 +97,30 @@ app.use((req, res, next) => {
   next();
 });
 
-// 5. Frontend Next.js (Servido directamente desde apps/frontend/out o public_html)
-const sourceStaticDir = fs.existsSync(frontendOutDir) ? frontendOutDir : localPublicHtml;
+// 5. Frontend Next.js (Servido desde public_html o apps/frontend/out)
+const staticDir = fs.existsSync(publicHtmlDir) ? publicHtmlDir : frontendOutDir;
 
-if (fs.existsSync(sourceStaticDir)) {
-  console.log(`✅ [Unified Server] Frontend montado desde: ${sourceStaticDir}`);
-  app.use(express.static(sourceStaticDir));
+if (fs.existsSync(staticDir)) {
+  console.log(`✅ [Unified Server] Frontend servido desde: ${staticDir}`);
+  app.use(express.static(staticDir));
   
   app.get('*', (req, res) => {
-    const directPath = path.join(sourceStaticDir, req.path);
+    const directPath = path.join(staticDir, req.path);
     if (fs.existsSync(directPath) && fs.statSync(directPath).isFile()) {
       return res.sendFile(directPath);
     }
 
-    const htmlPath = path.join(sourceStaticDir, `${req.path.replace(/\/$/, '')}.html`);
+    const htmlPath = path.join(staticDir, `${req.path.replace(/\/$/, '')}.html`);
     if (fs.existsSync(htmlPath)) {
       return res.sendFile(htmlPath);
     }
 
-    const subIndexPath = path.join(sourceStaticDir, req.path, 'index.html');
+    const subIndexPath = path.join(staticDir, req.path, 'index.html');
     if (fs.existsSync(subIndexPath)) {
       return res.sendFile(subIndexPath);
     }
 
-    const mainIndex = path.join(sourceStaticDir, 'index.html');
+    const mainIndex = path.join(staticDir, 'index.html');
     if (fs.existsSync(mainIndex)) {
       return res.sendFile(mainIndex);
     }
@@ -257,7 +129,7 @@ if (fs.existsSync(sourceStaticDir)) {
   });
 } else {
   app.get('*', (_req, res) => {
-    res.status(503).send('<h3>Plataforma en mantenimiento... Ejecute npm run build en Hostinger.</h3>');
+    res.status(503).send('<h3>Plataforma en mantenimiento... Ejecute npm run build.</h3>');
   });
 }
 
