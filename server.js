@@ -62,6 +62,73 @@ if (!fs.existsSync(uploadsDir)) {
 console.log('> [Server] Frontend dir:', frontendDir);
 console.log('> [Server] Uploads dir:', uploadsDir);
 
+// Función de copia recursiva robusta
+function copyDirRecursive(src, dest) {
+  if (!fs.existsSync(src)) return;
+  fs.mkdirSync(dest, { recursive: true });
+  const entries = fs.readdirSync(src, { withFileTypes: true });
+  for (const entry of entries) {
+    const srcPath = path.join(src, entry.name);
+    const destPath = path.join(dest, entry.name);
+    try {
+      if (entry.isDirectory()) {
+        copyDirRecursive(srcPath, destPath);
+      } else {
+        fs.copyFileSync(srcPath, destPath);
+      }
+    } catch (_) {}
+  }
+}
+
+const rootHtaccess = `<IfModule mod_mime.c>
+  AddType text/css .css
+  AddType application/javascript .js .mjs
+  AddType application/json .json
+  AddType font/woff2 .woff2
+  AddType font/woff .woff
+  AddType font/ttf .ttf
+  AddType image/svg+xml .svg
+  AddType image/webp .webp
+  AddType image/png .png
+  AddType image/jpeg .jpg .jpeg
+</IfModule>
+
+<IfModule mod_headers.c>
+  <FilesMatch "\\.(js|mjs|css|woff2|woff|ttf|svg|webp|png|jpg|jpeg|ico|json)$">
+    Header set Access-Control-Allow-Origin "*"
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+</IfModule>
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # 1. API Subdomain / Rutas -> Reenviar a Node.js
+  RewriteCond %{HTTP_HOST} ^api\\. [NC,OR]
+  RewriteCond %{REQUEST_URI} ^/api [NC]
+  RewriteRule ^(.*)$ http://127.0.0.1:8080/$1 [P,L]
+
+  # 2. Admin Subdomain / Rutas -> Reenviar a Node.js
+  RewriteCond %{HTTP_HOST} ^admin\\. [NC,OR]
+  RewriteCond %{REQUEST_URI} ^/admin [NC]
+  RewriteRule ^(.*)$ http://127.0.0.1:8080/$1 [P,L]
+
+  # 3. Acceso directo a _next/ y uploads/ (NUNCA REESCRIBIR A index.html)
+  RewriteRule ^_next/ - [L]
+  RewriteRule ^uploads/ - [L]
+
+  # 4. Servir archivos estáticos reales directamente si existen
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # 5. Fallback de Next.js SPA
+  RewriteRule ^foto/.*$ /foto/[slug]/index.html [L]
+  RewriteRule ^.*$ /index.html [L]
+</IfModule>
+`;
+
 // ── Sincronizar frontend a public_html en tiempo de ejecución ─────────────────
 try {
   const pubTargets = [
@@ -69,10 +136,21 @@ try {
     '/home/u251936581/domains/beardedmountaineerlodge.com/public_html',
     '/home/u251936581/public_html'
   ];
-  pubTargets.forEach(target => {
-    if (fs.existsSync(target) && fs.existsSync(frontendDir) && target !== frontendDir) {
-      fs.cpSync(frontendDir, target, { recursive: true });
-      console.log('> [Server] Synchronized frontend files to:', target);
+  if (process.env.HOME) {
+    pubTargets.push(path.resolve(process.env.HOME, 'public_html'));
+    pubTargets.push(path.resolve(process.env.HOME, 'domains/beardedmountaineerlodge.com/public_html'));
+  }
+  const uniqueTargets = Array.from(new Set(pubTargets));
+
+  uniqueTargets.forEach(target => {
+    if (frontendDir && target !== frontendDir) {
+      try {
+        copyDirRecursive(frontendDir, target);
+        fs.writeFileSync(path.join(target, '.htaccess'), rootHtaccess, 'utf8');
+        console.log('> [Server] Synchronized frontend & .htaccess to:', target);
+      } catch (err) {
+        console.error('> [Server] Warning syncing to', target, err.message);
+      }
     }
   });
 } catch (e) {
