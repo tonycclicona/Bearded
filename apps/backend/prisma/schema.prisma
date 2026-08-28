@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -32,8 +32,8 @@ model HummingbirdPass {
   priceUSD    Float?
   showPEN     Boolean  @default(true)
   showUSD     Boolean  @default(false)
-  description String
-  features    String[]
+  description String   @db.Text
+  features    Json
   featured    Boolean  @default(false)
   sortOrder   Int      @default(0)
   createdAt   DateTime @default(now())
@@ -45,8 +45,8 @@ model HummingbirdPass {
 model HummingbirdSpot {
   id          String   @id @default(cuid())
   title       String
-  description String
-  benefits    String[]
+  description String   @db.Text
+  benefits    Json
   imageUrl    String   @default("")
   sortOrder   Int      @default(0)
   createdAt   DateTime @default(now())
@@ -64,7 +64,7 @@ model Route {
   priceUSD    Float?
   showPEN     Boolean    @default(true)
   showUSD     Boolean    @default(false)
-  description String
+  description String     @db.Text
   startPoint  String
   sortOrder   Int        @default(0)
   createdAt   DateTime   @default(now())
@@ -81,9 +81,9 @@ model Room {
   showPEN          Boolean  @default(true)
   showUSD          Boolean  @default(false)
   capacity         Int
-  amenities        String[]
+  amenities        Json
   imageUrl         String
-  gallery          String[] @default([])
+  gallery          Json
   featured         Boolean  @default(false)
   sortOrder        Int      @default(0)
   createdAt        DateTime @default(now())
@@ -100,8 +100,8 @@ model LodgeExperience {
   showPEN     Boolean  @default(true)
   showUSD     Boolean  @default(false)
   duration    String
-  description String
-  included    String[]
+  description String   @db.Text
+  included    Json
   imageUrl    String?
   sortOrder   Int      @default(0)
   createdAt   DateTime @default(now())
@@ -118,7 +118,7 @@ model PhotoProduct {
   priceUSD    Float?
   showPEN     Boolean    @default(true)
   showUSD     Boolean    @default(false)
-  description String
+  description String     @db.Text
   imageUrl    String
   species     String?
   location    String?
@@ -142,8 +142,8 @@ model PhotoWorkshop {
   showPEN     Boolean            @default(true)
   showUSD     Boolean            @default(false)
   duration    String
-  description String
-  included    String[]
+  description String             @db.Text
+  included    Json
   featured    Boolean            @default(false)
   sortOrder   Int                @default(0)
   createdAt   DateTime           @default(now())
@@ -196,7 +196,7 @@ model Booking {
   primaryEmail  String
   primaryPhone  String
   primaryDoc    String?
-  notes         String?
+  notes         String?        @db.Text
   guests        BookingGuest[]
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
@@ -238,9 +238,9 @@ model EspecieColibri {
   endemicoPeru     Boolean    @default(false)
   altitudMinMsnm   Int        @default(1500)
   altitudMaxMsnm   Int        @default(3200)
-  descripcion      String
+  descripcion      String     @db.Text
   fotoPrincipal    String
-  galeriaFotos     String?
+  galeriaFotos     String?    @db.Text
   audioCantoUrl    String?
   hotspots         PuntoGIS[] @relation("EspecieHotspots")
   createdAt        DateTime   @default(now())
@@ -260,8 +260,8 @@ model PuntoGIS {
   longitud       Decimal          @db.Decimal(10, 7)
   altitudMsnm    Int              @default(2000)
   mejorTemporada String
-  acceso         String
-  descripcion    String
+  acceso         String           @db.Text
+  descripcion    String           @db.Text
   fotoUrl        String?
   activo         Boolean          @default(true)
   especies       EspecieColibri[] @relation("EspecieHotspots")
@@ -277,8 +277,8 @@ model Tour {
   id                  Int          @id @default(autoincrement())
   nombre              String
   slug                String       @unique
-  descripcion         String
-  itinerario          String?
+  descripcion         String       @db.Text
+  itinerario          String?      @db.Text
   regionRuta          String       // "Ruta Norte", "Ruta Sur Manu", "Ruta Centro"
   nivelCaminata       String       @default("Fácil / Fotografía")
   equipoOpticoReq     String?
@@ -290,9 +290,9 @@ model Tour {
   showUSD             Boolean      @default(false)
   duracion_dias       Int
   cupos_disponibles   Int
-  servicios_incluidos String
-  servicios_excluidos String
-  que_llevar          String
+  servicios_incluidos String       @db.Text
+  servicios_excluidos String       @db.Text
+  que_llevar          String       @db.Text
   activo              Boolean      @default(true)
   destacado           Boolean      @default(false)
   hotspots            PuntoGIS[]   @relation("TourHotspots")
@@ -322,7 +322,7 @@ model Guia {
   experiencia  String
   idiomas      String
   foto         String
-  descripcion  String
+  descripcion  String   @db.Text
   activo       Boolean  @default(true)
   orden        Int      @default(0)
   createdAt    DateTime @default(now())
