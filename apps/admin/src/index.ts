@@ -48,11 +48,13 @@ app.use((req, res, next) => {
   next();
 });
 
-// Static files
+// Static files (compatibilidad con /admin/static, /static, /admin/uploads y /uploads)
 app.use('/admin/static', express.static(path.join(__dirname, 'public')));
+app.use('/static', express.static(path.join(__dirname, 'public')));
 app.use('/admin/uploads', express.static(uploadsDir));
+app.use('/uploads', express.static(uploadsDir));
 
-// Routes
+// Routes con prefijo /admin
 app.use('/admin', authRouter);
 app.use('/admin', dashboardRouter);
 app.use('/admin/bookings', bookingsRouter);
@@ -69,8 +71,25 @@ app.use('/admin/photos', photosRouter);
 app.use('/admin/workshops', workshopsRouter);
 app.use('/admin/orders', ordersRouter);
 
-// Redirect root to admin
-app.get('/', (_req, res) => {
+// Routes directas para subdominio admin.beardedmountaineerlodge.com
+app.use('/bookings', bookingsRouter);
+app.use('/puntos-gis', puntosGisRouter);
+app.use('/colibries', colibriesRouter);
+app.use('/tours', toursRouter);
+app.use('/guias', guiasRouter);
+app.use('/passes', passesRouter);
+app.use('/spots', spotsRouter);
+app.use('/routes', routesRouter);
+app.use('/rooms', roomsRouter);
+app.use('/experiences', experiencesRouter);
+app.use('/photos', photosRouter);
+app.use('/workshops', workshopsRouter);
+app.use('/orders', ordersRouter);
+app.use('/', authRouter);
+app.use('/', dashboardRouter);
+
+// Redirect root to dashboard if needed
+app.get('/dashboard', (_req, res) => {
   res.redirect('/admin');
 });
 

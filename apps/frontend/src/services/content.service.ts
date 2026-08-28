@@ -17,8 +17,15 @@ const ADMIN_URL = process.env.NEXT_PUBLIC_ADMIN_URL || 'http://localhost:3002';
 
 export function resolveImageUrl(url: string | null | undefined): string {
   if (!url) return '';
-  if (url.startsWith('/admin/uploads/')) {
-    return `${ADMIN_URL}${url}`;
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:') || url.startsWith('data:')) {
+    return url;
+  }
+  if (url.startsWith('/admin/uploads/') || url.startsWith('/uploads/')) {
+    const cleanPath = url.startsWith('/admin/uploads/') ? url : `/admin${url}`;
+    if (ADMIN_URL && !ADMIN_URL.includes('localhost') && typeof window !== 'undefined') {
+      return `${ADMIN_URL}${cleanPath}`;
+    }
+    return cleanPath;
   }
   return url;
 }

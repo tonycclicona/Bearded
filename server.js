@@ -83,7 +83,18 @@ if (AUTO_START_SERVICES) {
   }
 }
 
-// 2. Health check del Gateway
+// 2. Archivos estáticos y subidas directas desde el Gateway
+const uploadsDir = path.join(__dirname, 'apps/admin/uploads');
+const adminPublicDir = path.join(__dirname, 'apps/admin/public');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+app.use('/admin/uploads', express.static(uploadsDir));
+app.use('/uploads', express.static(uploadsDir));
+app.use('/admin/static', express.static(adminPublicDir));
+app.use('/static', express.static(adminPublicDir));
+
+// 3. Health check del Gateway
 app.get('/gateway-health', (_req, res) => {
   res.json({
     status: 'ok',

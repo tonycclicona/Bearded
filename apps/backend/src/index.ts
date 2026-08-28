@@ -58,23 +58,51 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// Routes
+// Routes (compatibilidad dual: con /api/ y directa para subdominio api.)
 app.use('/api/passes', passesRouter);
+app.use('/passes', passesRouter);
+
 app.use('/api/routes', routesRouter);
+app.use('/routes', routesRouter);
+
 app.use('/api/rooms', roomsRouter);
+app.use('/rooms', roomsRouter);
+
 app.use('/api/experiences', experiencesRouter);
+app.use('/experiences', experiencesRouter);
+
 app.use('/api/photos', photosRouter);
+app.use('/photos', photosRouter);
+
 app.use('/api/workshops', workshopsRouter);
+app.use('/workshops', workshopsRouter);
+
 app.use('/api/hummingbird-spots', spotsRouter);
+app.use('/hummingbird-spots', spotsRouter);
+
 app.use('/api/checkout', checkoutRouter);
+app.use('/checkout', checkoutRouter);
+
 app.use('/api/colibries', colibriesRouter);
+app.use('/colibries', colibriesRouter);
+
 app.use('/api/puntos-gis', puntosGisRouter);
+app.use('/puntos-gis', puntosGisRouter);
+
 app.use('/api/tours', toursRouter);
+app.use('/tours', toursRouter);
+
 app.use('/api/guias', guiasRouter);
+app.use('/guias', guiasRouter);
+
 app.use('/api/bookings', bookingsRouter);
+app.use('/bookings', bookingsRouter);
 
 // Health check
 app.get('/api/health', (_req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
