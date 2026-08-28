@@ -49,26 +49,50 @@ function copyDirSync(src, dest) {
   }
 }
 
-const rootHtaccess = `<IfModule mod_rewrite.c>
+const rootHtaccess = `<IfModule mod_mime.c>
+  AddType text/css .css
+  AddType application/javascript .js .mjs
+  AddType application/json .json
+  AddType font/woff2 .woff2
+  AddType font/woff .woff
+  AddType font/ttf .ttf
+  AddType image/svg+xml .svg
+  AddType image/webp .webp
+  AddType image/png .png
+  AddType image/jpeg .jpg .jpeg
+</IfModule>
+
+<IfModule mod_headers.c>
+  <FilesMatch "\\.(js|mjs|css|woff2|woff|ttf|svg|webp|png|jpg|jpeg|ico|json)$">
+    Header set Access-Control-Allow-Origin "*"
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+</IfModule>
+
+<IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
 
-  # 1. Rutas de la API -> Reenviar a Node.js en puerto 8080
+  # 1. API Subdomain / Rutas -> Reenviar a Node.js
   RewriteCond %{HTTP_HOST} ^api\\. [NC,OR]
   RewriteCond %{REQUEST_URI} ^/api [NC]
   RewriteRule ^(.*)$ http://127.0.0.1:8080/$1 [P,L]
 
-  # 2. Rutas del Admin -> Reenviar a Node.js en puerto 8080
+  # 2. Admin Subdomain / Rutas -> Reenviar a Node.js
   RewriteCond %{HTTP_HOST} ^admin\\. [NC,OR]
   RewriteCond %{REQUEST_URI} ^/admin [NC]
   RewriteRule ^(.*)$ http://127.0.0.1:8080/$1 [P,L]
 
-  # 3. Servir archivos estáticos reales directamente
+  # 3. Acceso directo a _next/ y uploads/ (NUNCA REESCRIBIR A index.html)
+  RewriteRule ^_next/ - [L]
+  RewriteRule ^uploads/ - [L]
+
+  # 4. Servir archivos estáticos reales directamente si existen
   RewriteCond %{REQUEST_FILENAME} -f [OR]
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
 
-  # 4. Fallback de Next.js SPA
+  # 5. Fallback de Next.js SPA
   RewriteRule ^foto/.*$ /foto/[slug]/index.html [L]
   RewriteRule ^.*$ /index.html [L]
 </IfModule>
