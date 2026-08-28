@@ -1,0 +1,13 @@
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # Servir archivos estáticos si existen
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # Fallback a index.html para rutas SPA
+  RewriteRule ^foto/.*$ /foto/[slug]/index.html [L]
+  RewriteRule ^.*$ /index.html [L]
+</IfModule>

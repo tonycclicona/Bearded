@@ -13,7 +13,7 @@
     "dev:backend": "npm run dev --workspace=apps/backend",
     "dev:admin": "npm run dev --workspace=apps/admin",
     "dev:frontend": "npm run dev --workspace=apps/frontend",
-    "build": "npm run build:shared && npm run build:backend && npm run build:admin && npm run build:frontend",
+    "build": "npm run build:shared && npm run build:backend && npm run build:admin && npm run build:frontend && node scripts/sync-hostinger.mjs",
     "build:shared": "npm run build --workspace=packages/shared",
     "build:backend": "npm run build --workspace=apps/backend",
     "build:admin": "npm run build --workspace=apps/admin",

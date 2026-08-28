@@ -93,8 +93,10 @@ app.get('/dashboard', (_req, res) => {
   res.redirect('/admin');
 });
 
-app.listen(PORT, () => {
-  console.log(`Admin panel running on http://localhost:${PORT}/admin`);
-});
+if (process.env.UNIFIED_SERVER !== 'true') {
+  app.listen(PORT, () => {
+    console.log(`Admin panel running on http://localhost:${PORT}/admin`);
+  });
+}
 
 export default app;
