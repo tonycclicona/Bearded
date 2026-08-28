@@ -12,11 +12,9 @@ const frontendPublic = path.join(rootDir, 'apps/frontend/public');
 const adminUploads = path.join(rootDir, 'apps/admin/uploads');
 
 console.log('================================================================');
-console.log('📦 [Sync Hostinger] Sincronización Total de Archivos a public_html');
+console.log('📦 [Sync Hostinger] Sincronización a Raíz del Repositorio y public_html');
 console.log('================================================================');
-console.log('   - Raíz del proyecto:', rootDir);
 
-// Función de copia recursiva robusta que nunca falla
 function copyDirSync(src, dest) {
   if (!fs.existsSync(src)) return;
   fs.mkdirSync(dest, { recursive: true });
@@ -30,45 +28,9 @@ function copyDirSync(src, dest) {
       } else {
         fs.copyFileSync(srcPath, destPath);
       }
-    } catch (e) {
-      console.warn(`      ⚠️ Error copiando ${entry.name}:`, e.message);
-    }
-  }
-}
-
-// 1. Recopilar todos los posibles destinos de public_html en Hostinger
-const candidatePaths = [
-  localPublicHtml,
-  path.resolve(rootDir, '../../public_html'), // ~/public_html desde ~/hbuilds/last-source
-  path.resolve(rootDir, '../../../public_html'),
-  path.resolve(rootDir, '../public_html')
-];
-
-if (process.env.HOME) {
-  candidatePaths.push(path.resolve(process.env.HOME, 'public_html'));
-  
-  // Buscar en dominios de Hostinger
-  const domainsDir = path.resolve(process.env.HOME, 'domains');
-  if (fs.existsSync(domainsDir)) {
-    try {
-      const domains = fs.readdirSync(domainsDir);
-      for (const d of domains) {
-        candidatePaths.push(path.resolve(domainsDir, d, 'public_html'));
-      }
     } catch (_) {}
   }
 }
-
-if (process.env.USER) {
-  candidatePaths.push(`/home/${process.env.USER}/public_html`);
-}
-candidatePaths.push('/home/u251936581/public_html');
-
-// Deduplicar
-const targetDirs = Array.from(new Set(candidatePaths));
-
-console.log('🎯 Directorios public_html detectados:');
-targetDirs.forEach(d => console.log('   👉 ' + d));
 
 const rootHtaccess = `<IfModule mod_rewrite.c>
   RewriteEngine On
@@ -118,26 +80,36 @@ const apiHtaccess = `<IfModule mod_rewrite.c>
 </IfModule>
 `;
 
-for (const dest of targetDirs) {
+// Lista de destinos donde debe residir la estructura web
+const targetDirs = [
+  rootDir,            // Raíz del repositorio (para que el deploy de Hostinger lo copie a public_html)
+  localPublicHtml,    // Subcarpeta public_html
+  path.resolve(rootDir, '../../public_html'), // ~/public_html de Hostinger
+  path.resolve(rootDir, '../public_html')
+];
+
+if (process.env.HOME) {
+  targetDirs.push(path.resolve(process.env.HOME, 'public_html'));
+}
+targetDirs.push('/home/u251936581/public_html');
+
+const uniqueTargets = Array.from(new Set(targetDirs));
+
+for (const dest of uniqueTargets) {
   try {
     fs.mkdirSync(dest, { recursive: true });
 
-    // A. Copiar archivos de frontendOut si existe (build reciente de Next.js)
+    // Copiar desde frontendOut si existe
     if (fs.existsSync(frontendOut)) {
       copyDirSync(frontendOut, dest);
-    }
-
-    // B. Copiar archivos estáticos de localPublicHtml (para asegurar que nada falte)
-    if (fs.existsSync(localPublicHtml) && dest !== localPublicHtml) {
+    } else if (fs.existsSync(localPublicHtml) && dest !== localPublicHtml) {
       copyDirSync(localPublicHtml, dest);
     }
 
-    // C. Copiar archivos de frontend/public (logos, favicon, imágenes)
     if (fs.existsSync(frontendPublic)) {
       copyDirSync(frontendPublic, dest);
     }
 
-    // D. Crear subdirectorios de subdominios
     const adminDir = path.join(dest, 'admin');
     const apiDir = path.join(dest, 'api');
     const uploadsDir = path.join(dest, 'uploads');
@@ -146,25 +118,18 @@ for (const dest of targetDirs) {
     fs.mkdirSync(apiDir, { recursive: true });
     fs.mkdirSync(uploadsDir, { recursive: true });
 
-    // E. Copiar uploads reales
     if (fs.existsSync(adminUploads)) {
       copyDirSync(adminUploads, uploadsDir);
     }
 
-    // F. Escribir .htaccess en todos los niveles
     fs.writeFileSync(path.join(dest, '.htaccess'), rootHtaccess, 'utf8');
     fs.writeFileSync(path.join(adminDir, '.htaccess'), adminHtaccess, 'utf8');
     fs.writeFileSync(path.join(apiDir, '.htaccess'), apiHtaccess, 'utf8');
 
-    console.log(`✅ [Sync Hostinger] Sincronizado exitosamente en: ${dest}`);
-  } catch (err) {
-    console.warn(`⚠️ [Sync Hostinger] No se pudo escribir en ${dest}:`, err.message);
+    console.log(`✅ [Sync Hostinger] Sincronizado en: ${dest}`);
+  } catch (e) {
+    console.warn(`⚠️ [Sync Hostinger] Salto en ${dest}:`, e.message);
   }
 }
 
-// Escribir .htaccess en la raíz del proyecto
-try {
-  fs.writeFileSync(path.join(rootDir, '.htaccess'), rootHtaccess, 'utf8');
-} catch (_) {}
-
-console.log('🏁 [Sync Hostinger] Sincronización finalizada correctamente.\n');
+console.log('🏁 [Sync Hostinger] Sincronización completada.\n');
