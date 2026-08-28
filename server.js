@@ -104,7 +104,7 @@ if (fs.existsSync(staticDir)) {
   console.log(`✅ [Unified Server] Frontend servido desde: ${staticDir}`);
   app.use(express.static(staticDir));
   
-  app.get('*', (req, res) => {
+  app.use((req, res) => {
     const directPath = path.join(staticDir, req.path);
     if (fs.existsSync(directPath) && fs.statSync(directPath).isFile()) {
       return res.sendFile(directPath);
@@ -128,7 +128,7 @@ if (fs.existsSync(staticDir)) {
     res.status(404).send('Página no encontrada');
   });
 } else {
-  app.get('*', (_req, res) => {
+  app.use((_req, res) => {
     res.status(503).send('<h3>Plataforma en mantenimiento... Ejecute npm run build.</h3>');
   });
 }
