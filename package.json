@@ -18,8 +18,7 @@
     "build:backend": "npm run build --workspace=apps/backend",
     "build:admin": "npm run build --workspace=apps/admin",
     "build:frontend": "npm run build --workspace=apps/frontend",
-    "start": "npm run start:gateway",
-    "start:gateway": "node server.js",
+    "start": "node server.js",
     "symlink:hostinger": "node scripts/symlink-hostinger.mjs",
     "lint": "npm run lint --workspaces",
     "lint:fix": "npm run lint:fix --workspaces",
@@ -30,7 +29,7 @@
     "db:seed": "npm run db:seed --workspace=apps/backend",
     "db:studio": "npm run db:studio --workspace=apps/backend",
     "prisma:generate": "prisma generate --schema=apps/backend/prisma/schema.prisma",
-    "postinstall": "prisma generate --schema=apps/backend/prisma/schema.prisma"
+    "postinstall": "node postinstall.cjs"
   },
   "dependencies": {
     "@types/cors": "^2.8.17",
