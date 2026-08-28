@@ -2,11 +2,9 @@
   RewriteEngine On
   RewriteBase /
 
-  # Servir archivos estáticos si existen en api
   RewriteCond %{REQUEST_FILENAME} -f [OR]
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
 
-  # Reenviar todas las peticiones del subdominio api al Gateway Node.js
   RewriteRule ^(.*)$ http://127.0.0.1:8080/api/$1 [P,L]
 </IfModule>

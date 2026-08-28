@@ -8,36 +8,24 @@ const rootDir = path.join(__dirname, '..');
 
 const frontendOut = path.join(rootDir, 'apps/frontend/out');
 const adminUploads = path.join(rootDir, 'apps/admin/uploads');
-const adminPublic = path.join(rootDir, 'apps/admin/public');
-const publicHtml = path.join(rootDir, 'public_html');
+const localPublicHtml = path.join(rootDir, 'public_html');
 
-console.log('📦 [Sync Hostinger] Sincronizando estructura idéntica a producción en public_html/...');
+// Posibles ubicaciones de public_html en Hostinger
+const targetDirs = [localPublicHtml];
 
-// 1. Crear directorios base
-fs.mkdirSync(publicHtml, { recursive: true });
-const adminDir = path.join(publicHtml, 'admin');
-const apiDir = path.join(publicHtml, 'api');
-const uploadsDir = path.join(publicHtml, 'uploads');
-
-fs.mkdirSync(adminDir, { recursive: true });
-fs.mkdirSync(apiDir, { recursive: true });
-fs.mkdirSync(uploadsDir, { recursive: true });
-
-// 2. Copiar build del Frontend estático a public_html/
-if (fs.existsSync(frontendOut)) {
-  fs.cpSync(frontendOut, publicHtml, { recursive: true });
-  console.log('✅ [Sync Hostinger] Frontend estático copiado a public_html/');
-} else {
-  console.warn('⚠️ [Sync Hostinger] apps/frontend/out no encontrado.');
+// Si el repo fue clonado en un subdirectorio (ej: ~/bearded), detectar ~/public_html
+const parentPublicHtml = path.join(rootDir, '..', 'public_html');
+if (fs.existsSync(parentPublicHtml) && parentPublicHtml !== localPublicHtml) {
+  targetDirs.push(parentPublicHtml);
 }
 
-// 3. Sincronizar carpeta uploads
-if (fs.existsSync(adminUploads)) {
-  fs.cpSync(adminUploads, uploadsDir, { recursive: true });
-  console.log('✅ [Sync Hostinger] Carpeta uploads sincronizada en public_html/uploads/');
+const grandParentPublicHtml = path.join(rootDir, '..', '..', 'public_html');
+if (fs.existsSync(grandParentPublicHtml) && !targetDirs.includes(grandParentPublicHtml)) {
+  targetDirs.push(grandParentPublicHtml);
 }
 
-// 4. Generar .htaccess principal (public_html/.htaccess)
+console.log('📦 [Sync Hostinger] Sincronizando en las siguientes carpetas public_html:', targetDirs);
+
 const rootHtaccess = `<IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
@@ -62,48 +50,61 @@ const rootHtaccess = `<IfModule mod_rewrite.c>
 </IfModule>
 `;
 
-fs.writeFileSync(path.join(publicHtml, '.htaccess'), rootHtaccess, 'utf8');
-fs.writeFileSync(path.join(rootDir, '.htaccess'), rootHtaccess, 'utf8');
-
-// 5. Generar .htaccess y placeholder para el subdominio admin (public_html/admin/.htaccess)
 const adminHtaccess = `<IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
 
-  # Servir archivos estáticos si existen en admin
   RewriteCond %{REQUEST_FILENAME} -f [OR]
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
 
-  # Reenviar todas las peticiones del subdominio admin al Gateway Node.js
   RewriteRule ^(.*)$ http://127.0.0.1:8080/admin/$1 [P,L]
 </IfModule>
 `;
-fs.writeFileSync(path.join(adminDir, '.htaccess'), adminHtaccess, 'utf8');
 
-// 6. Generar .htaccess para el subdominio api (public_html/api/.htaccess)
 const apiHtaccess = `<IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
 
-  # Servir archivos estáticos si existen en api
   RewriteCond %{REQUEST_FILENAME} -f [OR]
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
 
-  # Reenviar todas las peticiones del subdominio api al Gateway Node.js
   RewriteRule ^(.*)$ http://127.0.0.1:8080/api/$1 [P,L]
 </IfModule>
 `;
-fs.writeFileSync(path.join(apiDir, '.htaccess'), apiHtaccess, 'utf8');
 
-console.log('✅ [Sync Hostinger] Estructura public_html/ completada exitosamente:');
-console.log('   📁 public_html/404');
-console.log('   📁 public_html/_next');
-console.log('   📁 public_html/_not-found');
-console.log('   📁 public_html/admin (con .htaccess)');
-console.log('   📁 public_html/api   (con .htaccess)');
-console.log('   📁 public_html/uploads');
-console.log('   📄 public_html/.htaccess');
-console.log('   📄 public_html/index.html');
-console.log('   📄 public_html/404.html');
+for (const pDir of targetDirs) {
+  try {
+    fs.mkdirSync(pDir, { recursive: true });
+    const adminDir = path.join(pDir, 'admin');
+    const apiDir = path.join(pDir, 'api');
+    const uploadsDir = path.join(pDir, 'uploads');
+
+    fs.mkdirSync(adminDir, { recursive: true });
+    fs.mkdirSync(apiDir, { recursive: true });
+    fs.mkdirSync(uploadsDir, { recursive: true });
+
+    // Copiar frontend estático
+    if (fs.existsSync(frontendOut)) {
+      fs.cpSync(frontendOut, pDir, { recursive: true });
+    }
+
+    // Copiar uploads
+    if (fs.existsSync(adminUploads)) {
+      fs.cpSync(adminUploads, uploadsDir, { recursive: true });
+    }
+
+    // Escribir archivos .htaccess
+    fs.writeFileSync(path.join(pDir, '.htaccess'), rootHtaccess, 'utf8');
+    fs.writeFileSync(path.join(adminDir, '.htaccess'), adminHtaccess, 'utf8');
+    fs.writeFileSync(path.join(apiDir, '.htaccess'), apiHtaccess, 'utf8');
+
+    console.log(`✅ [Sync Hostinger] Sincronizado exitosamente en: ${pDir}`);
+  } catch (err) {
+    console.error(`❌ [Sync Hostinger] Error sincronizando en ${pDir}:`, err.message);
+  }
+}
+
+// También escribir .htaccess en la raíz del proyecto
+fs.writeFileSync(path.join(rootDir, '.htaccess'), rootHtaccess, 'utf8');

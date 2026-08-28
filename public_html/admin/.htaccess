@@ -2,11 +2,9 @@
   RewriteEngine On
   RewriteBase /
 
-  # Servir archivos estáticos si existen en admin
   RewriteCond %{REQUEST_FILENAME} -f [OR]
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
 
-  # Reenviar todas las peticiones del subdominio admin al Gateway Node.js
   RewriteRule ^(.*)$ http://127.0.0.1:8080/admin/$1 [P,L]
 </IfModule>
