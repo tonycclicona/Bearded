@@ -32,10 +32,16 @@
     "postinstall": "prisma generate --schema=apps/backend/prisma/schema.prisma"
   },
   "dependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.2",
+    "@types/node": "^22.0.0",
     "express": "^5.1.0",
     "http-proxy-middleware": "^3.0.3"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.2",
+    "@types/node": "^22.0.0",
     "concurrently": "^9.1.2",
     "prisma": "^6.19.3",
     "typescript": "^5.7.3",
