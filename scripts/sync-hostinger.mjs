@@ -55,6 +55,14 @@ if (fs.existsSync(adminUploads)) {
   copyDirSync(adminUploads, uploadsDir);
 }
 
+// 4.1 Copiar assets públicos del panel de administración
+const adminPublic = path.join(rootDir, 'apps/admin/public');
+const adminStaticDir = path.join(adminDir, 'static');
+if (fs.existsSync(adminPublic)) {
+  copyDirSync(adminPublic, adminDir);
+  copyDirSync(adminPublic, adminStaticDir);
+}
+
 // 5. Generar reglas .htaccess
 const rootHtaccess = `<IfModule mod_mime.c>
   AddType text/css .css

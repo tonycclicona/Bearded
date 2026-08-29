@@ -7,7 +7,7 @@ const dist = join(root, 'dist');
 mkdirSync(dist, { recursive: true });
 
 for (const dir of ['views', 'public']) {
-  const src = join(root, 'src', dir);
+  const src = existsSync(join(root, 'src', dir)) ? join(root, 'src', dir) : join(root, dir);
   if (existsSync(src)) {
     cpSync(src, join(dist, dir), { recursive: true });
     console.log(`Copied ${dir} -> dist/${dir}`);

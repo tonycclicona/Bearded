@@ -120,6 +120,15 @@ uniqueTargets.forEach(dest => {
         copyDirSync(adminUploads, upDest);
       }
 
+      // 3.1 Copiar assets de admin (CSS, logos, estáticos)
+      const adminPublic = path.resolve(rootDir, 'apps/admin/public');
+      if (fs.existsSync(adminPublic)) {
+        const destAdmin = path.join(dest, 'admin');
+        const destAdminStatic = path.join(dest, 'admin/static');
+        copyDirSync(adminPublic, destAdmin);
+        copyDirSync(adminPublic, destAdminStatic);
+      }
+
       // 4. Escribir .htaccess optimizado
       fs.writeFileSync(path.join(dest, '.htaccess'), rootHtaccess, 'utf8');
       console.log('> [Postinstall] Sincronizado exitosamente en:', dest);
