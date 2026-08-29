@@ -273,6 +273,23 @@ app.use(function(req, res) {
 const port = process.env.PORT || process.env.GATEWAY_PORT || 8080;
 const server = app.listen(port, function() {
   console.log('> [Server] Bearded Mountaineer Lodge corriendo en puerto:', port);
+  try {
+    const portFiles = [
+      path.resolve(__dirname, 'public_html/.node_port'),
+      '/home/u251936581/public_html/.node_port',
+      '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/.node_port',
+      '/tmp/bearded_node_port'
+    ];
+    if (process.env.HOME) {
+      portFiles.push(path.resolve(process.env.HOME, 'public_html/.node_port'));
+    }
+    portFiles.forEach(f => {
+      try {
+        fs.mkdirSync(path.dirname(f), { recursive: true });
+        fs.writeFileSync(f, String(port), 'utf8');
+      } catch (_) {}
+    });
+  } catch (_) {}
 });
 
 server.on('error', function(err) {

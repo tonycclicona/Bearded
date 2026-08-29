@@ -1,10 +1,49 @@
 <?php
 /**
- * PHP Proxy Forwarder para api.beardedmountaineerlodge.com
- * Reenvía todas las peticiones REST al Backend Node.js en puerto 8080
+ * PHP Proxy Forwarder con Detección Automática de Puerto
+ * Subdominio: api.beardedmountaineerlodge.com -> Node.js Backend API
  */
 
-$nodePort = getenv('PORT') ?: 8080;
+function detectNodePort() {
+    $candidates = [];
+    
+    // 1. Archivos de puerto guardados por server.js
+    $portFiles = [
+        __DIR__ . '/../.node_port',
+        '/home/u251936581/public_html/.node_port',
+        '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/.node_port',
+        '/tmp/bearded_node_port'
+    ];
+    foreach ($portFiles as $f) {
+        if (file_exists($f)) {
+            $p = intval(trim(file_get_contents($f)));
+            if ($p > 0) $candidates[] = $p;
+        }
+    }
+
+    if (!empty($_ENV['PORT'])) $candidates[] = intval($_ENV['PORT']);
+    if (getenv('PORT')) $candidates[] = intval(getenv('PORT'));
+    
+    // 2. Puertos estándar de Hostinger WebApps
+    $standardPorts = [8080, 3000, 3001, 3002, 4000, 5000, 8000];
+    foreach ($standardPorts as $sp) {
+        $candidates[] = $sp;
+    }
+
+    $candidates = array_unique($candidates);
+
+    foreach ($candidates as $port) {
+        $fp = @fsockopen('127.0.0.1', $port, $errno, $errstr, 0.2);
+        if ($fp) {
+            fclose($fp);
+            return $port;
+        }
+    }
+
+    return 8080;
+}
+
+$nodePort = detectNodePort();
 $requestUri = $_SERVER['REQUEST_URI'] ?? '/';
 
 if (!str_starts_with($requestUri, '/api')) {
@@ -20,7 +59,7 @@ curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
 curl_setopt($ch, CURLOPT_HEADER, true);
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $_SERVER['REQUEST_METHOD']);
-curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+curl_setopt($ch, CURLOPT_TIMEOUT, 15);
 
 $headers = [];
 foreach (getallheaders() as $key => $val) {
@@ -44,7 +83,10 @@ curl_close($ch);
 if ($response === false) {
     http_response_code(503);
     header('Content-Type: application/json');
-    echo json_encode(['error' => 'API Gateway no disponible. Reinicie Node.js en Hostinger.']);
+    echo json_encode([
+        'error' => 'API Gateway no disponible. Reinicie Node.js en Hostinger.',
+        'checked_port' => $nodePort
+    ]);
     exit;
 }
 
