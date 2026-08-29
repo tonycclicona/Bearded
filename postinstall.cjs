@@ -99,28 +99,33 @@ const rootHtaccess = `<IfModule mod_mime.c>
 `;
 
 uniqueTargets.forEach(dest => {
-  try {
-    fs.mkdirSync(dest, { recursive: true });
-    
-    // Copiar frontend
-    if (fs.existsSync(frontendOut)) {
-      copyDirSync(frontendOut, dest);
-    } else if (fs.existsSync(localPublicHtml) && dest !== localPublicHtml) {
-      copyDirSync(localPublicHtml, dest);
-    }
+  if (dest !== localPublicHtml) {
+    try {
+      fs.mkdirSync(dest, { recursive: true });
+      
+      // 1. Copiar todos los archivos base de public_html (incluye admin/index.php, api/index.php, .htaccess)
+      if (fs.existsSync(localPublicHtml)) {
+        copyDirSync(localPublicHtml, dest);
+      }
 
-    // Copiar uploads
-    if (fs.existsSync(adminUploads)) {
-      const upDest = path.join(dest, 'uploads');
-      fs.mkdirSync(upDest, { recursive: true });
-      copyDirSync(adminUploads, upDest);
-    }
+      // 2. Copiar archivos compilados más recientes de frontendOut
+      if (fs.existsSync(frontendOut)) {
+        copyDirSync(frontendOut, dest);
+      }
 
-    // Escribir .htaccess
-    fs.writeFileSync(path.join(dest, '.htaccess'), rootHtaccess, 'utf8');
-    console.log('> [Postinstall] Sincronizado exitosamente en:', dest);
-  } catch (err) {
-    console.warn('> [Postinstall] Salto en:', dest, err.message);
+      // 3. Copiar uploads de medios
+      if (fs.existsSync(adminUploads)) {
+        const upDest = path.join(dest, 'uploads');
+        fs.mkdirSync(upDest, { recursive: true });
+        copyDirSync(adminUploads, upDest);
+      }
+
+      // 4. Escribir .htaccess optimizado
+      fs.writeFileSync(path.join(dest, '.htaccess'), rootHtaccess, 'utf8');
+      console.log('> [Postinstall] Sincronizado exitosamente en:', dest);
+    } catch (err) {
+      console.warn('> [Postinstall] Salto en:', dest, err.message);
+    }
   }
 });
 

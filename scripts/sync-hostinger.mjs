@@ -56,56 +56,66 @@ if (fs.existsSync(adminUploads)) {
 }
 
 // 5. Generar reglas .htaccess
-const rootHtaccess = `<IfModule mod_rewrite.c>
+const rootHtaccess = `<IfModule mod_mime.c>
+  AddType text/css .css
+  AddType application/javascript .js .mjs
+  AddType application/json .json
+  AddType font/woff2 .woff2
+  AddType font/woff .woff
+  AddType font/ttf .ttf
+  AddType image/svg+xml .svg
+  AddType image/webp .webp
+  AddType image/png .png
+  AddType image/jpeg .jpg .jpeg
+</IfModule>
+
+<IfModule mod_headers.c>
+  <FilesMatch "\\.(js|mjs|css|woff2|woff|ttf|svg|webp|png|jpg|jpeg|ico|json)$">
+    Header set Access-Control-Allow-Origin "*"
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+</IfModule>
+
+<IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
 
-  # 1. Reenviar subdominio API o prefijo /api al servidor Node.js en hbuilds
+  # 1. API Subdomain / Rutas -> Reenviar a Node.js
   RewriteCond %{HTTP_HOST} ^api\\. [NC,OR]
   RewriteCond %{REQUEST_URI} ^/api [NC]
   RewriteRule ^(.*)$ http://127.0.0.1:8080/$1 [P,L]
 
-  # 2. Reenviar subdominio Admin o prefijo /admin al servidor Node.js en hbuilds
+  # 2. Admin Subdomain / Rutas -> Reenviar a Node.js
   RewriteCond %{HTTP_HOST} ^admin\\. [NC,OR]
   RewriteCond %{REQUEST_URI} ^/admin [NC]
   RewriteRule ^(.*)$ http://127.0.0.1:8080/$1 [P,L]
 
-  # 3. Servir archivos estáticos reales directamente si existen
+  # 3. Acceso directo a _next/ y uploads/ (NUNCA REESCRIBIR A index.html)
+  RewriteRule ^_next/ - [L]
+  RewriteRule ^uploads/ - [L]
+
+  # 4. Servir archivos estáticos reales directamente si existen
   RewriteCond %{REQUEST_FILENAME} -f [OR]
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
 
-  # 4. Enrutar todo el Frontend al servidor Node.js (hbuilds/current/nodejs)
-  RewriteRule ^(.*)$ http://127.0.0.1:8080/$1 [P,L]
+  # 5. Fallback de Next.js SPA
+  RewriteRule ^foto/.*$ /foto/[slug]/index.html [L]
+  RewriteRule ^.*$ /index.html [L]
 </IfModule>
 `;
 
-const adminHtaccess = `<IfModule mod_rewrite.c>
+const subHtaccess = `<IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
-
-  RewriteCond %{REQUEST_FILENAME} -f [OR]
-  RewriteCond %{REQUEST_FILENAME} -d
-  RewriteRule ^ - [L]
-
-  RewriteRule ^(.*)$ http://127.0.0.1:8080/admin/$1 [P,L]
-</IfModule>
-`;
-
-const apiHtaccess = `<IfModule mod_rewrite.c>
-  RewriteEngine On
-  RewriteBase /
-
-  RewriteCond %{REQUEST_FILENAME} -f [OR]
-  RewriteCond %{REQUEST_FILENAME} -d
-  RewriteRule ^ - [L]
-
-  RewriteRule ^(.*)$ http://127.0.0.1:8080/api/$1 [P,L]
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule ^ index.php [L]
 </IfModule>
 `;
 
 fs.writeFileSync(path.join(publicHtml, '.htaccess'), rootHtaccess, 'utf8');
-fs.writeFileSync(path.join(adminDir, '.htaccess'), adminHtaccess, 'utf8');
-fs.writeFileSync(path.join(apiDir, '.htaccess'), apiHtaccess, 'utf8');
+fs.writeFileSync(path.join(adminDir, '.htaccess'), subHtaccess, 'utf8');
+fs.writeFileSync(path.join(apiDir, '.htaccess'), subHtaccess, 'utf8');
 
 console.log('✅ [Sync Hostinger] public_html sincronizado de forma limpia y precisa.');
