@@ -19,7 +19,6 @@
     "build:admin": "npm run build --workspace=apps/admin",
     "build:frontend": "npm run build --workspace=apps/frontend",
     "start": "node server.js",
-    "symlink:hostinger": "node scripts/symlink-hostinger.mjs",
     "lint": "npm run lint --workspaces",
     "lint:fix": "npm run lint:fix --workspaces",
     "typecheck": "npm run typecheck --workspaces",
