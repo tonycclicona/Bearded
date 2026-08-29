@@ -150,20 +150,35 @@ app.use(function(req, res) {
   res.status(200).send('<!DOCTYPE html><html><head><title>Bearded Mountaineer Lodge</title></head><body>Bearded Mountaineer Lodge</body></html>');
 });
 
-// ── 8. Inicio del Servidor y Registro de Puerto ─────────────────────────────
-const port = process.env.PORT || process.env.GATEWAY_PORT || 8080;
-const server = app.listen(port, '0.0.0.0', function() {
-  console.log('> [Server] Bearded Mountaineer Lodge activo en puerto:', port);
+// ── 8. Inicio del Servidor con Puertos Predeterminados y Dinámicos ──────────
+const mainPort = process.env.PORT || process.env.GATEWAY_PORT || 8080;
+
+// Puerto principal asignado por Hostinger o 8080
+const mainServer = app.listen(mainPort, '0.0.0.0', function() {
+  console.log('> [Server] Bearded Mountaineer Lodge activo en puerto principal:', mainPort);
   try {
     const portFile = path.resolve(__dirname, 'public_html/.node_port');
     fs.mkdirSync(path.dirname(portFile), { recursive: true });
-    fs.writeFileSync(portFile, String(port), 'utf8');
+    fs.writeFileSync(portFile, String(mainPort), 'utf8');
   } catch (_) {}
 });
 
-server.on('error', function(err) {
+mainServer.on('error', function(err) {
   if (err.code !== 'EADDRINUSE') {
     console.error('> [Server Error]:', err.message);
+  }
+});
+
+// Puertos predeterminados adicionales para comunicación directa e interconexión
+const backupPorts = [3001, 3002, 4000, 3000];
+backupPorts.forEach(function(p) {
+  if (Number(mainPort) !== p) {
+    try {
+      const s = app.listen(p, '0.0.0.0', function() {
+        console.log(`> [Server] Canal predeterminado abierto en puerto: ${p}`);
+      });
+      s.on('error', function() {}); // Silenciar si el puerto ya está en uso
+    } catch (_) {}
   }
 });
 
