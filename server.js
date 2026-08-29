@@ -271,7 +271,7 @@ app.use(function(req, res) {
 
 // ── 6. ESCUCHA DE PUERTO ─────────────────────────────────────────────────────
 const port = process.env.PORT || process.env.GATEWAY_PORT || 8080;
-const server = app.listen(port, function() {
+const server = app.listen(port, '0.0.0.0', function() {
   console.log('> [Server] Bearded Mountaineer Lodge corriendo en puerto:', port);
   try {
     const portFiles = [

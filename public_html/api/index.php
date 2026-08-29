@@ -1,11 +1,11 @@
 <?php
 /**
- * PHP Proxy Forwarder con Detección Automática de Puerto
+ * PHP Proxy Forwarder con Detección Automática de Host y Puerto
  * Subdominio: api.beardedmountaineerlodge.com -> Node.js Backend API
  */
 
-function detectNodePort() {
-    $candidates = [];
+function getWorkingTarget($targetUri) {
+    $ports = [];
     
     // 1. Archivos de puerto guardados por server.js
     $portFiles = [
@@ -17,49 +17,46 @@ function detectNodePort() {
     foreach ($portFiles as $f) {
         if (file_exists($f)) {
             $p = intval(trim(file_get_contents($f)));
-            if ($p > 0) $candidates[] = $p;
+            if ($p > 0) $ports[] = $p;
         }
     }
 
-    if (!empty($_ENV['PORT'])) $candidates[] = intval($_ENV['PORT']);
-    if (getenv('PORT')) $candidates[] = intval(getenv('PORT'));
+    if (!empty($_ENV['PORT'])) $ports[] = intval($_ENV['PORT']);
+    if (getenv('PORT')) $ports[] = intval(getenv('PORT'));
     
-    // 2. Puertos estándar de Hostinger WebApps
-    $standardPorts = [8080, 3000, 3001, 3002, 4000, 5000, 8000];
-    foreach ($standardPorts as $sp) {
-        $candidates[] = $sp;
-    }
+    // Puertos comunes
+    $ports = array_unique(array_merge($ports, [8080, 3000, 3001, 3002, 4000, 5000, 8000]));
+    $hosts = ['127.0.0.1', 'localhost'];
 
-    $candidates = array_unique($candidates);
-
-    foreach ($candidates as $port) {
-        $fp = @fsockopen('127.0.0.1', $port, $errno, $errstr, 0.2);
-        if ($fp) {
-            fclose($fp);
-            return $port;
+    foreach ($ports as $port) {
+        foreach ($hosts as $host) {
+            $fp = @fsockopen($host, $port, $errno, $errstr, 0.2);
+            if ($fp) {
+                fclose($fp);
+                return "http://{$host}:{$port}{$targetUri}";
+            }
         }
     }
 
-    return 8080;
+    return "http://127.0.0.1:8080{$targetUri}";
 }
 
-$nodePort = detectNodePort();
 $requestUri = $_SERVER['REQUEST_URI'] ?? '/';
-
 if (!str_starts_with($requestUri, '/api')) {
     $targetUri = '/api' . $requestUri;
 } else {
     $targetUri = $requestUri;
 }
 
-$targetUrl = "http://127.0.0.1:{$nodePort}" . $targetUri;
+$targetUrl = getWorkingTarget($targetUri);
 
 $ch = curl_init($targetUrl);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
 curl_setopt($ch, CURLOPT_HEADER, true);
 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $_SERVER['REQUEST_METHOD']);
-curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
+curl_setopt($ch, CURLOPT_TIMEOUT, 20);
 
 $headers = [];
 foreach (getallheaders() as $key => $val) {
@@ -85,7 +82,7 @@ if ($response === false) {
     header('Content-Type: application/json');
     echo json_encode([
         'error' => 'API Gateway no disponible. Reinicie Node.js en Hostinger.',
-        'checked_port' => $nodePort
+        'target_attempted' => $targetUrl
     ]);
     exit;
 }
