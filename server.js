@@ -130,32 +130,46 @@ const rootHtaccess = `<IfModule mod_mime.c>
 `;
 
 // ── Sincronizar frontend a public_html en tiempo de ejecución ─────────────────
-try {
-  const pubTargets = [
-    path.resolve(__dirname, 'public_html'),
-    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html',
-    '/home/u251936581/public_html'
-  ];
-  if (process.env.HOME) {
-    pubTargets.push(path.resolve(process.env.HOME, 'public_html'));
-    pubTargets.push(path.resolve(process.env.HOME, 'domains/beardedmountaineerlodge.com/public_html'));
-  }
-  const uniqueTargets = Array.from(new Set(pubTargets));
-
-  uniqueTargets.forEach(target => {
-    if (frontendDir && target !== frontendDir) {
-      try {
-        copyDirRecursive(frontendDir, target);
-        fs.writeFileSync(path.join(target, '.htaccess'), rootHtaccess, 'utf8');
-        console.log('> [Server] Synchronized frontend & .htaccess to:', target);
-      } catch (err) {
-        console.error('> [Server] Warning syncing to', target, err.message);
-      }
+function syncAllToPublic() {
+  try {
+    const pubTargets = [
+      path.resolve(__dirname, 'public_html'),
+      '/home/u251936581/domains/beardedmountaineerlodge.com/public_html',
+      '/home/u251936581/public_html'
+    ];
+    if (process.env.HOME) {
+      pubTargets.push(path.resolve(process.env.HOME, 'public_html'));
+      pubTargets.push(path.resolve(process.env.HOME, 'domains/beardedmountaineerlodge.com/public_html'));
     }
-  });
-} catch (e) {
-  console.error('> [Server] Warning syncing to public_html:', e.message);
+    const uniqueTargets = Array.from(new Set(pubTargets));
+    const localPublic = path.resolve(__dirname, 'public_html');
+
+    uniqueTargets.forEach(target => {
+      if (target !== localPublic) {
+        try {
+          if (fs.existsSync(frontendDir)) {
+            copyDirRecursive(frontendDir, target);
+          }
+          if (fs.existsSync(localPublic)) {
+            copyDirRecursive(localPublic, target);
+          }
+          if (fs.existsSync(uploadsDir)) {
+            copyDirRecursive(uploadsDir, path.join(target, 'uploads'));
+          }
+          fs.writeFileSync(path.join(target, '.htaccess'), rootHtaccess, 'utf8');
+          console.log('> [Server] Synchronized all assets & PHP proxies to:', target);
+        } catch (err) {
+          console.error('> [Server] Warning syncing to', target, err.message);
+        }
+      }
+    });
+  } catch (e) {
+    console.error('> [Server] Warning syncing to public_html:', e.message);
+  }
 }
+
+// Ejecutar sincronización al inicio
+syncAllToPublic();
 
 // ── 1. CARGAR BACKEND API Y ADMIN IN-PROCESS (ASÍNCRONO CON PATH TO FILE URL) ──
 let backendApp = null;
@@ -231,6 +245,11 @@ app.use(function(req, res, next) {
 });
 
 // ── 5. RUTEO DE FRONTEND (DEFAULT) ───────────────────────────────────────────
+app.get('/sync-public', function(req, res) {
+  syncAllToPublic();
+  res.json({ success: true, message: 'public_html sincronizado exitosamente con todos los archivos y proxies' });
+});
+
 if (fs.existsSync(frontendDir)) {
   app.use(express.static(frontendDir, { extensions: ['html'] }));
 }
