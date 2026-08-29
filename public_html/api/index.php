@@ -1,7 +1,7 @@
 <?php
 // ==============================================================================
 // Bearded Mountaineer Lodge API Dynamic Reverse Proxy (LiteSpeed / PHP -> Node.js Gateway)
-// Adaptado del motor probado de Unu-Raymi
+// Adaptado del motor probado de Unu-Raymi con detección dinámica de puerto
 // ==============================================================================
 
 header("Access-Control-Allow-Origin: *");
@@ -19,16 +19,37 @@ if (strpos($requestUri, '/api') !== 0) {
     $requestUri = '/api' . $requestUri;
 }
 
-$targets = [
-    'http://127.0.0.1:8080',
-    'http://127.0.0.1:3001',
-    'http://127.0.0.1:3000',
-    'http://127.0.0.1:4000',
-    'https://beardedmountaineerlodge.com'
+// 1. Detección dinámica de puerto activo
+$detectedTargets = [];
+$portFiles = [
+    __DIR__ . '/../.node_port',
+    '/home/u251936581/public_html/.node_port',
+    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/.node_port',
+    '/tmp/bearded_node_port'
 ];
-$response = false;
-$httpCode = 0;
-$contentType = '';
+foreach ($portFiles as $pf) {
+    if (file_exists($pf)) {
+        $p = intval(trim(file_get_contents($pf)));
+        if ($p > 0) {
+            $detectedTargets[] = "http://127.0.0.1:{$p}";
+            $detectedTargets[] = "http://localhost:{$p}";
+        }
+    }
+}
+if (!empty($_ENV['PORT'])) {
+    $detectedTargets[] = "http://127.0.0.1:" . intval($_ENV['PORT']);
+}
+
+$targets = array_unique(array_merge(
+    $detectedTargets,
+    [
+        'http://127.0.0.1:8080',
+        'http://localhost:8080',
+        'http://127.0.0.1:3001',
+        'http://127.0.0.1:3000',
+        'http://127.0.0.1:4000'
+    ]
+));
 
 $headers = [];
 foreach (getallheaders() as $name => $value) {
@@ -77,16 +98,14 @@ foreach ($targets as $baseTarget) {
     curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
     curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
-    curl_setopt($ch, CURLOPT_ENCODING, ''); // Decodifica gzip/deflate/br automáticamente
-    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+    curl_setopt($ch, CURLOPT_ENCODING, '');
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 2);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 25);
     
     $reqHeaders = $headers;
-    if (strpos($baseTarget, 'beardedmountaineerlodge.com') !== false) {
-        $reqHeaders[] = "Host: beardedmountaineerlodge.com";
-    } else {
-        $reqHeaders[] = "Host: api.beardedmountaineerlodge.com";
-    }
+    $reqHeaders[] = "Host: api.beardedmountaineerlodge.com";
+    $reqHeaders[] = "X-Forwarded-Host: api.beardedmountaineerlodge.com";
+    $reqHeaders[] = "X-Forwarded-Proto: https";
 
     if ($isMultipart) {
         $filteredHeaders = array_filter($reqHeaders, function($h) {
