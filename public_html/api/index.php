@@ -80,6 +80,8 @@ if (!empty($body)) {
 $response = curl_exec($ch);
 $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 $headerSize = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
+$curlErr = curl_error($ch);
+$curlErrNo = curl_errno($ch);
 curl_close($ch);
 
 if ($response === false) {
@@ -87,7 +89,9 @@ if ($response === false) {
     header('Content-Type: application/json');
     echo json_encode([
         'error' => 'API Gateway no disponible. Reinicie Node.js en Hostinger.',
-        'target' => $targetUrl
+        'target' => $targetUrl,
+        'curl_errno' => $curlErrNo,
+        'curl_error' => $curlErr
     ]);
     exit;
 }
