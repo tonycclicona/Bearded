@@ -14,7 +14,11 @@ if (!str_starts_with($requestUri, '/admin')) {
 function getTargetUrl($targetUri) {
     $portFiles = [
         __DIR__ . '/../.node_port',
+        __DIR__ . '/../../.node_port',
         '/home/u251936581/public_html/.node_port',
+        '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/.node_port',
+        '/home/u251936581/hbuilds/current/nodejs/.node_port',
+        '/home/u251936581/hbuilds/current/nodejs/public_html/.node_port',
         '/tmp/bearded_node_port'
     ];
     $ports = [];

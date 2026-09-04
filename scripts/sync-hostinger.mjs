@@ -118,4 +118,26 @@ fs.writeFileSync(path.join(publicHtml, '.htaccess'), rootHtaccess, 'utf8');
 fs.writeFileSync(path.join(adminDir, '.htaccess'), subHtaccess, 'utf8');
 fs.writeFileSync(path.join(apiDir, '.htaccess'), subHtaccess, 'utf8');
 
+// 6. Si estamos en el entorno de Hostinger, sincronizar hacia el public_html raíz de la cuenta
+const candidateTargetPaths = [
+  // Si la app corre en .../hbuilds/current/nodejs/public_html -> ../../../public_html es el public_html raíz
+  path.resolve(rootDir, '../../../public_html'),
+  path.resolve(rootDir, '../../public_html'),
+  path.resolve(rootDir, '../public_html'),
+  '/home/u251936581/public_html',
+  '/home/u251936581/domains/beardedmountaineerlodge.com/public_html'
+];
+
+for (const target of candidateTargetPaths) {
+  try {
+    if (fs.existsSync(target) && path.resolve(target) !== path.resolve(publicHtml)) {
+      console.log(`📡 [Sync Hostinger] Propagando archivos estáticos hacia ${target}...`);
+      copyDirSync(publicHtml, target);
+      console.log(`✅ [Sync Hostinger] Propagado con éxito hacia: ${target}`);
+    }
+  } catch (err) {
+    console.warn(`⚠️ [Sync Hostinger] No se pudo copiar a ${target}:`, err.message);
+  }
+}
+
 console.log('✅ [Sync Hostinger] public_html sincronizado de forma limpia y precisa.');

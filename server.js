@@ -144,9 +144,42 @@ if (fs.existsSync(frontendOutDir)) {
 const PORT = process.env.PORT || process.env.GATEWAY_PORT || 8080;
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`> [Gateway] Servidor Express unificado escuchando en puerto principal: ${PORT}`);
+  
+  // Guardar puerto en todas las rutas posibles para los proxies PHP
+  const portDestinations = [
+    path.resolve(__dirname, '.node_port'),
+    path.resolve(__dirname, 'public_html/.node_port'),
+    path.resolve(__dirname, '../../../public_html/.node_port'),
+    path.resolve(__dirname, '../../public_html/.node_port'),
+    path.resolve(__dirname, '../public_html/.node_port'),
+    '/home/u251936581/public_html/.node_port',
+    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/.node_port',
+    '/tmp/bearded_node_port'
+  ];
+
+  for (const pFile of portDestinations) {
+    try {
+      fs.writeFileSync(pFile, String(PORT), 'utf8');
+    } catch (_) {}
+  }
+
+  // Si estamos en un build de Hostinger (hbuilds/current/nodejs/...), sincronizar public_html hacia la raíz del hosting
   try {
-    fs.writeFileSync(path.resolve(__dirname, '.node_port'), String(PORT), 'utf8');
-    fs.writeFileSync('/tmp/bearded_node_port', String(PORT), 'utf8');
+    const srcPub = path.resolve(__dirname, 'public_html');
+    const rootCandidates = [
+      path.resolve(__dirname, '../../../public_html'),
+      path.resolve(__dirname, '../../public_html'),
+      '/home/u251936581/public_html',
+      '/home/u251936581/domains/beardedmountaineerlodge.com/public_html'
+    ];
+    if (fs.existsSync(srcPub)) {
+      for (const dest of rootCandidates) {
+        if (fs.existsSync(dest) && path.resolve(dest) !== path.resolve(srcPub)) {
+          // Copia no bloqueante
+          fs.cp(srcPub, dest, { recursive: true }, () => {});
+        }
+      }
+    }
   } catch (_) {}
 });
 
