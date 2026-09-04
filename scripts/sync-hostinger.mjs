@@ -120,15 +120,12 @@ fs.writeFileSync(path.join(apiDir, '.htaccess'), subHtaccess, 'utf8');
 
 // 6. Si estamos en el entorno de Hostinger, sincronizar hacia el public_html raíz de la cuenta
 const candidateTargetPaths = [
-  // Si la app corre en .../hbuilds/current/nodejs/public_html -> ../../../public_html es el public_html raíz
-  path.resolve(rootDir, '../../../../public_html'),
   path.resolve(rootDir, '../../../public_html'),
+  path.resolve(rootDir, '../../../../public_html'),
   path.resolve(rootDir, '../../public_html'),
   path.resolve(rootDir, '../public_html'),
   '/home/u251936581/public_html',
-  '/home/u251936581/domains/beardedmountaineerlodge.com/public_html',
-  '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/api',
-  '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/admin'
+  '/home/u251936581/domains/beardedmountaineerlodge.com/public_html'
 ];
 
 for (const target of candidateTargetPaths) {
@@ -136,6 +133,12 @@ for (const target of candidateTargetPaths) {
     if (fs.existsSync(target) && path.resolve(target) !== path.resolve(publicHtml)) {
       console.log(`📡 [Sync Hostinger] Propagando archivos estáticos hacia ${target}...`);
       copyDirSync(publicHtml, target);
+      // Asegurar que archivos clave como .htaccess se copien explícitamente
+      const htaccessSrc = path.join(publicHtml, '.htaccess');
+      const htaccessDest = path.join(target, '.htaccess');
+      if (fs.existsSync(htaccessSrc)) {
+        try { fs.copyFileSync(htaccessSrc, htaccessDest); } catch (_) {}
+      }
       console.log(`✅ [Sync Hostinger] Propagado con éxito hacia: ${target}`);
     }
   } catch (err) {
