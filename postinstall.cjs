@@ -38,7 +38,27 @@ function copyDirSync(src, dest) {
   }
 }
 
-// 3. Localizaciones objetivo de Hostinger donde el servidor web sirve los dominios
+function copyToAllPublicHtml(srcDir, label) {
+  if (!fs.existsSync(srcDir)) return;
+  
+  let current = process.cwd();
+  for (let i = 0; i < 6; i++) {
+    const pubCandidate = path.join(current, 'public_html');
+    if (fs.existsSync(pubCandidate) && pubCandidate !== srcDir) {
+      try {
+        fs.cpSync(srcDir, pubCandidate, { recursive: true });
+        console.log(`[postinstall] ✅ Copied ${label} to: ${pubCandidate}`);
+      } catch (err) {
+        console.error(`Warning: Failed to copy to ${pubCandidate}:`, err.message);
+      }
+    }
+    const parent = path.dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+}
+
+// 3. Localizaciones objetivo de Hostinger
 const targetDestinations = [
   '/home/u251936581/public_html',
   '/home/u251936581/domains/beardedmountaineerlodge.com/public_html'
@@ -46,6 +66,15 @@ const targetDestinations = [
 
 if (process.env.HOME) {
   targetDestinations.push(path.resolve(process.env.HOME, 'public_html'));
+}
+
+// Agregar búsqueda de public_html hacia arriba (Patrón probado de Unu-Raymi)
+let cur = process.cwd();
+for (let i = 0; i < 6; i++) {
+  targetDestinations.push(path.join(cur, 'public_html'));
+  const parent = path.dirname(cur);
+  if (parent === cur) break;
+  cur = parent;
 }
 
 const uniqueDestinations = Array.from(new Set(targetDestinations));
@@ -93,6 +122,14 @@ for (const dest of uniqueDestinations) {
   } catch (err) {
     console.warn(`⚠️ [Postinstall] No se pudo sincronizar en ${dest}:`, err.message);
   }
+}
+
+// 4. Copia directa ascendente a todos los public_html encontrados
+if (fs.existsSync(localPublicHtml)) {
+  copyToAllPublicHtml(localPublicHtml, 'public_html base');
+}
+if (fs.existsSync(frontendOut)) {
+  copyToAllPublicHtml(frontendOut, 'frontend build');
 }
 
 console.log('✅ [Postinstall] Proceso de preparación finalizado.');
