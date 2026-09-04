@@ -35,11 +35,13 @@
     "postinstall": "node postinstall.cjs"
   },
   "dependencies": {
+    "@tailwindcss/postcss": "^4",
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.2",
     "@types/node": "^22.0.0",
     "express": "^5.1.0",
     "http-proxy-middleware": "^3.0.3",
+    "tailwindcss": "^4",
     "typescript": "^5.7.3"
   },
   "devDependencies": {
