@@ -121,11 +121,14 @@ fs.writeFileSync(path.join(apiDir, '.htaccess'), subHtaccess, 'utf8');
 // 6. Si estamos en el entorno de Hostinger, sincronizar hacia el public_html raíz de la cuenta
 const candidateTargetPaths = [
   // Si la app corre en .../hbuilds/current/nodejs/public_html -> ../../../public_html es el public_html raíz
+  path.resolve(rootDir, '../../../../public_html'),
   path.resolve(rootDir, '../../../public_html'),
   path.resolve(rootDir, '../../public_html'),
   path.resolve(rootDir, '../public_html'),
   '/home/u251936581/public_html',
-  '/home/u251936581/domains/beardedmountaineerlodge.com/public_html'
+  '/home/u251936581/domains/beardedmountaineerlodge.com/public_html',
+  '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/api',
+  '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/admin'
 ];
 
 for (const target of candidateTargetPaths) {

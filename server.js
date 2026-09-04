@@ -167,6 +167,7 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   try {
     const srcPub = path.resolve(__dirname, 'public_html');
     const rootCandidates = [
+      path.resolve(__dirname, '../../../../public_html'),
       path.resolve(__dirname, '../../../public_html'),
       path.resolve(__dirname, '../../public_html'),
       '/home/u251936581/public_html',

@@ -15,6 +15,7 @@ function getTargetUrl($targetUri) {
     $portFiles = [
         __DIR__ . '/../.node_port',
         __DIR__ . '/../../.node_port',
+        __DIR__ . '/../../../.node_port',
         '/home/u251936581/public_html/.node_port',
         '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/.node_port',
         '/home/u251936581/hbuilds/current/nodejs/.node_port',
@@ -28,17 +29,23 @@ function getTargetUrl($targetUri) {
             if ($p > 0) $ports[] = $p;
         }
     }
-    $ports = array_unique(array_merge($ports, [8080, 3000, 3001, 3002, 4000]));
+    if (!empty($_ENV['PORT'])) {
+        $ports[] = intval($_ENV['PORT']);
+    }
+    $ports = array_unique(array_merge($ports, [8080, 3001, 3000, 3002, 4000]));
     
-    foreach ($ports as $port) {
-        $fp = @fsockopen('127.0.0.1', $port, $errno, $errstr, 0.1);
-        if ($fp) {
-            fclose($fp);
-            return "http://127.0.0.1:{$port}{$targetUri}";
+    $hosts = ['127.0.0.1', 'localhost'];
+    foreach ($hosts as $host) {
+        foreach ($ports as $port) {
+            $fp = @fsockopen($host, $port, $errno, $errstr, 0.2);
+            if ($fp) {
+                fclose($fp);
+                return "http://{$host}:{$port}{$targetUri}";
+            }
         }
     }
 
-    return "https://beardedmountaineerlodge.com{$targetUri}";
+    return "http://127.0.0.1:8080{$targetUri}";
 }
 
 $targetUrl = getTargetUrl($targetUri);
