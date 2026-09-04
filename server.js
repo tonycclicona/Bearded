@@ -45,6 +45,31 @@ function loadEnv(file) {
 loadEnv(path.resolve(__dirname, '.env.production'));
 loadEnv(path.resolve(__dirname, '.env'));
 
+// ── Sincronizar frontend/out y public_html a la raíz del hosting en tiempo de ejecución (Patrón Unu-Raymi) ──
+try {
+  const localPublic = path.resolve(__dirname, 'public_html');
+  const frontendOut = path.resolve(__dirname, 'apps/frontend/out');
+  const pubTargets = [
+    '/home/u251936581/public_html',
+    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html',
+    process.env.HOME ? path.resolve(process.env.HOME, 'public_html') : null
+  ].filter(Boolean);
+
+  pubTargets.forEach(target => {
+    if (fs.existsSync(target) && target !== localPublic) {
+      if (fs.existsSync(localPublic)) {
+        fs.cpSync(localPublic, target, { recursive: true });
+      }
+      if (fs.existsSync(frontendOut)) {
+        fs.cpSync(frontendOut, target, { recursive: true });
+      }
+      console.log('> [Server] Sincronización exitosa hacia:', target);
+    }
+  });
+} catch (e) {
+  console.warn('> [Server] Advertencia sincronizando webroot:', e.message);
+}
+
 // ── 1. Cargar Aplicaciones Modulares ──────────────────────────────────────────
 let backendApp = null;
 let adminApp = null;
