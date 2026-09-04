@@ -162,26 +162,6 @@ const server = app.listen(PORT, '0.0.0.0', () => {
       fs.writeFileSync(pFile, String(PORT), 'utf8');
     } catch (_) {}
   }
-
-  // Si estamos en un build de Hostinger (hbuilds/current/nodejs/...), sincronizar public_html hacia la raíz del hosting
-  try {
-    const srcPub = path.resolve(__dirname, 'public_html');
-    const rootCandidates = [
-      path.resolve(__dirname, '../../../../public_html'),
-      path.resolve(__dirname, '../../../public_html'),
-      path.resolve(__dirname, '../../public_html'),
-      '/home/u251936581/public_html',
-      '/home/u251936581/domains/beardedmountaineerlodge.com/public_html'
-    ];
-    if (fs.existsSync(srcPub)) {
-      for (const dest of rootCandidates) {
-        if (fs.existsSync(dest) && path.resolve(dest) !== path.resolve(srcPub)) {
-          // Copia no bloqueante
-          fs.cp(srcPub, dest, { recursive: true }, () => {});
-        }
-      }
-    }
-  } catch (_) {}
 });
 
 server.on('error', (err) => {
