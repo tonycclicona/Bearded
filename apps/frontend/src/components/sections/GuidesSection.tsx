@@ -31,6 +31,79 @@ export default function GuidesSection() {
           </p>
         </div>
 
+        {/* MISIÓN Y VISIÓN: AVISTAMIENTO DE AVES Y LODGE */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-20">
+          {/* Misión */}
+          <motion.div
+            initial={{ opacity: 0, y: 25 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5 }}
+            className="bg-bg-card border border-border-custom hover:border-accent/60 rounded-3xl p-8 shadow-sm relative overflow-hidden flex flex-col justify-between group"
+          >
+            <div className="absolute top-0 right-0 w-32 h-32 bg-accent/5 rounded-bl-full pointer-events-none transition-transform group-hover:scale-110" />
+            <div>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 rounded-2xl bg-accent/15 flex items-center justify-center text-accent">
+                  <Compass className="w-6 h-6" />
+                </div>
+                <div>
+                  <span className="text-xs uppercase tracking-widest text-accent font-bold">Propósito & Compromiso</span>
+                  <h3 className="font-serif text-2xl font-bold text-primary">Misión</h3>
+                </div>
+              </div>
+              <p className="text-sm text-primary/80 leading-relaxed mb-6 font-light">
+                Brindar experiencias auténticas y sostenibles de observación de aves y conexión íntima con la naturaleza en los Andes de Cusco, combinando la guía ornitológica de excelencia con un hospedaje de calidez comunitaria, impulsando la conservación activa de hábitats y la valoración del patrimonio biológico andino.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-3 pt-4 border-t border-border-custom/60 text-xs">
+              <div className="bg-background/60 p-3 rounded-xl border border-border-custom/40">
+                <span className="font-semibold text-accent block mb-1">Avistamiento Ético</span>
+                <span className="text-primary/70">Protocolos sin perturbación del hábitat natural.</span>
+              </div>
+              <div className="bg-background/60 p-3 rounded-xl border border-border-custom/40">
+                <span className="font-semibold text-accent block mb-1">Eco-Lodge Sostenible</span>
+                <span className="text-primary/70">Prácticas de bajo impacto y hospitalidad local.</span>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Visión */}
+          <motion.div
+            initial={{ opacity: 0, y: 25 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5, delay: 0.1 }}
+            className="bg-bg-card border border-border-custom hover:border-accent/60 rounded-3xl p-8 shadow-sm relative overflow-hidden flex flex-col justify-between group"
+          >
+            <div className="absolute top-0 right-0 w-32 h-32 bg-secondary/10 rounded-bl-full pointer-events-none transition-transform group-hover:scale-110" />
+            <div>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 rounded-2xl bg-secondary/20 flex items-center justify-center text-secondary">
+                  <Star className="w-6 h-6" />
+                </div>
+                <div>
+                  <span className="text-xs uppercase tracking-widest text-secondary font-bold">Horizonte & Futuro</span>
+                  <h3 className="font-serif text-2xl font-bold text-primary">Visión</h3>
+                </div>
+              </div>
+              <p className="text-sm text-primary/80 leading-relaxed mb-6 font-light">
+                Consolidarnos como el destino y lodge de referencia internacional en el sur del Perú para observadores de aves, fotógrafos de vida silvestre e investigadores, liderando la protección del colibrí <em>Ensifera ensifera</em> y promoviendo un modelo ejemplar de ecoturismo regenerativo que inspire al mundo.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-3 pt-4 border-t border-border-custom/60 text-xs">
+              <div className="bg-background/60 p-3 rounded-xl border border-border-custom/40">
+                <span className="font-semibold text-secondary block mb-1">Referente Global</span>
+                <span className="text-primary/70">Punto clave en rutas ornitológicas de Sudamérica.</span>
+              </div>
+              <div className="bg-background/60 p-3 rounded-xl border border-border-custom/40">
+                <span className="font-semibold text-secondary block mb-1">Impacto Regenerativo</span>
+                <span className="text-primary/70">Santuarios protegidos y educación ambiental.</span>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+
         {/* LISTADO DE GUÍAS */}
         {isLoading ? (
           <div className="flex justify-center items-center h-48">
