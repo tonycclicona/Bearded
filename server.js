@@ -143,14 +143,30 @@ if (fs.existsSync(frontendOutDir)) {
 // ── 5. Iniciar Servidor ───────────────────────────────────────────────────────
 const PORT = process.env.PORT || process.env.GATEWAY_PORT || 8080;
 const server = app.listen(PORT, '0.0.0.0', () => {
-  console.log(`> [Gateway] Servidor Express unificado escuchando en puerto: ${PORT}`);
+  console.log(`> [Gateway] Servidor Express unificado escuchando en puerto principal: ${PORT}`);
   try {
     fs.writeFileSync(path.resolve(__dirname, '.node_port'), String(PORT), 'utf8');
+    fs.writeFileSync('/tmp/bearded_node_port', String(PORT), 'utf8');
   } catch (_) {}
 });
 
 server.on('error', (err) => {
   console.error('> [Gateway Server Error]:', err.message);
 });
+
+// Escuchar también en los puertos convencionales (3001, 3002, 3000, 4000) por si los proxies PHP de Hostinger apuntan allí
+const backupPorts = [3001, 3002, 3000, 4000];
+for (const bPort of backupPorts) {
+  if (Number(bPort) !== Number(PORT)) {
+    try {
+      const bServer = app.listen(bPort, '127.0.0.1', () => {
+        console.log(`> [Gateway] Respaldo activo en puerto local: ${bPort}`);
+      });
+      bServer.on('error', () => {
+        // Puerto ya en uso o no permitido, ignorar silenciosamente
+      });
+    } catch (_) {}
+  }
+}
 
 export default app;
