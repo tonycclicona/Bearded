@@ -187,55 +187,11 @@ foreach ($candidatePorts as $p) {
 if ($response === false) {
     http_response_code(503);
     header('Content-Type: application/json');
-
-    $debugLog = '';
-    $possibleLogFiles = [
-        __DIR__ . '/node_debug.log',
-        __DIR__ . '/../node_debug.log',
-        __DIR__ . '/../../node_debug.log',
-        dirname(__DIR__) . '/node_debug.log',
-        '/home/u251936581/public_html/node_debug.log',
-        '/tmp/bearded_node_debug.log'
-    ];
-    foreach ($possibleLogFiles as $lf) {
-        if (file_exists($lf)) {
-            $content = @file_get_contents($lf);
-            if (!empty($content)) {
-                $lines = explode("\n", trim($content));
-                $debugLog = implode("\n", array_slice($lines, -15));
-                break;
-            }
-        }
-    }
-
-    $hostHeader = $_SERVER['HTTP_HOST'] ?? '';
-    $uriPath = parse_url($uri, PHP_URL_PATH) ?? '';
-
-    // Si se solicita /health directamente
-    if ($uriPath === '/health' || $uriPath === '/api/health' || $uriPath === '/admin/health') {
-        http_response_code(200);
-        header('Content-Type: application/json');
-        echo json_encode([
-            'status' => 'proxy_standby',
-            'message' => 'PHP Gateway activo. Esperando conexión a Node.js en puerto ' . $detectedPort,
-            'time' => date('c'),
-            'host' => $hostHeader,
-            'port_files_found' => array_values(array_filter($possiblePortFiles, 'file_exists'))
-        ]);
-        exit;
-    }
-
     echo json_encode([
         'error' => 'API Gateway no disponible. Verifique que Node.js esté corriendo en Hostinger.',
         'target_port' => $detectedPort,
-        'tried_ports' => array_values($candidatePorts),
-        'curl_error' => $lastError,
-        'node_debug_log' => $debugLog ?: 'Sin registros recientes. Es probable que la aplicación Node.js esté detenida o no iniciada en el panel de Hostinger.',
-        'php_detected_env' => [
-            'cwd' => getcwd(),
-            'script' => __FILE__,
-            'port_files' => array_values(array_filter($possiblePortFiles, 'file_exists'))
-        ]
+        'tried_ports' => $candidatePorts,
+        'curl_error' => $lastError
     ]);
     exit;
 }

@@ -17,7 +17,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     }
 
     if (departamento && typeof departamento === 'string') {
-      where.departamento = { contains: departamento };
+      where.departamento = { contains: departamento, mode: 'insensitive' };
     }
 
     if (piso && typeof piso === 'string') {

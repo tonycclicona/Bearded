@@ -32,23 +32,29 @@ export function resolveImageUrl(url: string | null | undefined): string {
 
 export const resolveAudioUrl = resolveImageUrl;
 
-async function fetchApi<T>(endpoint: string, fallbackValue: T): Promise<T> {
+async function fetchApi<T>(endpoint: string, fallbackValue?: T): Promise<T> {
   try {
     const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    const timeoutId = controller ? setTimeout(() => controller.abort(), 6000) : null;
+    const timeoutId = controller ? setTimeout(() => controller.abort(), 8000) : null;
     const res = await fetch(`${API_URL}/${endpoint}`, {
-      signal: controller?.signal
-    });
+      signal: controller?.signal,
+      next: { revalidate: 3600 }
+    } as RequestInit);
     if (timeoutId) clearTimeout(timeoutId);
     if (!res.ok) {
-      console.warn(`[ContentService] API error on ${endpoint}: ${res.statusText}`);
-      return fallbackValue;
+      console.warn(`[ContentService] API error on ${endpoint}: ${res.status} ${res.statusText}`);
+      if (fallbackValue !== undefined) return fallbackValue;
+      throw new Error(`API error: ${res.statusText}`);
     }
     const json = await res.json();
     return (json?.data !== undefined ? json.data : json) as T;
   } catch (err: unknown) {
-    console.warn(`[ContentService] Fallback for ${endpoint}:`, err instanceof Error ? err.message : err);
-    return fallbackValue;
+    const msg = err instanceof Error ? err.message : String(err);
+    if (fallbackValue !== undefined) {
+      console.warn(`[ContentService] Fallback para ${endpoint}:`, msg);
+      return fallbackValue;
+    }
+    throw err;
   }
 }
 
@@ -63,7 +69,11 @@ export class ContentService {
   }
 
   static async getEspecieColibriById(id: number): Promise<EspecieColibri | null> {
-    return fetchApi<EspecieColibri | null>(`colibries/${id}`, null);
+    try {
+      return await fetchApi<EspecieColibri>(`colibries/${id}`);
+    } catch {
+      return null;
+    }
   }
 
   // Puntos GIS & Hotspots
@@ -77,7 +87,11 @@ export class ContentService {
   }
 
   static async getPuntoGISBySlug(slug: string): Promise<PuntoGIS | null> {
-    return fetchApi<PuntoGIS | null>(`puntos-gis/${slug}`, null);
+    try {
+      return await fetchApi<PuntoGIS>(`puntos-gis/${slug}`);
+    } catch {
+      return null;
+    }
   }
 
   // Tours & Expediciones
@@ -90,7 +104,11 @@ export class ContentService {
   }
 
   static async getTourBySlug(slug: string): Promise<Tour | null> {
-    return fetchApi<Tour | null>(`tours/${slug}`, null);
+    try {
+      return await fetchApi<Tour>(`tours/${slug}`);
+    } catch {
+      return null;
+    }
   }
 
   // Guías Ornitólogos
@@ -124,7 +142,11 @@ export class ContentService {
   }
 
   static async getPhotoBySlug(slug: string): Promise<PhotoProduct | null> {
-    return fetchApi<PhotoProduct | null>(`photos/${slug}`, null);
+    try {
+      return await fetchApi<PhotoProduct>(`photos/${slug}`);
+    } catch {
+      return null;
+    }
   }
 
   static async getWorkshops(): Promise<PhotoWorkshopPackage[]> {
@@ -132,6 +154,10 @@ export class ContentService {
   }
 
   static async getWorkshopById(id: string): Promise<PhotoWorkshopPackage | null> {
-    return fetchApi<PhotoWorkshopPackage | null>(`workshops/${id}`, null);
+    try {
+      return await fetchApi<PhotoWorkshopPackage>(`workshops/${id}`);
+    } catch {
+      return null;
+    }
   }
 }
