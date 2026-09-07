@@ -53,17 +53,31 @@ try {
     '/home/u251936581/public_html',
     '/home/u251936581/domains/beardedmountaineerlodge.com/public_html',
     process.env.HOME ? path.resolve(process.env.HOME, 'public_html') : null
-  ].filter(Boolean);
+  ];
 
-  pubTargets.forEach(target => {
-    if (fs.existsSync(target) && target !== localPublic) {
+  // Buscar también dinámicamente hacia carpetas superiores (ej: si el proyecto corre en ~/hbuilds o ~/apps)
+  let parentCheck = __dirname;
+  for (let i = 0; i < 5; i++) {
+    const candidate = path.join(parentCheck, 'public_html');
+    if (candidate !== localPublic) {
+      pubTargets.push(candidate);
+    }
+    const nextParent = path.dirname(parentCheck);
+    if (nextParent === parentCheck) break;
+    parentCheck = nextParent;
+  }
+
+  const validTargets = Array.from(new Set(pubTargets.filter(Boolean)));
+
+  validTargets.forEach(target => {
+    if (fs.existsSync(target) && path.resolve(target) !== localPublic) {
       if (fs.existsSync(localPublic)) {
         fs.cpSync(localPublic, target, { recursive: true });
       }
       if (fs.existsSync(frontendOut)) {
         fs.cpSync(frontendOut, target, { recursive: true });
       }
-      console.log('> [Server] Sincronización exitosa hacia:', target);
+      console.log('> [Server] Sincronización exitosa hacia webroot:', target);
     }
   });
 } catch (e) {
@@ -119,7 +133,7 @@ app.use((req, res, next) => {
   if (isApiSubdomain || isApiPath) {
     if (typeof backendApp === 'function') {
       if (isApiSubdomain && !req.url.startsWith('/api')) {
-        req.url = '/api' + req.url;
+        req.url = '/api' + (req.url.startsWith('/') ? req.url : '/' + req.url);
       }
       return backendApp(req, res, next);
     }
@@ -136,9 +150,6 @@ app.use((req, res, next) => {
 
   if (isAdminSubdomain || isAdminPath) {
     if (typeof adminApp === 'function') {
-      if (isAdminSubdomain && !req.url.startsWith('/admin')) {
-        req.url = '/admin' + req.url;
-      }
       return adminApp(req, res, next);
     }
     return res.status(503).send('Admin Panel no está listo');
@@ -166,7 +177,7 @@ if (fs.existsSync(frontendOutDir)) {
 }
 
 // ── 5. Iniciar Servidor ───────────────────────────────────────────────────────
-const PORT = process.env.PORT || process.env.GATEWAY_PORT || 8080;
+const PORT = process.env.GATEWAY_PORT || process.env.PORT || 4000;
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`> [Gateway] Servidor Express unificado escuchando en puerto principal: ${PORT}`);
   
@@ -193,8 +204,8 @@ server.on('error', (err) => {
   console.error('> [Gateway Server Error]:', err.message);
 });
 
-// Escuchar también en los puertos convencionales (3001, 3002, 3000, 4000) por si los proxies PHP de Hostinger apuntan allí
-const backupPorts = [3001, 3002, 3000, 4000];
+// Escuchar también en los puertos convencionales (3001, 3002, 3000, 8080) por si los proxies apuntan allí
+const backupPorts = [3001, 3002, 3000, 8080];
 for (const bPort of backupPorts) {
   if (Number(bPort) !== Number(PORT)) {
     try {

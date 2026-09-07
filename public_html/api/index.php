@@ -1,109 +1,96 @@
 <?php
-/**
- * PHP Proxy Universal para api.beardedmountaineerlodge.com
- * Soporta conexión local directa y fallback HTTPS a través del WebApp Gateway
- */
+// Proxy PHP de ultra-baja latencia hacia Node.js con auto-recuperación de puertos
+$possiblePortFiles = [
+    __DIR__ . '/.node_port',
+    __DIR__ . '/../.node_port',
+    __DIR__ . '/../../.node_port',
+    __DIR__ . '/../../../.node_port',
+    dirname(__DIR__) . '/.node_port',
+    '/home/u251936581/public_html/.node_port',
+    '/tmp/bearded_node_port'
+];
 
-$requestUri = $_SERVER['REQUEST_URI'] ?? '/';
-if (!str_starts_with($requestUri, '/api')) {
-    $targetUri = '/api' . $requestUri;
-} else {
-    $targetUri = $requestUri;
-}
-
-// 1. Intentar encontrar puerto local y probar conectividad
-function getTargetUrl($targetUri) {
-    $portFiles = [
-        __DIR__ . '/../.node_port',
-        __DIR__ . '/../../.node_port',
-        __DIR__ . '/../../../.node_port',
-        '/home/u251936581/public_html/.node_port',
-        '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/.node_port',
-        '/home/u251936581/hbuilds/current/nodejs/.node_port',
-        '/home/u251936581/hbuilds/current/nodejs/public_html/.node_port',
-        '/tmp/bearded_node_port'
-    ];
-    $ports = [];
-    foreach ($portFiles as $f) {
-        if (file_exists($f)) {
-            $p = intval(trim(file_get_contents($f)));
-            if ($p > 0) $ports[] = $p;
+$detectedPort = 4000;
+foreach ($possiblePortFiles as $pFile) {
+    if (file_exists($pFile)) {
+        $val = trim(@file_get_contents($pFile));
+        if (!empty($val) && is_numeric($val)) {
+            $detectedPort = intval($val);
+            break;
         }
     }
-    if (!empty($_ENV['PORT'])) {
-        $ports[] = intval($_ENV['PORT']);
-    }
-    $ports = array_unique(array_merge($ports, [8080, 3001, 3000, 3002, 4000]));
-    
-    $hosts = ['127.0.0.1', 'localhost'];
-    foreach ($hosts as $host) {
-        foreach ($ports as $port) {
-            $fp = @fsockopen($host, $port, $errno, $errstr, 0.2);
-            if ($fp) {
-                fclose($fp);
-                return "http://{$host}:{$port}{$targetUri}";
-            }
-        }
-    }
-
-    // Si no responde socket local, intentar URL directa por puerto común sin verificación socket
-    return "http://127.0.0.1:8080{$targetUri}";
 }
 
-$targetUrl = getTargetUrl($targetUri);
+// Lista de puertos a intentar en orden de prioridad: 4000 primero, luego el detectado, luego los respaldos
+$candidatePorts = array_unique([$detectedPort, 4000, 3001, 3002, 3000, 8080]);
 
-$ch = curl_init($targetUrl);
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-curl_setopt($ch, CURLOPT_HEADER, true);
-curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $_SERVER['REQUEST_METHOD']);
-curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
-curl_setopt($ch, CURLOPT_TIMEOUT, 20);
+$uri = $_SERVER['REQUEST_URI'];
+$method = $_SERVER['REQUEST_METHOD'];
+$headers = getallheaders();
+$rawInput = in_array($method, ['POST', 'PUT', 'PATCH', 'DELETE']) ? file_get_contents('php://input') : null;
 
-$headers = [];
-foreach (getallheaders() as $key => $val) {
-    if (strtolower($key) !== 'host') {
-        $headers[] = "$key: $val";
+$reqHeaders = [];
+foreach ($headers as $k => $v) {
+    if (strtolower($k) !== 'host') {
+        $reqHeaders[] = "{$k}: {$v}";
     }
 }
-$headers[] = "Host: " . ($_SERVER['HTTP_HOST'] ?? 'api.beardedmountaineerlodge.com');
-$headers[] = "X-Forwarded-Host: " . ($_SERVER['HTTP_HOST'] ?? 'api.beardedmountaineerlodge.com');
-$headers[] = "X-Forwarded-Proto: https";
-curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+$reqHeaders[] = "Host: " . $_SERVER['HTTP_HOST'];
+$reqHeaders[] = "X-Forwarded-For: " . ($_SERVER['REMOTE_ADDR'] ?? '127.0.0.1');
 
-$body = file_get_contents('php://input');
-if (!empty($body)) {
-    curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
+$response = false;
+$activePort = 4000;
+$lastError = '';
+
+foreach ($candidatePorts as $p) {
+    $url = "http://127.0.0.1:{$p}" . $uri;
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HEADER, true);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT_MS, 300); // 300ms timeout para verificación rápida
+    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $reqHeaders);
+
+    if ($rawInput !== null) {
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $rawInput);
+    }
+
+    $res = curl_exec($ch);
+    if ($res !== false) {
+        $response = $res;
+        $activePort = $p;
+        break;
+    } else {
+        $lastError = curl_error($ch);
+    }
+    curl_close($ch);
 }
-
-$response = curl_exec($ch);
-$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-$headerSize = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
-$curlErr = curl_error($ch);
-$curlErrNo = curl_errno($ch);
-curl_close($ch);
 
 if ($response === false) {
     http_response_code(503);
     header('Content-Type: application/json');
     echo json_encode([
-        'error' => 'API Gateway no disponible. Reinicie Node.js en Hostinger.',
-        'target' => $targetUrl,
-        'curl_errno' => $curlErrNo,
-        'curl_error' => $curlErr
+        'error' => 'API Gateway no disponible. Verifique que Node.js esté corriendo en Hostinger.',
+        'target_port' => $detectedPort,
+        'tried_ports' => $candidatePorts,
+        'curl_error' => $lastError
     ]);
     exit;
 }
 
+$headerSize = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
 $respHeaders = substr($response, 0, $headerSize);
-$respBody = substr($response, $headerSize);
+$body = substr($response, $headerSize);
+$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 
-foreach (explode("\r\n", $respHeaders) as $hdr) {
-    if (!empty($hdr) && !str_starts_with(strtolower($hdr), 'transfer-encoding:')) {
-        header($hdr, false);
+http_response_code($httpCode);
+$headerLines = explode("\r\n", $respHeaders);
+foreach ($headerLines as $h) {
+    if (!empty($h) && !stripos($h, 'Transfer-Encoding:') && !stripos($h, 'HTTP/')) {
+        header($h);
     }
 }
 
-http_response_code($httpCode ?: 200);
-echo $respBody;
+echo $body;
