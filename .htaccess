@@ -12,12 +12,12 @@
   RewriteCond %{HTTP_HOST} ^admin\. [NC,OR]
   RewriteCond %{REQUEST_URI} ^/api [NC,OR]
   RewriteCond %{REQUEST_URI} ^/admin [NC]
-  RewriteRule ^(.*)$ http://127.0.0.1:8080/$1 [P,L]
+  RewriteRule ^(.*)$ http://127.0.0.1:4000/$1 [P,L]
 
   # 3. Fallback de Next.js SPA (si la carpeta out/ o public_html tiene index.html)
   RewriteCond %{DOCUMENT_ROOT}/apps/frontend/out/index.html -f
   RewriteRule ^ apps/frontend/out/index.html [L]
 
   # 4. Reenviar todo lo demás al motor Node.js unificado
-  RewriteRule ^(.*)$ http://127.0.0.1:8080/$1 [P,L]
+  RewriteRule ^(.*)$ http://127.0.0.1:4000/$1 [P,L]
 </IfModule>
