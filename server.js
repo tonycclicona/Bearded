@@ -99,6 +99,20 @@ try {
       if (fs.existsSync(frontendOut)) {
         fs.cpSync(frontendOut, target, { recursive: true });
       }
+      
+      // Si el target es un subdominio dedicado
+      if (target.includes('api.')) {
+        const apiIndex = path.join(localPublic, 'api', 'index.php');
+        const apiHt = path.join(localPublic, 'api', '.htaccess');
+        if (fs.existsSync(apiIndex)) fs.copyFileSync(apiIndex, path.join(target, 'index.php'));
+        if (fs.existsSync(apiHt)) fs.copyFileSync(apiHt, path.join(target, '.htaccess'));
+      } else if (target.includes('admin.')) {
+        const adminIndex = path.join(localPublic, 'admin', 'index.php');
+        const adminHt = path.join(localPublic, 'admin', '.htaccess');
+        if (fs.existsSync(adminIndex)) fs.copyFileSync(adminIndex, path.join(target, 'index.php'));
+        if (fs.existsSync(adminHt)) fs.copyFileSync(adminHt, path.join(target, '.htaccess'));
+      }
+
       console.log('> [Server] Sincronización exitosa hacia webroot:', target);
     }
   });

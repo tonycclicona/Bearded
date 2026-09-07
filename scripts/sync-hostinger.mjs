@@ -208,12 +208,34 @@ if ($response === false) {
         }
     }
 
+    $hostHeader = $_SERVER['HTTP_HOST'] ?? '';
+    $uriPath = parse_url($uri, PHP_URL_PATH) ?? '';
+
+    // Si se solicita /health directamente
+    if ($uriPath === '/health' || $uriPath === '/api/health' || $uriPath === '/admin/health') {
+        http_response_code(200);
+        header('Content-Type: application/json');
+        echo json_encode([
+            'status' => 'proxy_standby',
+            'message' => 'PHP Gateway activo. Esperando conexión a Node.js en puerto ' . $detectedPort,
+            'time' => date('c'),
+            'host' => $hostHeader,
+            'port_files_found' => array_values(array_filter($possiblePortFiles, 'file_exists'))
+        ]);
+        exit;
+    }
+
     echo json_encode([
         'error' => 'API Gateway no disponible. Verifique que Node.js esté corriendo en Hostinger.',
         'target_port' => $detectedPort,
         'tried_ports' => array_values($candidatePorts),
         'curl_error' => $lastError,
-        'node_debug_log' => $debugLog ?: 'Sin registros recientes. Es probable que la aplicación Node.js esté detenida o no iniciada en el panel de Hostinger.'
+        'node_debug_log' => $debugLog ?: 'Sin registros recientes. Es probable que la aplicación Node.js esté detenida o no iniciada en el panel de Hostinger.',
+        'php_detected_env' => [
+            'cwd' => getcwd(),
+            'script' => __FILE__,
+            'port_files' => array_values(array_filter($possiblePortFiles, 'file_exists'))
+        ]
     ]);
     exit;
 }
