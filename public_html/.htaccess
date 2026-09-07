@@ -22,12 +22,15 @@
   RewriteEngine On
   RewriteBase /
 
-  # 1. Servir SIEMPRE archivos y directorios que existen en disco directamente
+  # 1. Rutas de api/ y admin/ no deben interceptarse como SPA
+  RewriteRule ^(api|admin)(/.*)?$ - [L]
+
+  # 2. Servir SIEMPRE archivos y directorios que existen en disco directamente
   RewriteCond %{REQUEST_FILENAME} -f [OR]
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
 
-  # 2. SPA Fallback: rutas sin extension que no existen en disco -> index.html
+  # 3. SPA Fallback: rutas sin extension que no existen en disco -> index.html
   RewriteCond %{REQUEST_URI} !\.(js|css|png|jpg|jpeg|gif|svg|webp|woff|woff2|ttf|ico|json|txt|php|html)$
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d

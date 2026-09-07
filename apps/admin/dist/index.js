@@ -22,6 +22,7 @@ import { uploadsDir } from './lib/upload.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
+app.set('trust proxy', true);
 const PORT = process.env.ADMIN_PORT || 3002;
 fs.mkdirSync(uploadsDir, { recursive: true });
 // View engine
@@ -34,7 +35,11 @@ app.use(session({
     secret: process.env.SESSION_SECRET || 'admin-session-secret',
     resave: false,
     saveUninitialized: false,
-    cookie: { secure: process.env.NODE_ENV === 'production' }
+    cookie: {
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 1000 * 60 * 60 * 24 * 7
+    }
 }));
 // Inyectar currentPath para el sidebar activo
 app.use((req, res, next) => {

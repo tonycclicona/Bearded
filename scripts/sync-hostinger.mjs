@@ -80,12 +80,15 @@ const rootHtaccess = `<IfModule mod_mime.c>
   RewriteEngine On
   RewriteBase /
 
-  # 1. Servir SIEMPRE archivos y directorios que existen en disco directamente
+  # 1. Rutas de api/ y admin/ no deben interceptarse como SPA
+  RewriteRule ^(api|admin)(/.*)?$ - [L]
+
+  # 2. Servir SIEMPRE archivos y directorios que existen en disco directamente
   RewriteCond %{REQUEST_FILENAME} -f [OR]
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
 
-  # 2. SPA Fallback: rutas sin extension que no existen en disco -> index.html
+  # 3. SPA Fallback: rutas sin extension que no existen en disco -> index.html
   RewriteCond %{REQUEST_URI} !\\.(js|css|png|jpg|jpeg|gif|svg|webp|woff|woff2|ttf|ico|json|txt|php|html)$
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
@@ -102,9 +105,9 @@ const subHtaccess = `<IfModule mod_rewrite.c>
 </IfModule>
 `;
 
-// Script Proxy PHP de Respaldo: Reenvía peticiones al puerto Node.js dinámico/estático si mod_proxy no está habilitado
+// Script Proxy PHP de Respaldo: Reenvía peticiones al puerto Node.js dinámico/estático con diagnóstico completo
 const phpProxyTemplate = `<?php
-// Proxy PHP de ultra-baja latencia hacia Node.js con auto-recuperación de puertos
+// Proxy PHP hacia Node.js con auto-recuperación de puertos
 $possiblePortFiles = [
     __DIR__ . '/.node_port',
     __DIR__ . '/../.node_port',
@@ -126,12 +129,11 @@ foreach ($possiblePortFiles as $pFile) {
     }
 }
 
-// Lista de puertos a intentar en orden de prioridad: 4000 primero, luego el detectado, luego los respaldos
-$candidatePorts = array_unique([$detectedPort, 4000, 3001, 3002, 3000, 8080]);
+$candidatePorts = array_values(array_unique([$detectedPort, 4000, 3001, 3002, 3000, 8080]));
 
-$uri = $_SERVER['REQUEST_URI'];
-$method = $_SERVER['REQUEST_METHOD'];
-$headers = getallheaders();
+$uri = $_SERVER['REQUEST_URI'] ?? '/';
+$method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+$headers = function_exists('getallheaders') ? getallheaders() : [];
 $rawInput = in_array($method, ['POST', 'PUT', 'PATCH', 'DELETE']) ? file_get_contents('php://input') : null;
 
 $reqHeaders = [];
@@ -140,12 +142,15 @@ foreach ($headers as $k => $v) {
         $reqHeaders[] = "{$k}: {$v}";
     }
 }
-$reqHeaders[] = "Host: " . $_SERVER['HTTP_HOST'];
+$reqHeaders[] = "Host: " . ($_SERVER['HTTP_HOST'] ?? 'localhost');
 $reqHeaders[] = "X-Forwarded-For: " . ($_SERVER['REMOTE_ADDR'] ?? '127.0.0.1');
+$reqHeaders[] = "X-Forwarded-Proto: " . (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http');
+$reqHeaders[] = "X-Forwarded-Port: " . ($_SERVER['SERVER_PORT'] ?? '443');
 
 $response = false;
 $activePort = 4000;
 $lastError = '';
+$ch = null;
 
 foreach ($candidatePorts as $p) {
     $url = "http://127.0.0.1:{$p}" . $uri;
@@ -154,7 +159,7 @@ foreach ($candidatePorts as $p) {
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_HEADER, true);
     curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
-    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT_MS, 2000); // 2000ms timeout para verificación segura
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT_MS, 2000);
     curl_setopt($ch, CURLOPT_TIMEOUT, 30);
     curl_setopt($ch, CURLOPT_HTTPHEADER, $reqHeaders);
 
@@ -169,18 +174,41 @@ foreach ($candidatePorts as $p) {
         break;
     } else {
         $lastError = curl_error($ch);
+        curl_close($ch);
+        $ch = null;
     }
-    curl_close($ch);
 }
 
-if ($response === false) {
+if ($response === false || $ch === null) {
     http_response_code(503);
     header('Content-Type: application/json');
+
+    $debugLog = '';
+    $possibleLogFiles = [
+        __DIR__ . '/node_debug.log',
+        __DIR__ . '/../node_debug.log',
+        __DIR__ . '/../../node_debug.log',
+        dirname(__DIR__) . '/node_debug.log',
+        '/home/u251936581/public_html/node_debug.log',
+        '/tmp/bearded_node_debug.log'
+    ];
+    foreach ($possibleLogFiles as $lf) {
+        if (file_exists($lf)) {
+            $content = @file_get_contents($lf);
+            if (!empty($content)) {
+                $lines = explode("\\n", trim($content));
+                $debugLog = implode("\\n", array_slice($lines, -15));
+                break;
+            }
+        }
+    }
+
     echo json_encode([
         'error' => 'API Gateway no disponible. Verifique que Node.js esté corriendo en Hostinger.',
         'target_port' => $detectedPort,
         'tried_ports' => $candidatePorts,
-        'curl_error' => $lastError
+        'curl_error' => $lastError,
+        'node_debug_log' => $debugLog ?: 'Sin registros recientes. Verifique en el panel de Hostinger que el WebApp Node.js esté en ejecución.'
     ]);
     exit;
 }
@@ -189,12 +217,13 @@ $headerSize = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
 $respHeaders = substr($response, 0, $headerSize);
 $body = substr($response, $headerSize);
 $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
 
 http_response_code($httpCode);
 $headerLines = explode("\\r\\n", $respHeaders);
 foreach ($headerLines as $h) {
     if (!empty($h) && !stripos($h, 'Transfer-Encoding:') && !stripos($h, 'HTTP/')) {
-        header($h);
+        header($h, false);
     }
 }
 
@@ -209,7 +238,67 @@ fs.writeFileSync(path.join(adminDir, 'index.php'), phpProxyTemplate, 'utf8');
 fs.writeFileSync(path.join(apiDir, 'index.php'), phpProxyTemplate, 'utf8');
 fs.writeFileSync(path.join(publicHtml, '.node_port'), '4000', 'utf8');
 
-// 7. Sincronizar hacia todas las ubicaciones posibles del webroot de Hostinger
+// 7. Función de sincronización inteligente por destino
+function syncWebroot(target) {
+  if (!fs.existsSync(target) || path.resolve(target) === path.resolve(publicHtml)) return;
+
+  const isApiSubdomain = target.includes('api.');
+  const isAdminSubdomain = target.includes('admin.');
+
+  if (isApiSubdomain) {
+    // Webroot exclusivo de API: solo proxy y htaccess específico
+    console.log(`📡 [Sync Hostinger] Sincronizando subdominio API: ${target}`);
+    fs.writeFileSync(path.join(target, '.htaccess'), subHtaccess, 'utf8');
+    fs.writeFileSync(path.join(target, 'index.php'), phpProxyTemplate, 'utf8');
+    fs.writeFileSync(path.join(target, '.node_port'), '4000', 'utf8');
+    console.log(`✅ [Sync Hostinger] API configurado exitosamente en: ${target}`);
+    return;
+  }
+
+  if (isAdminSubdomain) {
+    // Webroot exclusivo de Admin: proxy, htaccess, uploads y assets
+    console.log(`📡 [Sync Hostinger] Sincronizando subdominio Admin: ${target}`);
+    fs.writeFileSync(path.join(target, '.htaccess'), subHtaccess, 'utf8');
+    fs.writeFileSync(path.join(target, 'index.php'), phpProxyTemplate, 'utf8');
+    fs.writeFileSync(path.join(target, '.node_port'), '4000', 'utf8');
+    if (fs.existsSync(adminUploads)) {
+      const upDest = path.join(target, 'uploads');
+      fs.mkdirSync(upDest, { recursive: true });
+      copyDirSync(adminUploads, upDest);
+    }
+    console.log(`✅ [Sync Hostinger] Admin configurado exitosamente en: ${target}`);
+    return;
+  }
+
+  // Webroot del dominio principal (Frontend):
+  console.log(`📡 [Sync Hostinger] Sincronizando dominio principal (Frontend): ${target}`);
+  copyDirSync(publicHtml, target);
+  if (fs.existsSync(frontendOut)) {
+    copyDirSync(frontendOut, target);
+  }
+  fs.writeFileSync(path.join(target, '.htaccess'), rootHtaccess, 'utf8');
+  fs.writeFileSync(path.join(target, '.node_port'), '4000', 'utf8');
+
+  // Subcarpetas api/ y admin/ para acceso vía ruta directa (/api y /admin)
+  const tAdmin = path.join(target, 'admin');
+  const tApi = path.join(target, 'api');
+  fs.mkdirSync(tAdmin, { recursive: true });
+  fs.mkdirSync(tApi, { recursive: true });
+  fs.writeFileSync(path.join(tAdmin, '.htaccess'), subHtaccess, 'utf8');
+  fs.writeFileSync(path.join(tApi, '.htaccess'), subHtaccess, 'utf8');
+  fs.writeFileSync(path.join(tAdmin, 'index.php'), phpProxyTemplate, 'utf8');
+  fs.writeFileSync(path.join(tApi, 'index.php'), phpProxyTemplate, 'utf8');
+
+  if (fs.existsSync(adminUploads)) {
+    const upDest = path.join(target, 'uploads');
+    fs.mkdirSync(upDest, { recursive: true });
+    copyDirSync(adminUploads, upDest);
+  }
+
+  console.log(`✅ [Sync Hostinger] Dominio principal sincronizado exitosamente en: ${target}`);
+}
+
+// 8. Sincronizar hacia todas las ubicaciones posibles del webroot de Hostinger
 const externalTargets = [
   '/home/u251936581/public_html',
   '/home/u251936581/domains/beardedmountaineerlodge.com/public_html',
@@ -231,38 +320,9 @@ for (let i = 0; i < 5; i++) {
 }
 
 const uniqueTargets = Array.from(new Set(externalTargets.filter(Boolean)));
-
 uniqueTargets.forEach(target => {
   try {
-    if (fs.existsSync(target) && path.resolve(target) !== path.resolve(publicHtml)) {
-      console.log(`📡 [Sync Hostinger] Sincronizando hacia webroot real: ${target}`);
-      copyDirSync(publicHtml, target);
-      if (fs.existsSync(frontendOut)) {
-        copyDirSync(frontendOut, target);
-      }
-      fs.writeFileSync(path.join(target, '.htaccess'), rootHtaccess, 'utf8');
-      fs.writeFileSync(path.join(target, '.node_port'), '4000', 'utf8');
-      
-      const tAdmin = path.join(target, 'admin');
-      const tApi = path.join(target, 'api');
-      fs.mkdirSync(tAdmin, { recursive: true });
-      fs.mkdirSync(tApi, { recursive: true });
-      fs.writeFileSync(path.join(tAdmin, '.htaccess'), subHtaccess, 'utf8');
-      fs.writeFileSync(path.join(tApi, '.htaccess'), subHtaccess, 'utf8');
-      fs.writeFileSync(path.join(tAdmin, 'index.php'), phpProxyTemplate, 'utf8');
-      fs.writeFileSync(path.join(tApi, 'index.php'), phpProxyTemplate, 'utf8');
-
-      // Si el target es la carpeta de un subdominio dedicado (ej: domains/api.* o domains/admin.*)
-      if (target.includes('api.')) {
-        fs.writeFileSync(path.join(target, 'index.php'), phpProxyTemplate, 'utf8');
-        fs.writeFileSync(path.join(target, '.htaccess'), subHtaccess, 'utf8');
-      } else if (target.includes('admin.')) {
-        fs.writeFileSync(path.join(target, 'index.php'), phpProxyTemplate, 'utf8');
-        fs.writeFileSync(path.join(target, '.htaccess'), subHtaccess, 'utf8');
-      }
-
-      console.log(`✅ [Sync Hostinger] Sincronizado exitosamente en: ${target}`);
-    }
+    syncWebroot(target);
   } catch (err) {
     console.warn(`⚠️ [Sync Hostinger] No se pudo sincronizar en ${target}:`, err.message);
   }

@@ -13,9 +13,30 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 app.disable('x-powered-by');
+app.set('trust proxy', true);
 
 // Flag para evitar que los submódulos inicien listeners duplicados de puerto
 process.env.UNIFIED_SERVER = 'true';
+
+// Log de diagnóstico persistente para Hostinger
+function logDebug(msg) {
+  const line = `[${new Date().toISOString()}] ${msg}\n`;
+  console.log(msg);
+  try {
+    fs.appendFileSync(path.resolve(__dirname, 'public_html/node_debug.log'), line);
+    fs.appendFileSync('/tmp/bearded_node_debug.log', line);
+  } catch (_) {}
+}
+
+process.on('uncaughtException', (err) => {
+  logDebug(`[FATAL UNCAUGHT EXCEPTION]: ${err.stack || err.message}`);
+});
+
+process.on('unhandledRejection', (reason) => {
+  logDebug(`[UNHANDLED REJECTION]: ${reason?.stack || reason}`);
+});
+
+logDebug(`Iniciando server.js en Node ${process.version} (PID: ${process.pid}, CWD: ${process.cwd()})`);
 
 // ── 0. Cargar Variables de Entorno ──────────────────────────────────────────
 function loadEnv(file) {
@@ -45,19 +66,18 @@ function loadEnv(file) {
 loadEnv(path.resolve(__dirname, '.env.production'));
 loadEnv(path.resolve(__dirname, '.env'));
 
-// ── Sincronizar frontend/out y public_html a la raíz del hosting en tiempo de ejecución (Patrón Unu-Raymi) ──
+// ── Sincronizar frontend/out y public_html a la raíz del hosting en tiempo de ejecución ──
 try {
   const localPublic = path.resolve(__dirname, 'public_html');
   const frontendOut = path.resolve(__dirname, 'apps/frontend/out');
+  const adminUploads = path.resolve(__dirname, 'apps/admin/uploads');
   const pubTargets = [
     '/home/u251936581/public_html',
     '/home/u251936581/domains/beardedmountaineerlodge.com/public_html',
-    '/home/u251936581/domains/api.beardedmountaineerlodge.com/public_html',
-    '/home/u251936581/domains/admin.beardedmountaineerlodge.com/public_html',
     process.env.HOME ? path.resolve(process.env.HOME, 'public_html') : null
   ];
 
-  // Buscar también dinámicamente hacia carpetas superiores (ej: si el proyecto corre en ~/hbuilds o ~/apps)
+  // Buscar carpetas public_html superiores (ej: si el proyecto corre en ~/hbuilds)
   let parentCheck = __dirname;
   for (let i = 0; i < 5; i++) {
     const candidate = path.join(parentCheck, 'public_html');
@@ -72,6 +92,9 @@ try {
   const validTargets = Array.from(new Set(pubTargets.filter(Boolean)));
 
   validTargets.forEach(target => {
+    // NUNCA sobreescribir subdominios dedicados de api o admin con los archivos del frontend
+    if (target.includes('api.') || target.includes('admin.')) return;
+
     if (fs.existsSync(target) && path.resolve(target) !== localPublic) {
       if (fs.existsSync(localPublic)) {
         fs.cpSync(localPublic, target, { recursive: true });
@@ -79,11 +102,16 @@ try {
       if (fs.existsSync(frontendOut)) {
         fs.cpSync(frontendOut, target, { recursive: true });
       }
-      console.log('> [Server] Sincronización exitosa hacia webroot:', target);
+      if (fs.existsSync(adminUploads)) {
+        const upDest = path.join(target, 'uploads');
+        fs.mkdirSync(upDest, { recursive: true });
+        fs.cpSync(adminUploads, upDest, { recursive: true });
+      }
+      logDebug(`> [Server] Sincronización exitosa hacia webroot: ${target}`);
     }
   });
 } catch (e) {
-  console.warn('> [Server] Advertencia sincronizando webroot:', e.message);
+  logDebug(`> [Server] Advertencia sincronizando webroot: ${e.message}`);
 }
 
 // ── 1. Cargar Aplicaciones Modulares ──────────────────────────────────────────
@@ -212,9 +240,9 @@ if (fs.existsSync(frontendOutDir)) {
 }
 
 // ── 5. Iniciar Servidor ───────────────────────────────────────────────────────
-const PORT = process.env.GATEWAY_PORT || process.env.PORT || 4000;
+const PORT = process.env.PORT || process.env.GATEWAY_PORT || 4000;
 const server = app.listen(PORT, '0.0.0.0', () => {
-  console.log(`> [Gateway] Servidor Express unificado escuchando en puerto principal: ${PORT}`);
+  logDebug(`> [Gateway] Servidor Express unificado escuchando en puerto principal: ${PORT}`);
   
   // Guardar puerto en todas las rutas posibles para los proxies PHP
   const portDestinations = [
@@ -236,21 +264,23 @@ const server = app.listen(PORT, '0.0.0.0', () => {
 });
 
 server.on('error', (err) => {
-  console.error('> [Gateway Server Error]:', err.message);
+  logDebug(`> [Gateway Server Error]: ${err.message}`);
 });
 
-// Escuchar también en los puertos convencionales (3001, 3002, 3000, 8080) por si los proxies apuntan allí
-const backupPorts = [3001, 3002, 3000, 8080];
+// Escuchar también en los puertos convencionales (4000, 3001, 3002, 3000, 8080) por si los proxies apuntan allí
+const backupPorts = [4000, 3001, 3002, 3000, 8080];
 for (const bPort of backupPorts) {
   if (Number(bPort) !== Number(PORT)) {
     try {
       const bServer = app.listen(bPort, '127.0.0.1', () => {
-        console.log(`> [Gateway] Respaldo activo en puerto local: ${bPort}`);
+        logDebug(`> [Gateway] Respaldo activo en puerto local: ${bPort}`);
       });
-      bServer.on('error', () => {
-        // Puerto ya en uso o no permitido, ignorar silenciosamente
+      bServer.on('error', (err) => {
+        logDebug(`> [Gateway Backup Port ${bPort} Error]: ${err.message}`);
       });
-    } catch (_) {}
+    } catch (e) {
+      logDebug(`> [Gateway Backup Port ${bPort} Exception]: ${e.message}`);
+    }
   }
 }
 

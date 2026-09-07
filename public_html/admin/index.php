@@ -1,5 +1,5 @@
 <?php
-// Proxy PHP de ultra-baja latencia hacia Node.js con auto-recuperación de puertos
+// Proxy PHP hacia Node.js con auto-recuperación de puertos
 $possiblePortFiles = [
     __DIR__ . '/.node_port',
     __DIR__ . '/../.node_port',
@@ -21,12 +21,11 @@ foreach ($possiblePortFiles as $pFile) {
     }
 }
 
-// Lista de puertos a intentar en orden de prioridad: 4000 primero, luego el detectado, luego los respaldos
-$candidatePorts = array_unique([$detectedPort, 4000, 3001, 3002, 3000, 8080]);
+$candidatePorts = array_values(array_unique([$detectedPort, 4000, 3001, 3002, 3000, 8080]));
 
-$uri = $_SERVER['REQUEST_URI'];
-$method = $_SERVER['REQUEST_METHOD'];
-$headers = getallheaders();
+$uri = $_SERVER['REQUEST_URI'] ?? '/';
+$method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+$headers = function_exists('getallheaders') ? getallheaders() : [];
 $rawInput = in_array($method, ['POST', 'PUT', 'PATCH', 'DELETE']) ? file_get_contents('php://input') : null;
 
 $reqHeaders = [];
@@ -35,12 +34,15 @@ foreach ($headers as $k => $v) {
         $reqHeaders[] = "{$k}: {$v}";
     }
 }
-$reqHeaders[] = "Host: " . $_SERVER['HTTP_HOST'];
+$reqHeaders[] = "Host: " . ($_SERVER['HTTP_HOST'] ?? 'localhost');
 $reqHeaders[] = "X-Forwarded-For: " . ($_SERVER['REMOTE_ADDR'] ?? '127.0.0.1');
+$reqHeaders[] = "X-Forwarded-Proto: " . (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http');
+$reqHeaders[] = "X-Forwarded-Port: " . ($_SERVER['SERVER_PORT'] ?? '443');
 
 $response = false;
 $activePort = 4000;
 $lastError = '';
+$ch = null;
 
 foreach ($candidatePorts as $p) {
     $url = "http://127.0.0.1:{$p}" . $uri;
@@ -49,7 +51,7 @@ foreach ($candidatePorts as $p) {
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_HEADER, true);
     curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
-    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT_MS, 2000); // 2000ms timeout para verificación segura
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT_MS, 2000);
     curl_setopt($ch, CURLOPT_TIMEOUT, 30);
     curl_setopt($ch, CURLOPT_HTTPHEADER, $reqHeaders);
 
@@ -64,18 +66,41 @@ foreach ($candidatePorts as $p) {
         break;
     } else {
         $lastError = curl_error($ch);
+        curl_close($ch);
+        $ch = null;
     }
-    curl_close($ch);
 }
 
-if ($response === false) {
+if ($response === false || $ch === null) {
     http_response_code(503);
     header('Content-Type: application/json');
+
+    $debugLog = '';
+    $possibleLogFiles = [
+        __DIR__ . '/node_debug.log',
+        __DIR__ . '/../node_debug.log',
+        __DIR__ . '/../../node_debug.log',
+        dirname(__DIR__) . '/node_debug.log',
+        '/home/u251936581/public_html/node_debug.log',
+        '/tmp/bearded_node_debug.log'
+    ];
+    foreach ($possibleLogFiles as $lf) {
+        if (file_exists($lf)) {
+            $content = @file_get_contents($lf);
+            if (!empty($content)) {
+                $lines = explode("\n", trim($content));
+                $debugLog = implode("\n", array_slice($lines, -15));
+                break;
+            }
+        }
+    }
+
     echo json_encode([
         'error' => 'API Gateway no disponible. Verifique que Node.js esté corriendo en Hostinger.',
         'target_port' => $detectedPort,
         'tried_ports' => $candidatePorts,
-        'curl_error' => $lastError
+        'curl_error' => $lastError,
+        'node_debug_log' => $debugLog ?: 'Sin registros recientes. Verifique en el panel de Hostinger que el WebApp Node.js esté en ejecución.'
     ]);
     exit;
 }
@@ -84,12 +109,13 @@ $headerSize = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
 $respHeaders = substr($response, 0, $headerSize);
 $body = substr($response, $headerSize);
 $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
 
 http_response_code($httpCode);
 $headerLines = explode("\r\n", $respHeaders);
 foreach ($headerLines as $h) {
     if (!empty($h) && !stripos($h, 'Transfer-Encoding:') && !stripos($h, 'HTTP/')) {
-        header($h);
+        header($h, false);
     }
 }
 

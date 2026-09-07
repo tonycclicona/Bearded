@@ -17,6 +17,7 @@ import guiasRouter from './routes/guias.js';
 import bookingsRouter from './routes/bookings.js';
 
 const app = express();
+app.set('trust proxy', true);
 const PORT = process.env.PORT || 3001;
 
 // Middleware
