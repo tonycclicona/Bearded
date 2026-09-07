@@ -10,22 +10,43 @@ export function createCrudRouter(options) {
         return idType === 'number' ? parseInt(strId, 10) || 0 : strId;
     };
     router.get('/', requireAuth, async (_req, res) => {
-        const rows = (await model.findMany());
-        res.render(`${viewDir}/index`, { rows, listPath });
+        try {
+            const rows = (await model.findMany());
+            res.render(`${viewDir}/index`, { rows: rows || [], listPath });
+        }
+        catch (err) {
+            console.warn(`[Admin] Error loading ${viewDir} list:`, err);
+            res.render(`${viewDir}/index`, { rows: [], listPath });
+        }
     });
     router.get('/create', requireAuth, (_req, res) => {
         res.render(`${viewDir}/create`, { listPath });
     });
     router.post('/create', requireAuth, ...withUpload(async (req, res) => {
-        await model.create({
-            data: toInput(req.body, req.file, req.files)
-        });
+        try {
+            await model.create({
+                data: toInput(req.body, req.file, req.files)
+            });
+        }
+        catch (err) {
+            console.error(`[Admin] Error creating ${viewDir}:`, err);
+        }
         res.redirect(listPath);
     }));
     router.get('/:id/edit', requireAuth, async (req, res) => {
-        const id = parseId(req.params.id);
-        const row = await model.findUnique({ where: { id } });
-        res.render(`${viewDir}/edit`, { row, listPath });
+        try {
+            const id = parseId(req.params.id);
+            const row = await model.findUnique({ where: { id } });
+            if (!row) {
+                res.redirect(listPath);
+                return;
+            }
+            res.render(`${viewDir}/edit`, { row, listPath });
+        }
+        catch (err) {
+            console.warn(`[Admin] Error loading ${viewDir} edit:`, err);
+            res.redirect(listPath);
+        }
     });
     router.post('/:id/edit', requireAuth, ...withUpload(async (req, res) => {
         const id = parseId(req.params.id);

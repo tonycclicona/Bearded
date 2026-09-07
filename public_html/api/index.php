@@ -16,8 +16,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 $requestUri = $_SERVER['REQUEST_URI'] ?? '/';
 if (strpos($requestUri, '/api') !== 0) {
-    $requestUri = '/api' . $requestUri;
+    $requestUri = '/api' . (strpos($requestUri, '/') === 0 ? $requestUri : '/' . $requestUri);
 }
+// Normalizar barras duplicadas
+$requestUri = preg_replace('#/+#', '/', $requestUri);
 
 // Detección dinámica de puerto Node.js si existe
 $possiblePortFiles = [
@@ -41,12 +43,12 @@ foreach ($possiblePortFiles as $pFile) {
     }
 }
 
-// Objetivos de conexión: puertos locales + FALLBACK CRÍTICO al dominio principal (Patrón Unu-Raymi)
+// Objetivos de conexión: puertos locales Node.js seguros
 $targets = [
     "http://127.0.0.1:{$detectedPort}",
     'http://127.0.0.1:4000',
-    'http://127.0.0.1:3000',
-    'https://beardedmountaineerlodge.com'
+    'http://127.0.0.1:3001',
+    'http://127.0.0.1:3000'
 ];
 $targets = array_values(array_unique($targets));
 
@@ -105,15 +107,11 @@ foreach ($targets as $baseTarget) {
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
     curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
     curl_setopt($ch, CURLOPT_ENCODING, '');
-    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 1);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 15);
 
     $reqHeaders = $headers;
-    if (strpos($baseTarget, 'beardedmountaineerlodge.com') !== false) {
-        $reqHeaders[] = "Host: beardedmountaineerlodge.com";
-    } else {
-        $reqHeaders[] = "Host: " . ($_SERVER['HTTP_HOST'] ?? 'localhost');
-    }
+    $reqHeaders[] = "Host: " . ($_SERVER['HTTP_HOST'] ?? 'localhost');
     $reqHeaders[] = "X-Forwarded-For: " . ($_SERVER['REMOTE_ADDR'] ?? '127.0.0.1');
     $reqHeaders[] = "X-Forwarded-Proto: " . (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http');
 

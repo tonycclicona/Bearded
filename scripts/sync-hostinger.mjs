@@ -40,6 +40,7 @@ function copyDirSync(src, dest) {
 function createPhpProxy(isApi) {
   const proxyType = isApi ? 'API' : 'Admin';
   const prefix = isApi ? '/api' : '/admin';
+  const dedicatedPort = isApi ? 3001 : 3002;
 
   return `<?php
 // ==============================================================================
@@ -59,8 +60,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 $requestUri = $_SERVER['REQUEST_URI'] ?? '/';
 if (strpos($requestUri, '${prefix}') !== 0) {
-    $requestUri = '${prefix}' . $requestUri;
+    $requestUri = '${prefix}' . (strpos($requestUri, '/') === 0 ? $requestUri : '/' . $requestUri);
 }
+// Normalizar barras duplicadas
+$requestUri = preg_replace('#/+#', '/', $requestUri);
 
 // Detección dinámica de puerto Node.js si existe
 $possiblePortFiles = [
@@ -84,12 +87,12 @@ foreach ($possiblePortFiles as $pFile) {
     }
 }
 
-// Objetivos de conexión: puertos locales + FALLBACK CRÍTICO al dominio principal (Patrón Unu-Raymi)
+// Objetivos de conexión: puertos locales Node.js seguros
 $targets = [
     "http://127.0.0.1:{$detectedPort}",
     'http://127.0.0.1:4000',
-    'http://127.0.0.1:3000',
-    'https://beardedmountaineerlodge.com'
+    'http://127.0.0.1:${dedicatedPort}',
+    'http://127.0.0.1:3000'
 ];
 $targets = array_values(array_unique($targets));
 
@@ -148,15 +151,11 @@ foreach ($targets as $baseTarget) {
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
     curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
     curl_setopt($ch, CURLOPT_ENCODING, '');
-    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 1);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 15);
 
     $reqHeaders = $headers;
-    if (strpos($baseTarget, 'beardedmountaineerlodge.com') !== false) {
-        $reqHeaders[] = "Host: beardedmountaineerlodge.com";
-    } else {
-        $reqHeaders[] = "Host: " . ($_SERVER['HTTP_HOST'] ?? 'localhost');
-    }
+    $reqHeaders[] = "Host: " . ($_SERVER['HTTP_HOST'] ?? 'localhost');
     $reqHeaders[] = "X-Forwarded-For: " . ($_SERVER['REMOTE_ADDR'] ?? '127.0.0.1');
     $reqHeaders[] = "X-Forwarded-Proto: " . (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http');
 
@@ -218,9 +217,7 @@ RewriteRule ^index\\.php$ - [L]
 RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d
 RewriteRule ^ - [L]
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule . /index.php [L]
+RewriteRule ^(.*)$ index.php [L,QSA]
 </IfModule>
 `;
 
@@ -248,15 +245,26 @@ const rootHtaccess = `<IfModule mod_mime.c>
   RewriteEngine On
   RewriteBase /
 
-  # 1. Rutas de api/ y admin/ no deben interceptarse como SPA
+  # 1. Subdominio API (api.*): enviar peticiones a api/index.php
+  RewriteCond %{HTTP_HOST} ^api\\. [NC]
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteRule ^(.*)$ api/index.php [L,QSA]
+
+  # 2. Subdominio Admin (admin.*): enviar peticiones a admin/index.php (permitir static files)
+  RewriteCond %{HTTP_HOST} ^admin\\. [NC]
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule ^(.*)$ admin/index.php [L,QSA]
+
+  # 3. Rutas de api/ y admin/ en dominio principal no deben interceptarse como SPA
   RewriteRule ^(api|admin)(/.*)?$ - [L]
 
-  # 2. Servir SIEMPRE archivos y directorios existentes directamente
+  # 4. Servir SIEMPRE archivos y directorios existentes directamente
   RewriteCond %{REQUEST_FILENAME} -f [OR]
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
 
-  # 3. Fallback SPA: rutas sin extension que no existen -> index.html
+  # 5. Fallback SPA: rutas sin extension que no existen -> index.html
   RewriteCond %{REQUEST_URI} !\\.(js|css|png|jpg|jpeg|gif|svg|webp|woff|woff2|ttf|ico|json|txt|php|html)$
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d

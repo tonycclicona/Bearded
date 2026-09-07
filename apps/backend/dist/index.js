@@ -80,7 +80,30 @@ app.use('/api/guias', guiasRouter);
 app.use('/guias', guiasRouter);
 app.use('/api/bookings', bookingsRouter);
 app.use('/bookings', bookingsRouter);
-// Health check
+// API Welcome & Health check
+app.get(['/', '/api'], (_req, res) => {
+    res.json({
+        status: 'ok',
+        service: 'Bearded Mountaineer Lodge API Gateway',
+        timestamp: new Date().toISOString(),
+        endpoints: [
+            '/api/health',
+            '/api/passes',
+            '/api/routes',
+            '/api/rooms',
+            '/api/experiences',
+            '/api/photos',
+            '/api/workshops',
+            '/api/hummingbird-spots',
+            '/api/colibries',
+            '/api/puntos-gis',
+            '/api/tours',
+            '/api/guias',
+            '/api/bookings',
+            '/api/checkout'
+        ]
+    });
+});
 app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
