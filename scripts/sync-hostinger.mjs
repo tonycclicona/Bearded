@@ -182,7 +182,7 @@ foreach ($targets as $baseTarget) {
     }
     curl_close($ch);
 
-    if ($httpCode >= 200 && $httpCode < 500 && $res !== false) {
+    if ($httpCode > 0 && $res !== false) {
         $response = $res;
         break;
     }

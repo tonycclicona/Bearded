@@ -107,6 +107,38 @@ if (adminPath) {
     });
 }
 
+// Inicialización asíncrona de base de datos en segundo plano
+setTimeout(async () => {
+  try {
+    if (process.env.DATABASE_URL) {
+      const { execSync } = await import('child_process');
+      logDebug('> [DB-Init] Verificando y sincronizando tablas en MySQL...');
+      execSync('npx prisma db push --schema=apps/backend/prisma/schema.prisma --accept-data-loss', {
+        stdio: 'pipe',
+        timeout: 30000
+      });
+      logDebug('> [DB-Init] ✅ Tablas de MySQL verificadas y sincronizadas con éxito.');
+
+      try {
+        const prismaModule = await import('./apps/backend/dist/lib/prisma.js');
+        const prismaClient = prismaModule.prisma || prismaModule.default;
+        if (prismaClient && prismaClient.hummingbirdPass) {
+          const passCount = await prismaClient.hummingbirdPass.count();
+          if (passCount === 0) {
+            logDebug('> [DB-Init] Base de datos vacía detectada. Insertando seed...');
+            execSync('npx prisma db seed', { stdio: 'pipe', timeout: 45000 });
+            logDebug('> [DB-Init] ✅ Datos iniciales insertados.');
+          }
+        }
+      } catch (seedErr) {
+        logDebug(`> [DB-Init] Info seed: ${seedErr.message}`);
+      }
+    }
+  } catch (dbErr) {
+    logDebug(`> [DB-Init] Info db push: ${dbErr.message}`);
+  }
+}, 3000);
+
 // ── 2. Servir Archivos Estáticos de Admin & Uploads ───────────────────────────
 const uploadsDir = path.resolve(__dirname, 'apps/admin/uploads');
 const adminPublicDir = path.resolve(__dirname, 'apps/admin/public');
