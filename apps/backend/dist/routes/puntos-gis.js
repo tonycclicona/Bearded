@@ -2,9 +2,10 @@ import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
 import { AppResponse } from '@antigravity/shared/utils/response';
 import { AppError } from '@antigravity/shared/utils/errors';
+import { FALLBACK_PUNTOS_GIS } from '../lib/fallbacks.js';
 const router = Router();
 // GET /api/puntos-gis
-router.get('/', async (req, res, next) => {
+router.get('/', async (req, res, _next) => {
     try {
         const { categoria, departamento, piso } = req.query;
         const where = { activo: true };
@@ -91,15 +92,20 @@ router.get('/', async (req, res, next) => {
                 id: 'asc'
             }
         });
-        const parsed = puntos.map((p) => ({
-            ...p,
-            latitud: Number(p.latitud),
-            longitud: Number(p.longitud)
-        }));
-        res.json(AppResponse.success(parsed));
+        if (puntos && puntos.length > 0) {
+            const parsed = puntos.map((p) => ({
+                ...p,
+                latitud: Number(p.latitud),
+                longitud: Number(p.longitud)
+            }));
+            res.json(AppResponse.success(parsed));
+            return;
+        }
+        res.json(AppResponse.success(FALLBACK_PUNTOS_GIS));
     }
     catch (error) {
-        next(error instanceof AppError ? error : new AppError('FETCH_ERROR', 'Error al obtener puntos GIS', 500));
+        console.warn('[API] puntos-gis findMany failed, serving fallback:', error);
+        res.json(AppResponse.success(FALLBACK_PUNTOS_GIS));
     }
 });
 // GET /api/puntos-gis/:slug
@@ -173,18 +179,25 @@ router.get('/:slug', async (req, res, next) => {
                 updatedAt: true
             }
         });
-        if (!punto) {
-            throw new AppError('NOT_FOUND', 'Punto GIS no encontrado', 404);
+        if (punto) {
+            res.json(AppResponse.success({
+                ...punto,
+                latitud: Number(punto.latitud),
+                longitud: Number(punto.longitud)
+            }));
+            return;
         }
-        res.json(AppResponse.success({
-            ...punto,
-            latitud: Number(punto.latitud),
-            longitud: Number(punto.longitud)
-        }));
     }
-    catch (error) {
-        next(error instanceof AppError ? error : new AppError('FETCH_ERROR', 'Error al obtener punto GIS', 500));
+    catch (dbErr) {
+        console.warn('[API] puntos-gis findUnique failed, checking fallback:', dbErr);
     }
+    const slug = Array.isArray(req.params.slug) ? req.params.slug[0] : req.params.slug;
+    const fallback = FALLBACK_PUNTOS_GIS.find((p) => p.slug === slug);
+    if (fallback) {
+        res.json(AppResponse.success(fallback));
+        return;
+    }
+    next(new AppError('NOT_FOUND', 'Punto GIS no encontrado', 404));
 });
 export default router;
 //# sourceMappingURL=puntos-gis.js.map

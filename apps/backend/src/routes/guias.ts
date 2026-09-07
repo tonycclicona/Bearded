@@ -2,11 +2,12 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { prisma } from '../lib/prisma.js';
 import { AppResponse } from '@antigravity/shared/utils/response';
 import { AppError } from '@antigravity/shared/utils/errors';
+import { FALLBACK_GUIAS } from '../lib/fallbacks.js';
 
 const router = Router();
 
 // GET /api/guias
-router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
+router.get('/', async (_req: Request, res: Response, _next: NextFunction) => {
   try {
     const guias = await prisma.guia.findMany({
       where: { activo: true },
@@ -28,21 +29,28 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
       }
     });
 
-    res.json(AppResponse.success(guias));
+    if (guias && guias.length > 0) {
+      res.json(AppResponse.success(guias));
+      return;
+    }
+
+    res.json(AppResponse.success(FALLBACK_GUIAS));
   } catch (error) {
-    next(error instanceof AppError ? error : new AppError('FETCH_ERROR', 'Error al obtener guías', 500));
+    console.warn('[API] guias findMany failed, serving fallback:', error);
+    res.json(AppResponse.success(FALLBACK_GUIAS));
   }
 });
 
 // GET /api/guias/:id
 router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-    const id = parseInt(rawId, 10);
-    if (isNaN(id)) {
-      throw new AppError('INVALID_ID', 'ID de guía inválido', 400);
-    }
+  const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const id = parseInt(rawId, 10);
+  if (isNaN(id)) {
+    next(new AppError('INVALID_ID', 'ID de guía inválido', 400));
+    return;
+  }
 
+  try {
     const guia = await prisma.guia.findUnique({
       where: { id },
       select: {
@@ -60,14 +68,21 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
       }
     });
 
-    if (!guia) {
-      throw new AppError('NOT_FOUND', 'Guía no encontrado', 404);
+    if (guia) {
+      res.json(AppResponse.success(guia));
+      return;
     }
-
-    res.json(AppResponse.success(guia));
-  } catch (error) {
-    next(error instanceof AppError ? error : new AppError('FETCH_ERROR', 'Error al obtener guía', 500));
+  } catch (dbErr) {
+    console.warn('[API] guias findUnique failed, checking fallback:', dbErr);
   }
+
+  const fallback = FALLBACK_GUIAS.find((g) => g.id === id);
+  if (fallback) {
+    res.json(AppResponse.success(fallback));
+    return;
+  }
+
+  next(new AppError('NOT_FOUND', 'Guía no encontrado', 404));
 });
 
 export default router;

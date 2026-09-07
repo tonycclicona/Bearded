@@ -1,0 +1,630 @@
+import type {
+  HummingbirdPass,
+  HummingbirdSpot,
+  Route,
+  Room,
+  LodgeExperience,
+  PhotoProduct,
+  PhotoWorkshopPackage,
+  EspecieColibri,
+  PuntoGIS,
+  Tour,
+  Guia
+} from '@antigravity/shared';
+
+export const FALLBACK_PASSES: HummingbirdPass[] = [
+  {
+    id: 'pass-1',
+    title: 'Pase Diario - Jardín Sagrado',
+    price: 25,
+    priceUSD: 8,
+    showPEN: true,
+    showUSD: true,
+    description: 'Acceso completo al jardín de observación de colibríes por un día.',
+    features: [
+      'Acceso de 6:00 AM a 5:00 PM',
+      'Uso de miradores y bebederos',
+      'Guía de campo digital de aves de Cusco',
+      'Café e infusión local ilimitados'
+    ],
+    featured: false,
+    sortOrder: 1
+  },
+  {
+    id: 'pass-2',
+    title: 'Pase de Temporada (Migración)',
+    price: 120,
+    priceUSD: 35,
+    showPEN: true,
+    showUSD: true,
+    description: 'Acceso ilimitado durante la temporada alta de migración de aves.',
+    features: [
+      'Ingreso ilimitado por 3 meses',
+      'Invitado gratuito por visita',
+      '15% de descuento en el Lodge',
+      'Checklist físico de colibríes de cortesía'
+    ],
+    featured: true,
+    sortOrder: 2
+  },
+  {
+    id: 'pass-3',
+    title: 'Tour Guiado VIP con Biólogo',
+    price: 65,
+    priceUSD: 20,
+    showPEN: true,
+    showUSD: true,
+    description: 'Experiencia premium de avistamiento con un especialista local.',
+    features: [
+      'Duración: 3 horas',
+      'Grupos de máximo 4 personas',
+      'Uso de telescopio terrestre profesional',
+      'Consejos de fotografía de aves'
+    ],
+    featured: false,
+    sortOrder: 3
+  }
+];
+
+export const FALLBACK_SPOTS: HummingbirdSpot[] = [
+  {
+    id: 'spot-1',
+    title: 'Jardín Sagrado',
+    description: 'El corazón del santuario: bebederos rodeados de fucsias y salvias donde los colibríes se alimentan a menos de un metro de distancia.',
+    benefits: [
+      'Observación cercana de 20+ especies',
+      'Miradores con techado panorámico',
+      'Zona fotográfica con fondos naturales',
+      'Accesible para sillas de ruedas'
+    ],
+    imageUrl: 'https://images.unsplash.com/photo-1613770638968-4d1c3a4b04c3?q=80&w=800',
+    sortOrder: 1
+  },
+  {
+    id: 'spot-2',
+    title: 'Bosque de Queñuales',
+    description: 'Sendero interpretativo entre árboles nativos y pajonales, refugio del colibrí pico de espada y otras especies endémicas de altura.',
+    benefits: [
+      'Avistamiento de Ensifera ensifera',
+      'Senderos señalizados de 2 km',
+      'Paneles de educación ambiental',
+      'Guía de interpretación incluida'
+    ],
+    imageUrl: 'https://images.unsplash.com/photo-1448375240586-882707db888b?q=80&w=800',
+    sortOrder: 2
+  },
+  {
+    id: 'spot-3',
+    title: 'Mirador del Amanecer',
+    description: 'Punto elevado con vista al valle al amanecer, ideal para ver el primer vuelo de colibríes entre la niebla baja de San Salvador.',
+    benefits: [
+      'Salida guiada al alba disponible',
+      'Vista panorámica del Valle Sagrado',
+      'Momentos de mayor actividad de aves',
+      'Soporte de telescopio terrestre'
+    ],
+    imageUrl: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?q=80&w=800',
+    sortOrder: 3
+  }
+];
+
+export const FALLBACK_ROUTES: Route[] = [
+  {
+    id: 'route-1',
+    title: 'Ruta Ensifera (Yanahuara)',
+    difficulty: 'MODERADO',
+    duration: '6 horas',
+    price: 80,
+    priceUSD: 25,
+    showPEN: true,
+    showUSD: true,
+    description: 'Ruta de avistamiento especializada en el colibrí pico de espada (Ensifera ensifera) en el Santuario de Yanahuara.',
+    startPoint: 'Yanahuara',
+    sortOrder: 1
+  },
+  {
+    id: 'route-2',
+    title: 'Humedal Lucre - Huacarpay',
+    difficulty: 'FACIL',
+    duration: '4 horas',
+    price: 50,
+    priceUSD: 16,
+    showPEN: true,
+    showUSD: true,
+    description: 'Observación de aves acuáticas andinas en los humedales de Lucre, un ecosistema Ramsar de gran biodiversidad.',
+    startPoint: 'Huacarpay',
+    sortOrder: 2
+  },
+  {
+    id: 'route-3',
+    title: 'Expedición Bosque Andino (Pachacutec)',
+    difficulty: 'DIFICIL',
+    duration: '8 horas',
+    price: 110,
+    priceUSD: 35,
+    showPEN: true,
+    showUSD: true,
+    description: 'Búsqueda de especies endémicas de bosque nublado y queñuales en las laderas altas de la cordillera de San Jerónimo.',
+    startPoint: 'San Jerónimo',
+    sortOrder: 3
+  }
+];
+
+export const FALLBACK_ROOMS: Room[] = [
+  {
+    id: 'room-1',
+    name: 'Habitación Rústica Standard',
+    pricePerNight: 120,
+    pricePerNightUSD: 35,
+    showPEN: true,
+    showUSD: true,
+    capacity: 2,
+    amenities: [
+      'Desayuno buffet incluido',
+      'Agua caliente por energía solar',
+      'Vistas al jardín de colibríes',
+      'Wi-Fi de alta velocidad'
+    ],
+    imageUrl: 'https://images.unsplash.com/photo-1618773928121-c32242e63f39?q=80&w=800',
+    gallery: [
+      'https://images.unsplash.com/photo-1618773928121-c32242e63f39?q=80&w=800',
+      'https://images.unsplash.com/photo-1590490360182-c33d57733427?q=80&w=800'
+    ],
+    featured: false,
+    sortOrder: 1
+  },
+  {
+    id: 'room-2',
+    name: 'Habitación Deluxe Ensifera',
+    pricePerNight: 175,
+    pricePerNightUSD: 50,
+    showPEN: true,
+    showUSD: true,
+    capacity: 2,
+    amenities: [
+      'Balcón privado con bebedero de colibríes',
+      'Cama King Size de algodón orgánico',
+      'Calefactor ecológico',
+      'Servicio a la habitación de cortesía'
+    ],
+    imageUrl: 'https://images.unsplash.com/photo-1590490360182-c33d57733427?q=80&w=800',
+    gallery: [
+      'https://images.unsplash.com/photo-1590490360182-c33d57733427?q=80&w=800',
+      'https://images.unsplash.com/photo-1542718610-a1d656d1884c?q=80&w=800'
+    ],
+    featured: true,
+    sortOrder: 2
+  },
+  {
+    id: 'room-3',
+    name: 'Cabaña Familiar Cordillera',
+    pricePerNight: 240,
+    pricePerNightUSD: 70,
+    showPEN: true,
+    showUSD: true,
+    capacity: 4,
+    amenities: [
+      'Cocina completa equipada',
+      'Chimenea de leña tradicional',
+      'Terraza panorámica hacia las montañas',
+      'Guía privado para caminatas cortas'
+    ],
+    imageUrl: 'https://images.unsplash.com/photo-1542718610-a1d656d1884c?q=80&w=800',
+    gallery: [
+      'https://images.unsplash.com/photo-1542718610-a1d656d1884c?q=80&w=800'
+    ],
+    featured: false,
+    sortOrder: 3
+  }
+];
+
+export const FALLBACK_EXPERIENCES: LodgeExperience[] = [
+  {
+    id: 'exp-1',
+    title: 'Cooking Class Ancestral',
+    price: 45,
+    priceUSD: 14,
+    showPEN: true,
+    showUSD: true,
+    duration: '3 horas',
+    description: 'Aprende a preparar platos tradicionales andinos usando ingredientes frescos cosechados directamente de nuestro huerto orgánico guiado por un chef local.',
+    included: [
+      'Ingredientes orgánicos',
+      'Cata de chicha de jora o pisco sour',
+      'Recetario digital',
+      'Almuerzo completo'
+    ],
+    imageUrl: 'https://images.unsplash.com/photo-1556910103-1c02745aae4d?q=80&w=800',
+    sortOrder: 1
+  },
+  {
+    id: 'exp-2',
+    title: 'Aventura en Moto Cross',
+    price: 95,
+    priceUSD: 28,
+    showPEN: true,
+    showUSD: true,
+    duration: '4 horas',
+    description: 'Siente la adrenalina recorriendo los senderos andinos autorizados del Valle Sagrado. Rutas adaptadas a tu nivel técnico.',
+    included: [
+      'Motocicleta de cross equipada',
+      'Casco y equipo de seguridad completo',
+      'Guía certificado de aventura',
+      'Seguro contra accidentes'
+    ],
+    imageUrl: 'https://images.unsplash.com/photo-1558981403-c5f9899a28bc?q=80&w=800',
+    sortOrder: 2
+  },
+  {
+    id: 'exp-3',
+    title: 'Ciclismo de Montaña San Salvador',
+    price: 60,
+    priceUSD: 18,
+    showPEN: true,
+    showUSD: true,
+    duration: '5 horas',
+    description: 'Descenso guiado en bicicleta desde los miradores altos de San Salvador hasta el fondo del valle. Paisajes inolvidables de Cusco.',
+    included: [
+      'Bicicleta de montaña de doble suspensión',
+      'Casco, guantes y coderas',
+      'Transporte de soporte',
+      'Snacks e hidratación'
+    ],
+    imageUrl: 'https://images.unsplash.com/photo-1485965120184-e220f721d03e?q=80&w=800',
+    sortOrder: 3
+  }
+];
+
+export const FALLBACK_PHOTOS: PhotoProduct[] = [
+  {
+    id: 'photo-1',
+    title: 'Ensifera Ensifera en Yanahuara',
+    slug: 'ensifera-ensifera-yanahuara',
+    price: 45,
+    priceUSD: 13,
+    showPEN: true,
+    showUSD: true,
+    description: 'Fotografía digital de alta resolución del colibrí pico de espada (Ensifera ensifera) alimentándose de flores nativas de fucsia.',
+    imageUrl: 'https://images.unsplash.com/photo-1589656966895-2f33e7653819?q=80&w=800',
+    type: 'AVES',
+    featured: true,
+    sortOrder: 1,
+    metadata: {
+      species: 'Ensifera ensifera',
+      location: 'Santuario de Yanahuara, Cusco',
+      camera: 'Sony Alpha 1 + 600mm f/4',
+      resolution: '50MP (8640 x 5760)'
+    }
+  },
+  {
+    id: 'photo-2',
+    title: 'Colibrí Gigante en el Jardín',
+    slug: 'colibri-gigante-jardin',
+    price: 35,
+    priceUSD: 10,
+    showPEN: true,
+    showUSD: true,
+    description: 'Impresionante captura del Patagona gigas, el colibrí más grande del mundo, sobrevolando las flores del lodge en San Salvador.',
+    imageUrl: 'https://images.unsplash.com/photo-1452570053594-1b985d6ea890?q=80&w=800',
+    type: 'AVES',
+    featured: false,
+    sortOrder: 2,
+    metadata: {
+      species: 'Patagona gigas',
+      location: 'San Salvador, Cusco',
+      camera: 'Canon EOS R5 + 400mm f/2.8',
+      resolution: '45MP (8192 x 5464)'
+    }
+  },
+  {
+    id: 'photo-3',
+    title: 'Amanecer sobre el Valle Sagrado',
+    slug: 'amanecer-valle-sagrado',
+    price: 55,
+    priceUSD: 16,
+    showPEN: true,
+    showUSD: true,
+    description: 'Vista panorámica de la cordillera del Urubamba al amanecer desde los miradores del lodge, con niebla baja cubriendo el río.',
+    imageUrl: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?q=80&w=800',
+    type: 'PAISAJE',
+    featured: true,
+    sortOrder: 3,
+    metadata: {
+      location: 'San Salvador, Valle Sagrado',
+      camera: 'Fujifilm GFX 100S + 32-64mm',
+      resolution: '102MP (11648 x 8736)'
+    }
+  },
+  {
+    id: 'photo-4',
+    title: 'Tangara Andina de Pecho Amarillo',
+    slug: 'tangara-andina-pecho-amarillo',
+    price: 40,
+    priceUSD: 12,
+    showPEN: true,
+    showUSD: true,
+    description: 'Retrato de detalle con plumaje nítido de la Tangara de montaña posada en una rama musgosa durante la mañana fría.',
+    imageUrl: 'https://images.unsplash.com/photo-1444464666168-49d633b86797?q=80&w=800',
+    type: 'AVES',
+    featured: false,
+    sortOrder: 4,
+    metadata: {
+      species: 'Anisognathus lacrymosus',
+      location: 'Bosque Andino, Pachacutec',
+      camera: 'Sony Alpha 9 II + 200-600mm',
+      resolution: '24MP (6000 x 4000)'
+    }
+  }
+];
+
+export const FALLBACK_WORKSHOPS: PhotoWorkshopPackage[] = [
+  {
+    id: 'workshop-1',
+    title: 'Taller de Fotografía de Aves en Vuelo',
+    category: 'AVES',
+    price: 150,
+    priceUSD: 45,
+    showPEN: true,
+    showUSD: true,
+    duration: '2 días',
+    description: 'Domina las técnicas de enfoque continuo de alta velocidad, iluminación con flash de sincronización rápida y encuadres de colibríes en acción.',
+    included: [
+      'Clases teóricas en el lodge',
+      'Práctica de campo guiada en bebederos',
+      'Uso de fondos profesionales y flashes múltiples',
+      'Sesión de edición en Lightroom'
+    ],
+    featured: true,
+    sortOrder: 1
+  },
+  {
+    id: 'workshop-2',
+    title: 'Astrofotografía y Vía Láctea en el Valle',
+    category: 'PAISAJES',
+    price: 195,
+    priceUSD: 58,
+    showPEN: true,
+    showUSD: true,
+    duration: '1 noche',
+    description: 'Aprovecha los cielos limpios y la nula contaminación lumínica de San Salvador para fotografiar la Vía Láctea sobre el gazebo y las montañas.',
+    included: [
+      'Transporte a miradores altos',
+      'Catering y bebidas calientes',
+      'Guiado por fotógrafo astronómico experto',
+      'Taller de apilado digital de imágenes (Sequator/Photoshop)'
+    ],
+    featured: false,
+    sortOrder: 2
+  },
+  {
+    id: 'workshop-3',
+    title: 'Macro y Flora del Bosque Nublado',
+    category: 'NATURALEZA',
+    price: 130,
+    priceUSD: 38,
+    showPEN: true,
+    showUSD: true,
+    duration: '1 día',
+    description: 'Aprende a ajustar el increíble micromundo de orquídeas nativas, helechos, insectos y gotas de rocío en los senderos de Pachacutec.',
+    included: [
+      'Almuerzo campestre',
+      'Préstamo de lentes macro especializados',
+      'Guiado personalizado en senderos',
+      'Guía PDF de revelado macro'
+    ],
+    featured: false,
+    sortOrder: 3
+  }
+];
+
+export const FALLBACK_COLIBRIES: EspecieColibri[] = [
+  {
+    id: 1,
+    nombreComun: 'Colibrí Cola de Espátula',
+    nombreCientifico: 'Loddigesia mirabilis',
+    familia: 'Trochilidae',
+    estadoIUCN: 'En Peligro (EN)',
+    endemicoPeru: true,
+    altitudMinMsnm: 2100,
+    altitudMaxMsnm: 2900,
+    descripcion: 'Una de las aves más extraordinarias del planeta. El macho posee dos largas plumas exteriores en la cola que rematan en grandes discos o espátulas azul violáceo que mueve independientemente en su cortejo.',
+    fotoPrincipal: 'https://images.unsplash.com/photo-1544644181-1484b3fdfc62?q=80&w=1000',
+    audioCantoUrl: 'https://www.xeno-canto.org/sounds/uploaded/RNGGHRWSND/XC458921-Loddigesia_mirabilis.mp3'
+  },
+  {
+    id: 2,
+    nombreComun: 'Colibrí Picoespada',
+    nombreCientifico: 'Ensifera ensifera',
+    familia: 'Trochilidae',
+    estadoIUCN: 'Preocupación Menor (LC)',
+    endemicoPeru: false,
+    altitudMinMsnm: 2400,
+    altitudMaxMsnm: 3500,
+    descripcion: 'La única ave del mundo con un pico más largo que la longitud de su propio cuerpo (excluyendo la cola). Coevolucionó para alimentarse de flores tubulares profundas de Passiflora y Brugmansia.',
+    fotoPrincipal: 'https://images.unsplash.com/photo-1520637736862-4d1921f9a2b5?q=80&w=1000',
+    audioCantoUrl: 'https://www.xeno-canto.org/sounds/uploaded/TNVYIOVUOI/XC189320-Ensifera_ensifera.mp3'
+  },
+  {
+    id: 3,
+    nombreComun: 'Colibrí Barbudo / Bearded Mountaineer',
+    nombreCientifico: 'Oreonympha nobilis',
+    familia: 'Trochilidae',
+    estadoIUCN: 'Casi Amenazado (NT)',
+    endemicoPeru: true,
+    altitudMinMsnm: 2700,
+    altitudMaxMsnm: 3900,
+    descripcion: 'Espléndido colibrí endémico de los valles interandinos secos del sur de Perú (Cusco y Apurímac). Se caracteriza por su parche gular bifurcado de color verde esmeralda y púrpura brillante.',
+    fotoPrincipal: 'https://images.unsplash.com/photo-1552728089-57bdde30beb3?q=80&w=1000',
+    audioCantoUrl: 'https://www.xeno-canto.org/sounds/uploaded/OOECVBLAOP/XC512044-Oreonympha_nobilis.mp3'
+  },
+  {
+    id: 4,
+    nombreComun: 'Rayito de Sol Reluciente',
+    nombreCientifico: 'Aglaeactis cupripennis',
+    familia: 'Trochilidae',
+    estadoIUCN: 'Preocupación Menor (LC)',
+    endemicoPeru: false,
+    altitudMinMsnm: 2500,
+    altitudMaxMsnm: 4200,
+    descripcion: 'Colibrí robusto de la alta montaña andina con un llamativo escudo dorsal iridiscente cobrizo y purpúreo que reluce intensamente con la luz solar en los pajonales y bosques de Polylepis.',
+    fotoPrincipal: 'https://images.unsplash.com/photo-1579273166152-d725a4e2b755?q=80&w=1000',
+    audioCantoUrl: 'https://www.xeno-canto.org/sounds/uploaded/OOECVBLAOP/XC324110-Aglaeactis_cupripennis.mp3'
+  },
+  {
+    id: 5,
+    nombreComun: 'Colibrí Gigante',
+    nombreCientifico: 'Patagona gigas',
+    familia: 'Trochilidae',
+    estadoIUCN: 'Preocupación Menor (LC)',
+    endemicoPeru: false,
+    altitudMinMsnm: 2000,
+    altitudMaxMsnm: 3800,
+    descripcion: 'El colibrí de mayor tamaño del planeta (pesa hasta 24 gramos y mide 22 cm). Su aleteo es notablemente pausado (12-15 batidos por segundo) similar al vuelo de una golondrina.',
+    fotoPrincipal: 'https://images.unsplash.com/photo-1613770638968-4d1c3a4b04c3?q=80&w=1000',
+    audioCantoUrl: 'https://www.xeno-canto.org/sounds/uploaded/RNGGHRWSND/XC610221-Patagona_gigas.mp3'
+  }
+];
+
+export const FALLBACK_PUNTOS_GIS: PuntoGIS[] = [
+  {
+    id: 1,
+    nombre: 'Reserva Biológica Abra Patricia',
+    slug: 'abra-patricia-amazonas',
+    categoria: 'OBSERVATORIO_SILVESTRE',
+    departamento: 'San Martín / Amazonas',
+    latitud: -5.6983333,
+    longitud: -77.8186111,
+    altitudMsnm: 2200,
+    mejorTemporada: 'Mayo a Noviembre',
+    acceso: 'Carretera Fernando Belaúnde Terry y senderos de bosque nublado',
+    descripcion: 'Famoso santuario ornitológico global en ceja de selva norte. Alberga decenas de especies de colibríes de alta montaña, tángaras y la lechucita bigotona.',
+    fotoUrl: 'https://images.unsplash.com/photo-1448375240586-882707db888b?q=80&w=1000',
+    activo: true
+  },
+  {
+    id: 2,
+    nombre: 'Centro de Conservación Huembo',
+    slug: 'huembo-lodge-amazonas',
+    categoria: 'HOTSPOT_COMEDERO',
+    departamento: 'Amazonas',
+    latitud: -5.9866667,
+    longitud: -77.9719444,
+    altitudMsnm: 2000,
+    mejorTemporada: 'Abril a Diciembre (Floración)',
+    acceso: 'Acceso vehicular directo en km 317 y senderos suaves',
+    descripcion: 'El principal santuario del Colibrí Cola de Espátula (Loddigesia mirabilis). Cuenta con jardines botánicos de salvias y bebederos para fotografía a distancia focal fija.',
+    fotoUrl: 'https://images.unsplash.com/photo-1544644181-1484b3fdfc62?q=80&w=1000',
+    activo: true
+  },
+  {
+    id: 3,
+    nombre: 'Santuario de Colibríes Bearded Mountaineer',
+    slug: 'santuario-san-salvador-cusco',
+    categoria: 'HOTSPOT_COMEDERO',
+    departamento: 'Cusco',
+    latitud: -13.4869444,
+    longitud: -71.7877778,
+    altitudMsnm: 2950,
+    mejorTemporada: 'Todo el año (Óptimo Mayo a Diciembre)',
+    acceso: 'Vehicular asfaltado y sendero adaptado',
+    descripcion: 'Estación ornitológica y lodge en el Valle Sagrado con jardines florales diseñados para avistamiento cercano del colibrí barbudo y más de 30 especies de aves.',
+    fotoUrl: 'https://images.unsplash.com/photo-1552728089-57bdde30beb3?q=80&w=1000',
+    activo: true
+  },
+  {
+    id: 4,
+    nombre: 'Bosque Nuboso del Manu & Cock-of-the-rock',
+    slug: 'bosque-nuboso-manu-cusco',
+    categoria: 'OBSERVATORIO_SILVESTRE',
+    departamento: 'Cusco / Madre de Dios',
+    latitud: -13.0552778,
+    longitud: -71.5458333,
+    altitudMsnm: 1400,
+    mejorTemporada: 'Mayo a Octubre',
+    acceso: 'Carretera a Paucartambo y senderos forestales',
+    descripcion: 'El gradiente altitudinal con mayor biodiversidad ornitológica del mundo en la vertiente oriental de los Andes hacia la Amazonía del Manu.',
+    fotoUrl: 'https://images.unsplash.com/photo-1448375240586-882707db888b?q=80&w=1000',
+    activo: true
+  }
+];
+
+export const FALLBACK_TOURS: Tour[] = [
+  {
+    id: 1,
+    nombre: 'Expedición Colibrí Cola de Espátula & Bosque Nuboso',
+    slug: 'expedicion-colibri-cola-espatula-norte',
+    descripcion: 'Ruta especializada de 5 días por el circuito norte peruano diseñada para ornitólogos y fotógrafos. Recorremos Huembo y Abra Patricia para registrar al endémico Loddigesia mirabilis y más de 45 especies de troquilinos.',
+    itinerario: 'Día 1: Tarapoto - Moyobamba (Jardines de colibríes). Día 2: Centro Huembo y fotografía de cortejo. Día 3-4: Reserva Abra Patricia y lechucita bigotona. Día 5: Retorno a Tarapoto.',
+    regionRuta: 'Ruta Norte',
+    nivelCaminata: 'Fácil / Fotografía',
+    equipoOpticoReq: 'Telescopio terrestre 80mm ED, Binoculares 8x42, Teleobjetivo 300-600mm',
+    precio_adulto: 1850,
+    precio_adulto_usd: 520,
+    showPEN: true,
+    showUSD: true,
+    duracion_dias: 5,
+    cupos_disponibles: 8,
+    servicios_incluidos: 'Guía ornitólogo bilingüe certificado, Transporte privado 4x4, Alojamiento en eco-lodges, Pases de ingreso a reservas privadas',
+    servicios_excluidos: 'Vuelos nacionales a Tarapoto, Bebidas alcohólicas, Propinas',
+    que_llevar: 'Ropa impermeable y ponchos, Botas de trekking, Binoculares, Baterías y tarjetas de memoria extra',
+    activo: true,
+    destacado: true
+  },
+  {
+    id: 2,
+    nombre: 'Travesía Ornitológica del Manu & Santuario Andino',
+    slug: 'travesia-ornitologica-manu-sur',
+    descripcion: 'Travesía de 6 días que desciende desde los 4,350 msnm en los queñuales de Cusco hasta los 1,400 msnm del bosque nublado del Manu, culminando en el Santuario de San Salvador para avistamiento del Colibrí Barbudo.',
+    itinerario: 'Día 1: Cusco - Abra Málaga (Aves de Polylepis). Día 2: Santuario de Colibríes San Salvador. Día 3-5: Descenso al Bosque Nublado del Manu. Día 6: Retorno a Cusco.',
+    regionRuta: 'Ruta Sur Manu',
+    nivelCaminata: 'Moderado',
+    equipoOpticoReq: 'Binoculares 10x42, Micrófono direccional para bioacústica, Trípode de carbono',
+    precio_adulto: 2450,
+    precio_adulto_usd: 690,
+    showPEN: true,
+    showUSD: true,
+    duracion_dias: 6,
+    cupos_disponibles: 6,
+    servicios_incluidos: 'Biólogo especialista en aves neotropicales, Transporte terrestre exclusivo, 5 noches de lodge de campo',
+    servicios_excluidos: 'Vuelos a Cusco, Seguro médico de viaje, Equipo fotográfico personal',
+    que_llevar: 'Ropa en capas, Linterna frontal con luz roja, Protector solar y sombrero',
+    activo: true,
+    destacado: true
+  }
+];
+
+export const FALLBACK_GUIAS: Guia[] = [
+  {
+    id: 1,
+    nombre: 'Dr. Carlos Valdivia Ramos',
+    especialidad: 'Ornitólogo / Especialista en Troquilinos Neotropicales',
+    experiencia: '16 Años en expediciones de campo',
+    idiomas: 'Español, Inglés, Quechua',
+    foto: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=600',
+    descripcion: 'Doctor en Biología por la UNSAAC con más de 30 publicaciones científicas sobre la ecología reproductiva y cantos de los colibríes altoandinos del sur de Perú.',
+    orden: 1,
+    activo: true
+  },
+  {
+    id: 2,
+    nombre: 'Lic. Elena Mendoza Quispe',
+    especialidad: 'Especialista en Aves Andinas & Grabación de Bioacústica',
+    experiencia: '11 Años de guiado ornitológico',
+    idiomas: 'Español, Inglés, Francés',
+    foto: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=600',
+    descripcion: 'Consultora de biodiversidad para la conservación de la Reserva de Biósfera del Manu. Apasionada por la identificación auditiva de aves y la fotografía macro.',
+    orden: 2,
+    activo: true
+  },
+  {
+    id: 3,
+    nombre: 'Marco Aurelio Paucar',
+    especialidad: 'Guía Naturalista de Campo & Fotógrafo de Naturaleza',
+    experiencia: '14 Años en Rutas de Aves de Perú',
+    idiomas: 'Español, Inglés',
+    foto: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=600',
+    descripcion: 'Guía oficial de turismo especializado en expediciones ornitológicas de la Ruta Norte y Sur. Experto en técnicas de hide y fotografía de alta velocidad de colibríes.',
+    orden: 3,
+    activo: true
+  }
+];

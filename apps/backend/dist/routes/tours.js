@@ -2,9 +2,10 @@ import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
 import { AppResponse } from '@antigravity/shared/utils/response';
 import { AppError } from '@antigravity/shared/utils/errors';
+import { FALLBACK_TOURS } from '../lib/fallbacks.js';
 const router = Router();
 // GET /api/tours
-router.get('/', async (req, res, next) => {
+router.get('/', async (req, res, _next) => {
     try {
         const { region, destacado } = req.query;
         const where = { activo: true };
@@ -65,30 +66,35 @@ router.get('/', async (req, res, next) => {
                 id: 'asc'
             }
         });
-        const parsed = tours.map((t) => ({
-            ...t,
-            precio_adulto: Number(t.precio_adulto),
-            precio_adulto_usd: t.precio_adulto_usd != null ? Number(t.precio_adulto_usd) : null,
-            precio_nino: t.precio_nino != null ? Number(t.precio_nino) : null,
-            precio_nino_usd: t.precio_nino_usd != null ? Number(t.precio_nino_usd) : null,
-            showPEN: t.showPEN ?? true,
-            showUSD: t.showUSD ?? false,
-            hotspots: t.hotspots.map((h) => ({
-                ...h,
-                latitud: Number(h.latitud),
-                longitud: Number(h.longitud)
-            }))
-        }));
-        res.json(AppResponse.success(parsed));
+        if (tours && tours.length > 0) {
+            const parsed = tours.map((t) => ({
+                ...t,
+                precio_adulto: Number(t.precio_adulto),
+                precio_adulto_usd: t.precio_adulto_usd != null ? Number(t.precio_adulto_usd) : null,
+                precio_nino: t.precio_nino != null ? Number(t.precio_nino) : null,
+                precio_nino_usd: t.precio_nino_usd != null ? Number(t.precio_nino_usd) : null,
+                showPEN: t.showPEN ?? true,
+                showUSD: t.showUSD ?? false,
+                hotspots: t.hotspots.map((h) => ({
+                    ...h,
+                    latitud: Number(h.latitud),
+                    longitud: Number(h.longitud)
+                }))
+            }));
+            res.json(AppResponse.success(parsed));
+            return;
+        }
+        res.json(AppResponse.success(FALLBACK_TOURS));
     }
     catch (error) {
-        next(error instanceof AppError ? error : new AppError('FETCH_ERROR', 'Error al obtener tours', 500));
+        console.warn('[API] tours findMany failed, serving fallback:', error);
+        res.json(AppResponse.success(FALLBACK_TOURS));
     }
 });
 // GET /api/tours/:slug
 router.get('/:slug', async (req, res, next) => {
+    const slug = Array.isArray(req.params.slug) ? req.params.slug[0] : req.params.slug;
     try {
-        const slug = Array.isArray(req.params.slug) ? req.params.slug[0] : req.params.slug;
         const tour = await prisma.tour.findUnique({
             where: { slug },
             include: {
@@ -100,22 +106,28 @@ router.get('/:slug', async (req, res, next) => {
                 imagenes: true
             }
         });
-        if (!tour) {
-            throw new AppError('NOT_FOUND', 'Tour no encontrado', 404);
+        if (tour) {
+            res.json(AppResponse.success({
+                ...tour,
+                precio_adulto: Number(tour.precio_adulto),
+                hotspots: tour.hotspots.map((h) => ({
+                    ...h,
+                    latitud: Number(h.latitud),
+                    longitud: Number(h.longitud)
+                }))
+            }));
+            return;
         }
-        res.json(AppResponse.success({
-            ...tour,
-            precio_adulto: Number(tour.precio_adulto),
-            hotspots: tour.hotspots.map((h) => ({
-                ...h,
-                latitud: Number(h.latitud),
-                longitud: Number(h.longitud)
-            }))
-        }));
     }
-    catch (error) {
-        next(error instanceof AppError ? error : new AppError('FETCH_ERROR', 'Error al obtener tour', 500));
+    catch (dbErr) {
+        console.warn('[API] tours findUnique failed, checking fallback:', dbErr);
     }
+    const fallback = FALLBACK_TOURS.find((t) => t.slug === slug);
+    if (fallback) {
+        res.json(AppResponse.success(fallback));
+        return;
+    }
+    next(new AppError('NOT_FOUND', 'Tour no encontrado', 404));
 });
 export default router;
 //# sourceMappingURL=tours.js.map

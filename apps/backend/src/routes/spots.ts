@@ -1,5 +1,6 @@
 import { prisma } from '../lib/prisma.js';
 import { createResourceRouter } from '../lib/resource-router.js';
+import { FALLBACK_SPOTS } from '../lib/fallbacks.js';
 
 export default createResourceRouter({
   model: prisma.hummingbirdSpot,
@@ -13,5 +14,6 @@ export default createResourceRouter({
   },
   label: 'escenarios',
   singularLabel: 'Escenario',
-  key: 'id'
+  key: 'id',
+  fallbackData: FALLBACK_SPOTS
 });

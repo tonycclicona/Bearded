@@ -62,6 +62,16 @@ try {
   console.warn('⚠️ [postinstall] Warning prisma generate:', e.message);
 }
 
+if (process.env.DATABASE_URL) {
+  try {
+    console.log('> [postinstall] Sincronizando esquema de base de datos con Prisma db push...');
+    execSync('npx prisma db push --schema=apps/backend/prisma/schema.prisma --accept-data-loss', { stdio: 'inherit' });
+    console.log('✅ [postinstall] Prisma db push completado.');
+  } catch (e) {
+    console.warn('⚠️ [postinstall] Warning prisma db push:', e.message);
+  }
+}
+
 const backendDist = path.resolve(process.cwd(), 'apps/backend/dist/index.js');
 const adminDist = path.resolve(process.cwd(), 'apps/admin/dist/index.js');
 

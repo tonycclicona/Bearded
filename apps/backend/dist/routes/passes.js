@@ -1,5 +1,6 @@
 import { prisma } from '../lib/prisma.js';
 import { createResourceRouter } from '../lib/resource-router.js';
+import { FALLBACK_PASSES } from '../lib/fallbacks.js';
 export default createResourceRouter({
     model: prisma.hummingbirdPass,
     select: {
@@ -16,6 +17,7 @@ export default createResourceRouter({
     },
     label: 'pases',
     singularLabel: 'Pase',
-    key: 'id'
+    key: 'id',
+    fallbackData: FALLBACK_PASSES
 });
 //# sourceMappingURL=passes.js.map

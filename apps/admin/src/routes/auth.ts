@@ -21,11 +21,59 @@ router.get('/login', (req: Request, res: Response) => {
 
 router.post('/login', async (req: Request, res: Response) => {
   try {
-    const { email, password } = req.body;
+    const rawIdentifier = String(req.body.username || req.body.email || '').trim();
+    const password = String(req.body.password || '').trim();
 
-    const user = await prisma.user.findUnique({
-      where: { email }
-    });
+    if (!rawIdentifier || !password) {
+      res.render('login', { error: 'Por favor complete todos los campos' });
+      return;
+    }
+
+    // 1. Validar contra variables de entorno configuradas en Hostinger
+    const envAdminUsers = [
+      process.env.ADMIN_USER,
+      process.env.ADMIN_USERNAME,
+      process.env.ADMIN_EMAIL
+    ].filter((val): val is string => Boolean(val && val.trim())).map(v => v.trim().toLowerCase());
+
+    const envAdminPasswords = [
+      process.env.ADMIN_PASSWORD,
+      process.env.ADMIN_PASS
+    ].filter((val): val is string => Boolean(val && val.trim()));
+
+    if (envAdminUsers.length > 0 && envAdminPasswords.length > 0) {
+      const matchUser = envAdminUsers.includes(rawIdentifier.toLowerCase());
+      const matchPass = envAdminPasswords.includes(password);
+
+      if (matchUser && matchPass) {
+        req.session.userId = 'admin-env';
+        req.session.userRole = 'ADMIN';
+        res.redirect('/admin');
+        return;
+      }
+    }
+
+    // 2. Validar contra base de datos si las variables de entorno no coinciden o no están configuradas
+    let user = null;
+    try {
+      user = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { email: rawIdentifier },
+            { name: rawIdentifier }
+          ]
+        },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          password: true,
+          role: true
+        }
+      });
+    } catch (dbErr) {
+      console.warn('DB search failed during admin login:', dbErr);
+    }
 
     if (!user) {
       res.render('login', { error: 'Credenciales inválidas' });

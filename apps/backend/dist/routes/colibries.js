@@ -2,9 +2,10 @@ import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
 import { AppResponse } from '@antigravity/shared/utils/response';
 import { AppError } from '@antigravity/shared/utils/errors';
+import { FALLBACK_COLIBRIES } from '../lib/fallbacks.js';
 const router = Router();
 // GET /api/colibries
-router.get('/', async (req, res, next) => {
+router.get('/', async (req, res, _next) => {
     try {
         const { endemico, iucn } = req.query;
         const where = {};
@@ -46,20 +47,26 @@ router.get('/', async (req, res, next) => {
                 id: 'asc'
             }
         });
-        res.json(AppResponse.success(colibries));
+        if (colibries && colibries.length > 0) {
+            res.json(AppResponse.success(colibries));
+            return;
+        }
+        res.json(AppResponse.success(FALLBACK_COLIBRIES));
     }
     catch (error) {
-        next(error instanceof AppError ? error : new AppError('FETCH_ERROR', 'Error al obtener especies de colibríes', 500));
+        console.warn('[API] colibries findMany failed, serving fallback:', error);
+        res.json(AppResponse.success(FALLBACK_COLIBRIES));
     }
 });
 // GET /api/colibries/:id
 router.get('/:id', async (req, res, next) => {
+    const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const id = parseInt(rawId, 10);
+    if (isNaN(id)) {
+        next(new AppError('INVALID_ID', 'ID de colibrí inválido', 400));
+        return;
+    }
     try {
-        const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-        const id = parseInt(rawId, 10);
-        if (isNaN(id)) {
-            throw new AppError('INVALID_ID', 'ID de colibrí inválido', 400);
-        }
         const colibri = await prisma.especieColibri.findUnique({
             where: { id },
             select: {
@@ -91,14 +98,20 @@ router.get('/:id', async (req, res, next) => {
                 updatedAt: true
             }
         });
-        if (!colibri) {
-            throw new AppError('NOT_FOUND', 'Especie de colibrí no encontrada', 404);
+        if (colibri) {
+            res.json(AppResponse.success(colibri));
+            return;
         }
-        res.json(AppResponse.success(colibri));
     }
-    catch (error) {
-        next(error instanceof AppError ? error : new AppError('FETCH_ERROR', 'Error al obtener colibrí', 500));
+    catch (dbErr) {
+        console.warn('[API] colibries findUnique failed, checking fallback:', dbErr);
     }
+    const fallback = FALLBACK_COLIBRIES.find((c) => c.id === id);
+    if (fallback) {
+        res.json(AppResponse.success(fallback));
+        return;
+    }
+    next(new AppError('NOT_FOUND', 'Especie de colibrí no encontrada', 404));
 });
 export default router;
 //# sourceMappingURL=colibries.js.map

@@ -1,5 +1,6 @@
 import { prisma } from '../lib/prisma.js';
 import { createResourceRouter } from '../lib/resource-router.js';
+import { FALLBACK_EXPERIENCES } from '../lib/fallbacks.js';
 
 export default createResourceRouter({
   model: prisma.lodgeExperience,
@@ -18,5 +19,6 @@ export default createResourceRouter({
   },
   label: 'experiencias',
   singularLabel: 'Experiencia',
-  key: 'id'
+  key: 'id',
+  fallbackData: FALLBACK_EXPERIENCES
 });

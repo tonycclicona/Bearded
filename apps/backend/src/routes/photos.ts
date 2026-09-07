@@ -1,5 +1,6 @@
 import { prisma } from '../lib/prisma.js';
 import { createResourceRouter } from '../lib/resource-router.js';
+import { FALLBACK_PHOTOS } from '../lib/fallbacks.js';
 import type { PhotoType } from '@antigravity/shared';
 
 type PhotoRow = {
@@ -38,6 +39,22 @@ function mapPhoto(photo: PhotoRow) {
   };
 }
 
+const fallbackPhotoRows: PhotoRow[] = FALLBACK_PHOTOS.map((p) => ({
+  id: p.id,
+  title: p.title,
+  slug: p.slug,
+  price: p.price,
+  description: p.description,
+  imageUrl: p.imageUrl,
+  species: p.metadata?.species ?? null,
+  location: p.metadata?.location ?? null,
+  camera: p.metadata?.camera ?? null,
+  resolution: p.metadata?.resolution ?? null,
+  type: p.type,
+  featured: p.featured,
+  sortOrder: p.sortOrder,
+}));
+
 export default createResourceRouter<PhotoRow>({
   model: prisma.photoProduct,
   select: {
@@ -58,5 +75,6 @@ export default createResourceRouter<PhotoRow>({
   label: 'fotos',
   singularLabel: 'Foto',
   key: 'slug',
-  transform: mapPhoto
+  transform: mapPhoto,
+  fallbackData: fallbackPhotoRows
 });

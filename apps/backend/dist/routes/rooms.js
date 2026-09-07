@@ -1,5 +1,6 @@
 import { prisma } from '../lib/prisma.js';
 import { createResourceRouter } from '../lib/resource-router.js';
+import { FALLBACK_ROOMS } from '../lib/fallbacks.js';
 export default createResourceRouter({
     model: prisma.room,
     select: {
@@ -18,6 +19,7 @@ export default createResourceRouter({
     },
     label: 'habitaciones',
     singularLabel: 'Habitación',
-    key: 'id'
+    key: 'id',
+    fallbackData: FALLBACK_ROOMS
 });
 //# sourceMappingURL=rooms.js.map
