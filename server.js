@@ -17,6 +17,26 @@ app.disable('x-powered-by');
 // Flag para evitar que los submódulos inicien listeners duplicados de puerto
 process.env.UNIFIED_SERVER = 'true';
 
+// Log de diagnóstico persistente para Hostinger
+function logDebug(msg) {
+  const line = `[${new Date().toISOString()}] ${msg}\n`;
+  console.log(msg);
+  try {
+    fs.appendFileSync(path.resolve(__dirname, 'node_debug.log'), line);
+    fs.appendFileSync('/tmp/bearded_node_debug.log', line);
+  } catch (_) {}
+}
+
+process.on('uncaughtException', (err) => {
+  logDebug(`[FATAL UNCAUGHT EXCEPTION]: ${err.stack || err.message}`);
+});
+
+process.on('unhandledRejection', (reason) => {
+  logDebug(`[UNHANDLED REJECTION]: ${reason?.stack || reason}`);
+});
+
+logDebug(`Iniciando server.js en Node ${process.version} (PID: ${process.pid}, CWD: ${process.cwd()})`);
+
 // ── 0. Cargar Variables de Entorno ──────────────────────────────────────────
 function loadEnv(file) {
   if (fs.existsSync(file)) {
@@ -181,7 +201,7 @@ if (fs.existsSync(frontendOutDir)) {
 // ── 5. Iniciar Servidor ───────────────────────────────────────────────────────
 const PORT = process.env.GATEWAY_PORT || process.env.PORT || 4000;
 const server = app.listen(PORT, '0.0.0.0', () => {
-  console.log(`> [Gateway] Servidor Express unificado escuchando en puerto principal: ${PORT}`);
+  logDebug(`> [Gateway] Servidor Express unificado escuchando en puerto principal: ${PORT}`);
   
   // Guardar puerto en todas las rutas posibles para los proxies PHP
   const portDestinations = [
@@ -203,7 +223,7 @@ const server = app.listen(PORT, '0.0.0.0', () => {
 });
 
 server.on('error', (err) => {
-  console.error('> [Gateway Server Error]:', err.message);
+  logDebug(`> [Gateway Server Error]: ${err.message}`);
 });
 
 // Escuchar también en los puertos convencionales (3001, 3002, 3000, 8080) por si los proxies apuntan allí
@@ -212,12 +232,14 @@ for (const bPort of backupPorts) {
   if (Number(bPort) !== Number(PORT)) {
     try {
       const bServer = app.listen(bPort, '127.0.0.1', () => {
-        console.log(`> [Gateway] Respaldo activo en puerto local: ${bPort}`);
+        logDebug(`> [Gateway] Respaldo activo en puerto local: ${bPort}`);
       });
-      bServer.on('error', () => {
-        // Puerto ya en uso o no permitido, ignorar silenciosamente
+      bServer.on('error', (err) => {
+        logDebug(`> [Gateway Backup Port ${bPort} Error]: ${err.message}`);
       });
-    } catch (_) {}
+    } catch (e) {
+      logDebug(`> [Gateway Backup Port ${bPort} Exception]: ${e.message}`);
+    }
   }
 }
 
