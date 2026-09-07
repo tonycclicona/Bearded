@@ -15,22 +15,45 @@ try {
   console.warn('⚠️ [Postinstall] Warning prisma generate:', e.message);
 }
 
-// 1b. Compilar TypeScript de Backend
-try {
-  console.log('> [Postinstall] Compilando TypeScript del Backend...');
-  execSync('npm run build --workspace=apps/backend', { stdio: 'inherit' });
-  console.log('✅ [Postinstall] Backend compilado con éxito.');
-} catch (e) {
-  console.warn('⚠️ [Postinstall] Warning compilando backend:', e.message);
+// 1b. Compilar TypeScript (solo si tsc está disponible Y dist/ no existe aún)
+const backendDist = path.resolve(__dirname, 'apps/backend/dist/index.js');
+const adminDist = path.resolve(__dirname, 'apps/admin/dist/index.js');
+
+function hasTsc() {
+  try {
+    execSync('tsc --version', { stdio: 'pipe' });
+    return true;
+  } catch { return false; }
 }
 
-// 1c. Compilar TypeScript de Admin
-try {
-  console.log('> [Postinstall] Compilando TypeScript del Admin...');
-  execSync('npm run build --workspace=apps/admin', { stdio: 'inherit' });
-  console.log('✅ [Postinstall] Admin compilado con éxito.');
-} catch (e) {
-  console.warn('⚠️ [Postinstall] Warning compilando admin:', e.message);
+const tscAvailable = hasTsc();
+
+if (fs.existsSync(backendDist)) {
+  console.log('✅ [Postinstall] Backend dist/ ya existe — omitiendo compilación TypeScript.');
+} else if (tscAvailable) {
+  try {
+    console.log('> [Postinstall] Compilando TypeScript del Backend...');
+    execSync('npm run build --workspace=apps/backend', { stdio: 'inherit' });
+    console.log('✅ [Postinstall] Backend compilado con éxito.');
+  } catch (e) {
+    console.warn('⚠️ [Postinstall] Warning compilando backend:', e.message);
+  }
+} else {
+  console.warn('⚠️ [Postinstall] tsc no disponible y dist/ no existe. El servidor puede no arrancar correctamente.');
+}
+
+if (fs.existsSync(adminDist)) {
+  console.log('✅ [Postinstall] Admin dist/ ya existe — omitiendo compilación TypeScript.');
+} else if (tscAvailable) {
+  try {
+    console.log('> [Postinstall] Compilando TypeScript del Admin...');
+    execSync('npm run build --workspace=apps/admin', { stdio: 'inherit' });
+    console.log('✅ [Postinstall] Admin compilado con éxito.');
+  } catch (e) {
+    console.warn('⚠️ [Postinstall] Warning compilando admin:', e.message);
+  }
+} else {
+  console.warn('⚠️ [Postinstall] tsc no disponible y admin/dist/ no existe. El servidor puede no arrancar correctamente.');
 }
 
 
