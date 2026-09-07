@@ -53,3 +53,5 @@ apps/admin/uploads/*
 *.tar.gz
 *.tar.bz2
 *.tar.xz
+tmp/
+public_html/tmp/

@@ -65,7 +65,6 @@ if (strpos($requestUri, '${prefix}') !== 0) {
 // Normalizar barras duplicadas
 $requestUri = preg_replace('#/+#', '/', $requestUri);
 
-// Detección dinámica de puerto Node.js si existe
 $possiblePortFiles = [
     __DIR__ . '/.node_port',
     __DIR__ . '/../.node_port',
@@ -73,6 +72,11 @@ $possiblePortFiles = [
     __DIR__ . '/../../../.node_port',
     dirname(__DIR__) . '/.node_port',
     '/home/u251936581/public_html/.node_port',
+    '/home/u251936581/public_html/api/.node_port',
+    '/home/u251936581/public_html/admin/.node_port',
+    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/.node_port',
+    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/api/.node_port',
+    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/admin/.node_port',
     '/tmp/bearded_node_port'
 ];
 
@@ -91,7 +95,8 @@ foreach ($possiblePortFiles as $pFile) {
 $targets = [
     "http://127.0.0.1:{$detectedPort}",
     'http://127.0.0.1:4000',
-    'http://127.0.0.1:${dedicatedPort}',
+    'http://127.0.0.1:3001',
+    'http://127.0.0.1:3002',
     'http://127.0.0.1:3000'
 ];
 $targets = array_values(array_unique($targets));
@@ -324,6 +329,18 @@ for (const df of defaultCandidates) {
   if (fs.existsSync(df)) {
     try { fs.unlinkSync(df); } catch (_) {}
   }
+}
+
+// Crear/actualizar tmp/restart.txt para Passenger/cPanel
+const restartCandidates = [
+  path.join(rootDir, 'tmp/restart.txt'),
+  path.join(publicHtml, 'tmp/restart.txt')
+];
+for (const rf of restartCandidates) {
+  try {
+    fs.mkdirSync(path.dirname(rf), { recursive: true });
+    fs.writeFileSync(rf, String(Date.now()), 'utf8');
+  } catch (_) {}
 }
 
 console.log('✅ [Sync Hostinger] public_html sincronizado y preparado exitosamente.');

@@ -155,6 +155,11 @@ $possiblePortFiles = [
     __DIR__ . '/../../../.node_port',
     dirname(__DIR__) . '/.node_port',
     '/home/u251936581/public_html/.node_port',
+    '/home/u251936581/public_html/api/.node_port',
+    '/home/u251936581/public_html/admin/.node_port',
+    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/.node_port',
+    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/api/.node_port',
+    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/admin/.node_port',
     '/tmp/bearded_node_port'
 ];
 
@@ -173,7 +178,8 @@ foreach ($possiblePortFiles as $pFile) {
 $targets = [
     "http://127.0.0.1:{$detectedPort}",
     'http://127.0.0.1:4000',
-    'http://127.0.0.1:${dedicatedPort}',
+    'http://127.0.0.1:3001',
+    'http://127.0.0.1:3002',
     'http://127.0.0.1:3000'
 ];
 $targets = array_values(array_unique($targets));
@@ -468,6 +474,19 @@ try {
   });
 } catch (e) {
   console.warn('[postinstall] Warning during runtime synchronization:', e.message);
+}
+
+// Crear/actualizar tmp/restart.txt para Passenger/cPanel
+const restartCandidates = [
+  path.join(rootDir, 'tmp/restart.txt'),
+  path.join(localPublicHtml, 'tmp/restart.txt'),
+  '/home/u251936581/domains/beardedmountaineerlodge.com/hbuilds/current/nodejs/tmp/restart.txt'
+];
+for (const rf of restartCandidates) {
+  try {
+    fs.mkdirSync(path.dirname(rf), { recursive: true });
+    fs.writeFileSync(rf, String(Date.now()), 'utf8');
+  } catch (_) {}
 }
 
 console.log('\n[postinstall] ✅ Monorepo build and setup completed successfully.\n');

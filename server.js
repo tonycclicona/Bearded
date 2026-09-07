@@ -57,7 +57,7 @@ function loadEnv(file) {
             if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
               val = val.substring(1, val.length - 1);
             }
-            if (key === 'PORT' && process.env.PORT) continue;
+            if (key === 'PORT') continue;
             if (!process.env[key]) {
               process.env[key] = val;
             }
@@ -106,38 +106,6 @@ if (adminPath) {
       logDebug(`> [Server Error Admin]: ${err.message}`);
     });
 }
-
-// Inicialización asíncrona de base de datos en segundo plano
-setTimeout(async () => {
-  try {
-    if (process.env.DATABASE_URL) {
-      const { execSync } = await import('child_process');
-      logDebug('> [DB-Init] Verificando y sincronizando tablas en MySQL...');
-      execSync('npx prisma db push --schema=apps/backend/prisma/schema.prisma --accept-data-loss', {
-        stdio: 'pipe',
-        timeout: 30000
-      });
-      logDebug('> [DB-Init] ✅ Tablas de MySQL verificadas y sincronizadas con éxito.');
-
-      try {
-        const prismaModule = await import('./apps/backend/dist/lib/prisma.js');
-        const prismaClient = prismaModule.prisma || prismaModule.default;
-        if (prismaClient && prismaClient.hummingbirdPass) {
-          const passCount = await prismaClient.hummingbirdPass.count();
-          if (passCount === 0) {
-            logDebug('> [DB-Init] Base de datos vacía detectada. Insertando seed...');
-            execSync('npx prisma db seed', { stdio: 'pipe', timeout: 45000 });
-            logDebug('> [DB-Init] ✅ Datos iniciales insertados.');
-          }
-        }
-      } catch (seedErr) {
-        logDebug(`> [DB-Init] Info seed: ${seedErr.message}`);
-      }
-    }
-  } catch (dbErr) {
-    logDebug(`> [DB-Init] Info db push: ${dbErr.message}`);
-  }
-}, 3000);
 
 // ── 2. Servir Archivos Estáticos de Admin & Uploads ───────────────────────────
 const uploadsDir = path.resolve(__dirname, 'apps/admin/uploads');
@@ -228,16 +196,27 @@ const server = app.listen(PORT, () => {
   const portDestinations = [
     path.resolve(__dirname, '.node_port'),
     path.resolve(__dirname, 'public_html/.node_port'),
+    path.resolve(__dirname, 'public_html/api/.node_port'),
+    path.resolve(__dirname, 'public_html/admin/.node_port'),
     path.resolve(__dirname, '../../../public_html/.node_port'),
+    path.resolve(__dirname, '../../../public_html/api/.node_port'),
+    path.resolve(__dirname, '../../../public_html/admin/.node_port'),
     path.resolve(__dirname, '../../public_html/.node_port'),
     '/home/u251936581/public_html/.node_port',
+    '/home/u251936581/public_html/api/.node_port',
+    '/home/u251936581/public_html/admin/.node_port',
     '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/.node_port',
+    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/api/.node_port',
+    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/admin/.node_port',
     '/tmp/bearded_node_port'
   ];
 
   for (const pFile of portDestinations) {
     try {
-      fs.writeFileSync(pFile, String(PORT), 'utf8');
+      const dir = path.dirname(pFile);
+      if (fs.existsSync(dir)) {
+        fs.writeFileSync(pFile, String(PORT), 'utf8');
+      }
     } catch (_) {}
   }
 });
