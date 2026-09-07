@@ -1,6 +1,6 @@
 // ==============================================================================
 // postinstall.cjs — Bearded Mountaineer Lodge Monorepo Setup (Hostinger)
-// Basado en la arquitectura probada y funcional de Unu-Raymi
+// Restaura el patrón de sincronización probado de cd6b786 + Unu-Raymi
 // ==============================================================================
 
 'use strict';
@@ -29,29 +29,25 @@ function run(cmd, subdir) {
   }
 }
 
-function copyToAllPublicHtml(srcDir, label) {
-  if (!fs.existsSync(srcDir)) return;
-  if (process.platform === 'win32') return; // En entorno local Windows no subir a carpetas personales
-
-  let current = process.cwd();
-  for (let i = 0; i < 6; i++) {
-    const pubCandidate = path.join(current, 'public_html');
-    if (fs.existsSync(pubCandidate) && pubCandidate !== srcDir) {
-      try {
-        fs.cpSync(srcDir, pubCandidate, { recursive: true });
-        console.log(`[postinstall] ✅ Copied ${label} to: ${pubCandidate}`);
-      } catch (err) {
-        console.warn(`[postinstall] Warning copying to ${pubCandidate}:`, err.message);
+function copyDirSync(src, dest) {
+  if (!fs.existsSync(src)) return;
+  fs.mkdirSync(dest, { recursive: true });
+  const entries = fs.readdirSync(src, { withFileTypes: true });
+  for (const entry of entries) {
+    const srcPath = path.join(src, entry.name);
+    const destPath = path.join(dest, entry.name);
+    try {
+      if (entry.isDirectory()) {
+        copyDirSync(srcPath, destPath);
+      } else {
+        fs.copyFileSync(srcPath, destPath);
       }
-    }
-    const parent = path.dirname(current);
-    if (parent === current) break;
-    current = parent;
+    } catch (_) {}
   }
 }
 
 // ── 1. PRISMA ORM & BACKEND SETUP ─────────────────────────────────────────────
-console.log('[postinstall] === 1/3 BACKEND & PRISMA setup ===');
+console.log('[postinstall] === 1/4 BACKEND & PRISMA setup ===');
 try {
   const nodeModulesPath = path.join(process.cwd(), 'node_modules');
   execSync(`find "${nodeModulesPath}" -name "schema-engine*" -exec chmod +x {} + 2>/dev/null || true`, { stdio: 'ignore' });
@@ -66,7 +62,6 @@ try {
   console.warn('⚠️ [postinstall] Warning prisma generate:', e.message);
 }
 
-// Compilar TypeScript de backend y admin si no existen en dist/
 const backendDist = path.resolve(process.cwd(), 'apps/backend/dist/index.js');
 const adminDist = path.resolve(process.cwd(), 'apps/admin/dist/index.js');
 
@@ -82,9 +77,39 @@ if (fs.existsSync(adminDist)) {
   run('npm run build', 'apps/admin');
 }
 
-// ── 2. PLANTILLAS DE CONFIGURACIÓN WEB (PATRÓN UNU-RAYMI) ─────────────────────
+// ── 2. PREPARAR LOCAL public_html COMPLETO ─────────────────────────────────────
+console.log('[postinstall] === 2/4 Preparando public_html local con Frontend, Admin y API ===');
+const rootDir = process.cwd();
+const localPublicHtml = path.resolve(rootDir, 'public_html');
+const frontendOut = path.resolve(rootDir, 'apps/frontend/out');
+const adminPublicDir = path.resolve(rootDir, 'apps/admin/public');
+const adminUploadsDir = path.resolve(rootDir, 'apps/admin/uploads');
 
-// Proxy inverso dinámico en PHP para API y Admin
+fs.mkdirSync(localPublicHtml, { recursive: true });
+const localAdminDir = path.join(localPublicHtml, 'admin');
+const localApiDir = path.join(localPublicHtml, 'api');
+fs.mkdirSync(localAdminDir, { recursive: true });
+fs.mkdirSync(localApiDir, { recursive: true });
+
+// A. Copiar export estático del Frontend a public_html y a out/
+if (fs.existsSync(frontendOut)) {
+  copyDirSync(frontendOut, localPublicHtml);
+  const rootOut = path.join(rootDir, 'out');
+  fs.mkdirSync(rootOut, { recursive: true });
+  copyDirSync(frontendOut, rootOut);
+}
+
+// B. Copiar assets del Admin a public_html/admin y public_html/admin/static
+if (fs.existsSync(adminPublicDir)) {
+  copyDirSync(adminPublicDir, localAdminDir);
+  copyDirSync(adminPublicDir, path.join(localAdminDir, 'static'));
+}
+if (fs.existsSync(adminUploadsDir)) {
+  copyDirSync(adminUploadsDir, path.join(localPublicHtml, 'uploads'));
+  copyDirSync(adminUploadsDir, path.join(localAdminDir, 'uploads'));
+}
+
+// C. Plantillas Web (.htaccess y Proxy Inverso PHP con Fallback Unu-Raymi)
 function createPhpProxy(isApi) {
   const proxyType = isApi ? 'API' : 'Admin';
   const prefix = isApi ? '/api' : '/admin';
@@ -110,7 +135,6 @@ if (strpos($requestUri, '${prefix}') !== 0) {
     $requestUri = '${prefix}' . $requestUri;
 }
 
-// Detección dinámica de puerto Node.js si existe
 $possiblePortFiles = [
     __DIR__ . '/.node_port',
     __DIR__ . '/../.node_port',
@@ -132,7 +156,6 @@ foreach ($possiblePortFiles as $pFile) {
     }
 }
 
-// Objetivos de conexión: puertos locales + FALLBACK CRÍTICO al dominio principal (Patrón Unu-Raymi)
 $targets = [
     "http://127.0.0.1:{$detectedPort}",
     'http://127.0.0.1:4000',
@@ -312,141 +335,93 @@ const rootHtaccess = `<IfModule mod_mime.c>
 </IfModule>
 `;
 
-// ── 3. SINCRONIZAR PROXY API EN CANDIDATOS ────────────────────────────────────
-console.log('[postinstall] === Configurando Proxy de API ===');
-try {
-  let current = process.cwd();
-  const apiCandidates = [
-    '/home/u251936581/domains/api.beardedmountaineerlodge.com/public_html',
-    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/api',
-    '/home/u251936581/public_html/api'
-  ];
+fs.writeFileSync(path.join(localPublicHtml, '.htaccess'), rootHtaccess);
+fs.writeFileSync(path.join(localPublicHtml, '.node_port'), '4000');
+fs.writeFileSync(path.join(localAdminDir, '.htaccess'), subHtaccess);
+fs.writeFileSync(path.join(localAdminDir, 'index.php'), createPhpProxy(false));
+fs.writeFileSync(path.join(localApiDir, '.htaccess'), subHtaccess);
+fs.writeFileSync(path.join(localApiDir, 'index.php'), createPhpProxy(true));
 
-  if (process.platform !== 'win32') {
-    for (let i = 0; i < 6; i++) {
-      apiCandidates.push(path.join(current, 'public_html', 'api'));
-      const parent = path.dirname(current);
-      if (parent === current) break;
-      current = parent;
-    }
-  }
+// ── 3. SINCRONIZACIÓN HACIA LOS WEBROOTS DE HOSTINGER (PATRÓN cd6b786) ────────
+console.log('[postinstall] === 3/4 Sincronizando hacia webroots de Hostinger ===');
 
-  for (const pubApiCandidate of apiCandidates) {
-    if (fs.existsSync(path.dirname(pubApiCandidate))) {
-      try {
-        fs.mkdirSync(pubApiCandidate, { recursive: true });
-        if (fs.existsSync(path.join(pubApiCandidate, 'default.php'))) {
-          fs.unlinkSync(path.join(pubApiCandidate, 'default.php'));
-        }
-        fs.writeFileSync(path.join(pubApiCandidate, 'index.php'), createPhpProxy(true));
-        fs.writeFileSync(path.join(pubApiCandidate, '.htaccess'), subHtaccess);
-        console.log(`[postinstall] ✅ API Proxy configurado en: ${pubApiCandidate}`);
-      } catch (err) {
-        console.warn(`[postinstall] Warning en ${pubApiCandidate}:`, err.message);
-      }
-    }
-  }
-} catch (e) {
-  console.warn('[postinstall] Warning configurando api candidates:', e.message);
+const targetDestinations = [
+  '/home/u251936581/public_html',
+  '/home/u251936581/domains/beardedmountaineerlodge.com/public_html'
+];
+
+if (process.env.HOME) {
+  targetDestinations.push(path.resolve(process.env.HOME, 'public_html'));
 }
 
-// ── 4. SINCRONIZAR FRONTEND STATIC EXPORT ─────────────────────────────────────
-console.log('[postinstall] === 2/3 FRONTEND setup ===');
-try {
-  const srcOut = path.join(process.cwd(), 'apps', 'frontend', 'out');
-  const destOut = path.join(process.cwd(), 'out');
-  if (fs.existsSync(srcOut)) {
-    fs.cpSync(srcOut, destOut, { recursive: true });
-    console.log('[postinstall] ✅ Copied frontend out to root out directory');
+// Búsqueda ascendente de public_html hacia arriba (Patrón probado de cd6b786)
+if (process.platform !== 'win32') {
+  let cur = process.cwd();
+  for (let i = 0; i < 6; i++) {
+    targetDestinations.push(path.join(cur, 'public_html'));
+    const parent = path.dirname(cur);
+    if (parent === cur) break;
+    cur = parent;
   }
-
-  const publicHtmlTargets = [
-    path.join(process.cwd(), 'public_html'),
-    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html',
-    '/home/u251936581/public_html'
-  ];
-
-  publicHtmlTargets.forEach(target => {
-    if (fs.existsSync(path.dirname(target))) {
-      try {
-        fs.mkdirSync(target, { recursive: true });
-        if (fs.existsSync(path.join(target, 'default.php'))) {
-          fs.unlinkSync(path.join(target, 'default.php'));
-        }
-        if (fs.existsSync(srcOut) && target !== srcOut) {
-          fs.cpSync(srcOut, target, { recursive: true });
-          fs.writeFileSync(path.join(target, '.htaccess'), rootHtaccess);
-          console.log(`[postinstall] ✅ Copied frontend static export to: ${target}`);
-        }
-      } catch (err) {
-        console.warn(`[postinstall] Warning copying frontend to ${target}:`, err.message);
-      }
-    }
-  });
-
-  if (fs.existsSync(srcOut)) {
-    copyToAllPublicHtml(srcOut, 'frontend static export');
-  }
-} catch (e) {
-  console.warn('[postinstall] Warning copying frontend build:', e.message);
 }
 
-// ── 5. SINCRONIZAR ADMIN WEBROOT ──────────────────────────────────────────────
-console.log('[postinstall] === 3/3 ADMIN setup ===');
-try {
-  const adminPublicDir = path.resolve(process.cwd(), 'apps/admin/public');
-  const adminUploadsDir = path.resolve(process.cwd(), 'apps/admin/uploads');
+const uniqueDestinations = Array.from(new Set(targetDestinations));
 
-  let adminCurrent = process.cwd();
-  const adminTargets = [
-    '/home/u251936581/domains/admin.beardedmountaineerlodge.com/public_html',
-    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/admin',
-    '/home/u251936581/public_html/admin'
-  ];
+for (const dest of uniqueDestinations) {
+  try {
+    if (fs.existsSync(dest) && path.resolve(dest) !== path.resolve(localPublicHtml)) {
+      console.log(`📡 [Postinstall] Sincronizando archivos hacia el webroot de Hostinger: ${dest}`);
+      
+      // A. Copiar estructura completa de public_html (Frontend + Admin + API + uploads + .htaccess)
+      copyDirSync(localPublicHtml, dest);
 
-  if (process.platform !== 'win32') {
-    for (let i = 0; i < 6; i++) {
-      adminTargets.push(path.join(adminCurrent, 'public_html', 'admin'));
-      const parent = path.dirname(adminCurrent);
-      if (parent === adminCurrent) break;
-      adminCurrent = parent;
+      // B. Asegurar Frontend estático
+      if (fs.existsSync(frontendOut)) {
+        copyDirSync(frontendOut, dest);
+      }
+
+      // C. Eliminar default.php de Hostinger si existe
+      const defaultCandidates = [
+        path.join(dest, 'default.php'),
+        path.join(dest, 'admin', 'default.php'),
+        path.join(dest, 'api', 'default.php')
+      ];
+      for (const df of defaultCandidates) {
+        if (fs.existsSync(df)) {
+          try { fs.unlinkSync(df); } catch (_) {}
+        }
+      }
+
+      console.log(`✅ [Postinstall] Webroot sincronizado con éxito en: ${dest}`);
     }
+  } catch (err) {
+    console.warn(`⚠️ [Postinstall] No se pudo sincronizar en ${dest}:`, err.message);
   }
+}
 
-  adminTargets.forEach(target => {
+// Sincronizar subdominios dedicados si sus directorios padre existen en Hostinger
+const dedicatedSubdomains = [
+  { dir: '/home/u251936581/domains/admin.beardedmountaineerlodge.com/public_html', src: localAdminDir },
+  { dir: '/home/u251936581/domains/api.beardedmountaineerlodge.com/public_html', src: localApiDir }
+];
+
+for (const sub of dedicatedSubdomains) {
+  if (fs.existsSync(path.dirname(sub.dir))) {
     try {
-      if (fs.existsSync(path.dirname(target))) {
-        fs.mkdirSync(target, { recursive: true });
-        if (fs.existsSync(path.join(target, 'default.php'))) {
-          fs.unlinkSync(path.join(target, 'default.php'));
-        }
-        // Copiar assets estáticos del Admin
-        if (fs.existsSync(adminPublicDir)) {
-          fs.cpSync(adminPublicDir, target, { recursive: true });
-          const staticSub = path.join(target, 'static');
-          fs.mkdirSync(staticSub, { recursive: true });
-          fs.cpSync(adminPublicDir, staticSub, { recursive: true });
-        }
-        if (fs.existsSync(adminUploadsDir)) {
-          const upSub = path.join(target, 'uploads');
-          fs.mkdirSync(upSub, { recursive: true });
-          fs.cpSync(adminUploadsDir, upSub, { recursive: true });
-        }
-        // Proxy inverso y .htaccess para enrutar vistas dinámicas a Express/Node
-        fs.writeFileSync(path.join(target, 'index.php'), createPhpProxy(false));
-        fs.writeFileSync(path.join(target, '.htaccess'), subHtaccess);
-        console.log(`[postinstall] ✅ Configured admin webroot in: ${target}`);
+      fs.mkdirSync(sub.dir, { recursive: true });
+      copyDirSync(sub.src, sub.dir);
+      if (fs.existsSync(path.join(sub.dir, 'default.php'))) {
+        try { fs.unlinkSync(path.join(sub.dir, 'default.php')); } catch (_) {}
       }
+      console.log(`✅ [Postinstall] Subdominio dedicado sincronizado en: ${sub.dir}`);
     } catch (err) {
-      console.warn(`[postinstall] Warning configuring admin in ${target}:`, err.message);
+      console.warn(`⚠️ [Postinstall] Warning en subdominio ${sub.dir}:`, err.message);
     }
-  });
-} catch (e) {
-  console.warn('[postinstall] Warning copying admin build:', e.message);
+  }
 }
 
-// ── 6. SINCRONIZACIÓN AUTOMÁTICA A CURRENT / NODEJS (PATRÓN UNU-RAYMI) ────────
-console.log('\n[postinstall] === Syncing build artifacts to runtime directories ===');
+// ── 4. SINCRONIZACIÓN AUTOMÁTICA A CURRENT / NODEJS (PATRÓN UNU-RAYMI) ────────
+console.log('[postinstall] === 4/4 Sincronizando build artifacts a runtime directories ===');
 try {
   const currentDirs = [
     '/home/u251936581/domains/beardedmountaineerlodge.com/hbuilds/current/nodejs',
@@ -463,10 +438,10 @@ try {
           const itemSrc = path.join(process.cwd(), item);
           const itemDest = path.join(target, item);
           if (fs.existsSync(itemSrc)) {
-            fs.cpSync(itemSrc, itemDest, { recursive: true });
+            copyDirSync(itemSrc, itemDest);
           }
         });
-        console.log(`[postinstall] ✅ Automatically synced app files to: ${target}`);
+        console.log(`[postinstall] ✅ Runtime sincronizado en: ${target}`);
       } catch (err) {
         console.warn(`[postinstall] Warning syncing to ${target}:`, err.message);
       }

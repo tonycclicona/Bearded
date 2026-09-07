@@ -19,7 +19,6 @@ if (strpos($requestUri, '/admin') !== 0) {
     $requestUri = '/admin' . $requestUri;
 }
 
-// Detección dinámica de puerto Node.js si existe
 $possiblePortFiles = [
     __DIR__ . '/.node_port',
     __DIR__ . '/../.node_port',
@@ -41,7 +40,6 @@ foreach ($possiblePortFiles as $pFile) {
     }
 }
 
-// Objetivos de conexión: puertos locales + FALLBACK CRÍTICO al dominio principal (Patrón Unu-Raymi)
 $targets = [
     "http://127.0.0.1:{$detectedPort}",
     'http://127.0.0.1:4000',

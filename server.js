@@ -1,6 +1,6 @@
 // ==============================================================================
 // server.js — Servidor Unificado Express (Backend API + Admin Panel + Frontend)
-// Basado en el motor probado y funcional de Unu-Raymi para Hostinger Web Apps
+// Basado en el motor de arranque inmediato probado en Unu-Raymi
 // ==============================================================================
 
 import express from 'express';
@@ -17,7 +17,7 @@ app.set('trust proxy', true);
 
 process.env.UNIFIED_SERVER = 'true';
 
-// Log de diagnóstico persistente
+// Log de diagnóstico
 function logDebug(msg) {
   const line = `[${new Date().toISOString()}] ${msg}\n`;
   console.log(msg);
@@ -73,48 +73,38 @@ loadEnv(path.resolve(__dirname, '.env'));
 loadEnv(path.resolve(__dirname, 'apps/backend/.env.production'));
 loadEnv(path.resolve(__dirname, 'apps/backend/.env'));
 
-// ── 1. Cargar Aplicaciones Modulares (Backend API & Admin Panel) ─────────────
+// ── 1. Inicialización Asíncrona de Módulos (Sin bloquear el arranque HTTP) ──
 let backendApp = null;
 let adminApp = null;
 
-try {
-  const backendDistPath = path.resolve(__dirname, 'apps/backend/dist/index.js');
-  const backendSrcPath = path.resolve(__dirname, 'apps/backend/src/index.ts');
-  let backendPath = null;
-  if (fs.existsSync(backendDistPath)) {
-    backendPath = backendDistPath;
-    console.log('> [Server] Cargando Backend desde dist...');
-  } else if (fs.existsSync(backendSrcPath)) {
-    backendPath = backendSrcPath;
-    console.log('> [Server] Cargando Backend desde src/ (tsx)...');
-  }
-  if (backendPath) {
-    const backendModule = await import(pathToFileURL(backendPath).href);
-    backendApp = backendModule.default || backendModule.app || backendModule;
-    logDebug('> [Server] Backend API inicializado correctamente.');
-  }
-} catch (err) {
-  logDebug(`> [Server Error Backend]: ${err.message}`);
+const backendDistPath = path.resolve(__dirname, 'apps/backend/dist/index.js');
+const backendSrcPath = path.resolve(__dirname, 'apps/backend/src/index.ts');
+const backendPath = fs.existsSync(backendDistPath) ? backendDistPath : (fs.existsSync(backendSrcPath) ? backendSrcPath : null);
+
+if (backendPath) {
+  import(pathToFileURL(backendPath).href)
+    .then((m) => {
+      backendApp = m.default || m.app || m;
+      logDebug('> [Server] Backend API montado exitosamente.');
+    })
+    .catch((err) => {
+      logDebug(`> [Server Error Backend]: ${err.message}`);
+    });
 }
 
-try {
-  const adminDistPath = path.resolve(__dirname, 'apps/admin/dist/index.js');
-  const adminSrcPath = path.resolve(__dirname, 'apps/admin/src/index.ts');
-  let adminPath = null;
-  if (fs.existsSync(adminDistPath)) {
-    adminPath = adminDistPath;
-    console.log('> [Server] Cargando Admin desde dist...');
-  } else if (fs.existsSync(adminSrcPath)) {
-    adminPath = adminSrcPath;
-    console.log('> [Server] Cargando Admin desde src/ (tsx)...');
-  }
-  if (adminPath) {
-    const adminModule = await import(pathToFileURL(adminPath).href);
-    adminApp = adminModule.default || adminModule.app || adminModule;
-    logDebug('> [Server] Admin Panel inicializado correctamente.');
-  }
-} catch (err) {
-  logDebug(`> [Server Error Admin]: ${err.message}`);
+const adminDistPath = path.resolve(__dirname, 'apps/admin/dist/index.js');
+const adminSrcPath = path.resolve(__dirname, 'apps/admin/src/index.ts');
+const adminPath = fs.existsSync(adminDistPath) ? adminDistPath : (fs.existsSync(adminSrcPath) ? adminSrcPath : null);
+
+if (adminPath) {
+  import(pathToFileURL(adminPath).href)
+    .then((m) => {
+      adminApp = m.default || m.app || m;
+      logDebug('> [Server] Admin Panel montado exitosamente.');
+    })
+    .catch((err) => {
+      logDebug(`> [Server Error Admin]: ${err.message}`);
+    });
 }
 
 // ── 2. Servir Archivos Estáticos de Admin & Uploads ───────────────────────────
@@ -178,7 +168,7 @@ app.use((req, res, next) => {
 // ── 5. Frontend Estático (Next.js export) ─────────────────────────────────────
 const frontendDir = fs.existsSync(path.resolve(__dirname, 'apps/frontend/out'))
   ? path.resolve(__dirname, 'apps/frontend/out')
-  : path.resolve(__dirname, 'out');
+  : (fs.existsSync(path.resolve(__dirname, 'out')) ? path.resolve(__dirname, 'out') : path.resolve(__dirname, 'public_html'));
 
 if (fs.existsSync(frontendDir)) {
   app.use(express.static(frontendDir, { extensions: ['html'] }));
@@ -197,10 +187,10 @@ if (fs.existsSync(frontendDir)) {
   });
 }
 
-// ── 6. Iniciar Servidor ───────────────────────────────────────────────────────
+// ── 6. Iniciar Servidor (Sincrónico Inmediato para LiteSpeed / Passenger) ────
 const PORT = process.env.PORT || process.env.GATEWAY_PORT || 4000;
-const server = app.listen(PORT, '0.0.0.0', () => {
-  logDebug(`> [Server] Servidor Express corriendo en puerto: ${PORT}`);
+const server = app.listen(PORT, () => {
+  logDebug(`> [Server] Servidor Express iniciado inmediatamente en puerto: ${PORT}`);
   
   // Guardar archivo .node_port para que los proxies PHP detecten el puerto
   const portDestinations = [
@@ -221,7 +211,9 @@ const server = app.listen(PORT, '0.0.0.0', () => {
 });
 
 server.on('error', (err) => {
-  logDebug(`> [Server Error]: ${err.message}`);
+  if (err.code !== 'EADDRINUSE') {
+    logDebug(`> [Server Error]: ${err.message}`);
+  }
 });
 
 export default app;
