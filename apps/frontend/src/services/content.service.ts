@@ -32,13 +32,24 @@ export function resolveImageUrl(url: string | null | undefined): string {
 
 export const resolveAudioUrl = resolveImageUrl;
 
-async function fetchApi<T>(endpoint: string): Promise<T> {
-  const res = await fetch(`${API_URL}/${endpoint}`);
-  if (!res.ok) {
-    throw new Error(`API error: ${res.statusText}`);
+async function fetchApi<T>(endpoint: string, fallbackValue: T): Promise<T> {
+  try {
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timeoutId = controller ? setTimeout(() => controller.abort(), 6000) : null;
+    const res = await fetch(`${API_URL}/${endpoint}`, {
+      signal: controller?.signal
+    });
+    if (timeoutId) clearTimeout(timeoutId);
+    if (!res.ok) {
+      console.warn(`[ContentService] API error on ${endpoint}: ${res.statusText}`);
+      return fallbackValue;
+    }
+    const json = await res.json();
+    return (json?.data !== undefined ? json.data : json) as T;
+  } catch (err: unknown) {
+    console.warn(`[ContentService] Fallback for ${endpoint}:`, err instanceof Error ? err.message : err);
+    return fallbackValue;
   }
-  const json = await res.json();
-  return json.data;
 }
 
 export class ContentService {
@@ -48,15 +59,11 @@ export class ContentService {
     if (params?.endemico !== undefined) query.append('endemico', String(params.endemico));
     if (params?.iucn) query.append('iucn', params.iucn);
     const qs = query.toString() ? `?${query.toString()}` : '';
-    return fetchApi<EspecieColibri[]>(`colibries${qs}`);
+    return fetchApi<EspecieColibri[]>(`colibries${qs}`, []);
   }
 
   static async getEspecieColibriById(id: number): Promise<EspecieColibri | null> {
-    try {
-      return await fetchApi<EspecieColibri>(`colibries/${id}`);
-    } catch {
-      return null;
-    }
+    return fetchApi<EspecieColibri | null>(`colibries/${id}`, null);
   }
 
   // Puntos GIS & Hotspots
@@ -66,15 +73,11 @@ export class ContentService {
     if (params?.departamento) query.append('departamento', params.departamento);
     if (params?.piso && params.piso !== 'TODOS') query.append('piso', params.piso);
     const qs = query.toString() ? `?${query.toString()}` : '';
-    return fetchApi<PuntoGIS[]>(`puntos-gis${qs}`);
+    return fetchApi<PuntoGIS[]>(`puntos-gis${qs}`, []);
   }
 
   static async getPuntoGISBySlug(slug: string): Promise<PuntoGIS | null> {
-    try {
-      return await fetchApi<PuntoGIS>(`puntos-gis/${slug}`);
-    } catch {
-      return null;
-    }
+    return fetchApi<PuntoGIS | null>(`puntos-gis/${slug}`, null);
   }
 
   // Tours & Expediciones
@@ -83,64 +86,52 @@ export class ContentService {
     if (params?.region && params.region !== 'TODAS') query.append('region', params.region);
     if (params?.destacado !== undefined) query.append('destacado', String(params.destacado));
     const qs = query.toString() ? `?${query.toString()}` : '';
-    return fetchApi<Tour[]>(`tours${qs}`);
+    return fetchApi<Tour[]>(`tours${qs}`, []);
   }
 
   static async getTourBySlug(slug: string): Promise<Tour | null> {
-    try {
-      return await fetchApi<Tour>(`tours/${slug}`);
-    } catch {
-      return null;
-    }
+    return fetchApi<Tour | null>(`tours/${slug}`, null);
   }
 
   // Guías Ornitólogos
   static async getGuias(): Promise<Guia[]> {
-    return fetchApi<Guia[]>('guias');
+    return fetchApi<Guia[]>('guias', []);
   }
 
   // Servicios existentes
   static async getHummingbirdPasses(): Promise<HummingbirdPass[]> {
-    return fetchApi<HummingbirdPass[]>('passes');
+    return fetchApi<HummingbirdPass[]>('passes', []);
   }
 
   static async getHummingbirdSpots(): Promise<HummingbirdSpot[]> {
-    return fetchApi<HummingbirdSpot[]>('hummingbird-spots');
+    return fetchApi<HummingbirdSpot[]>('hummingbird-spots', []);
   }
 
   static async getRoutes(): Promise<Route[]> {
-    return fetchApi<Route[]>('routes');
+    return fetchApi<Route[]>('routes', []);
   }
 
   static async getRooms(): Promise<Room[]> {
-    return fetchApi<Room[]>('rooms');
+    return fetchApi<Room[]>('rooms', []);
   }
 
   static async getExperiences(): Promise<LodgeExperience[]> {
-    return fetchApi<LodgeExperience[]>('experiences');
+    return fetchApi<LodgeExperience[]>('experiences', []);
   }
 
   static async getPhotos(): Promise<PhotoProduct[]> {
-    return fetchApi<PhotoProduct[]>('photos');
+    return fetchApi<PhotoProduct[]>('photos', []);
   }
 
   static async getPhotoBySlug(slug: string): Promise<PhotoProduct | null> {
-    try {
-      return await fetchApi<PhotoProduct>(`photos/${slug}`);
-    } catch {
-      return null;
-    }
+    return fetchApi<PhotoProduct | null>(`photos/${slug}`, null);
   }
 
   static async getWorkshops(): Promise<PhotoWorkshopPackage[]> {
-    return fetchApi<PhotoWorkshopPackage[]>('workshops');
+    return fetchApi<PhotoWorkshopPackage[]>('workshops', []);
   }
 
   static async getWorkshopById(id: string): Promise<PhotoWorkshopPackage | null> {
-    try {
-      return await fetchApi<PhotoWorkshopPackage>(`workshops/${id}`);
-    } catch {
-      return null;
-    }
+    return fetchApi<PhotoWorkshopPackage | null>(`workshops/${id}`, null);
   }
 }

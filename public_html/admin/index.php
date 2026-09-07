@@ -85,8 +85,10 @@ if ($response === false) {
         if (file_exists($lf)) {
             $content = @file_get_contents($lf);
             if (!empty($content)) {
-                $lines = explode("\n", trim($content));
-                $debugLog = implode("\n", array_slice($lines, -15));
+                $lines = explode("
+", trim($content));
+                $debugLog = implode("
+", array_slice($lines, -15));
                 break;
             }
         }
@@ -95,13 +97,13 @@ if ($response === false) {
     $hostHeader = $_SERVER['HTTP_HOST'] ?? '';
     $uriPath = parse_url($uri, PHP_URL_PATH) ?? '';
 
-    // Si se solicita /health o /admin/health directamente
-    if ($uriPath === '/health' || $uriPath === '/admin/health') {
+    // Si se solicita /health directamente
+    if ($uriPath === '/health' || $uriPath === '/api/health' || $uriPath === '/admin/health') {
         http_response_code(200);
         header('Content-Type: application/json');
         echo json_encode([
             'status' => 'proxy_standby',
-            'message' => 'PHP Admin Gateway activo. Esperando conexión a Node.js en puerto ' . $detectedPort,
+            'message' => 'PHP Gateway activo. Esperando conexión a Node.js en puerto ' . $detectedPort,
             'time' => date('c'),
             'host' => $hostHeader,
             'port_files_found' => array_values(array_filter($possiblePortFiles, 'file_exists'))

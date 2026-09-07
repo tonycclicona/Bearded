@@ -85,8 +85,10 @@ if ($response === false) {
         if (file_exists($lf)) {
             $content = @file_get_contents($lf);
             if (!empty($content)) {
-                $lines = explode("\n", trim($content));
-                $debugLog = implode("\n", array_slice($lines, -15));
+                $lines = explode("
+", trim($content));
+                $debugLog = implode("
+", array_slice($lines, -15));
                 break;
             }
         }
@@ -95,8 +97,8 @@ if ($response === false) {
     $hostHeader = $_SERVER['HTTP_HOST'] ?? '';
     $uriPath = parse_url($uri, PHP_URL_PATH) ?? '';
 
-    // Si se solicita /health o /api/health directamente
-    if ($uriPath === '/health' || $uriPath === '/api/health') {
+    // Si se solicita /health directamente
+    if ($uriPath === '/health' || $uriPath === '/api/health' || $uriPath === '/admin/health') {
         http_response_code(200);
         header('Content-Type: application/json');
         echo json_encode([

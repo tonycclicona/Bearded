@@ -9,7 +9,7 @@ router.get('/', async (req, res, next) => {
         const { region, destacado } = req.query;
         const where = { activo: true };
         if (region && typeof region === 'string' && region !== 'TODAS') {
-            where.regionRuta = { contains: region, mode: 'insensitive' };
+            where.regionRuta = { contains: region };
         }
         if (destacado !== undefined) {
             where.destacado = destacado === 'true';

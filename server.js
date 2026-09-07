@@ -21,10 +21,19 @@ process.env.UNIFIED_SERVER = 'true';
 function logDebug(msg) {
   const line = `[${new Date().toISOString()}] ${msg}\n`;
   console.log(msg);
-  try {
-    fs.appendFileSync(path.resolve(__dirname, 'node_debug.log'), line);
-    fs.appendFileSync('/tmp/bearded_node_debug.log', line);
-  } catch (_) {}
+  const logDestinations = [
+    path.resolve(__dirname, 'node_debug.log'),
+    '/tmp/bearded_node_debug.log',
+    '/home/u251936581/public_html/node_debug.log',
+    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/node_debug.log',
+    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/api/node_debug.log',
+    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/admin/node_debug.log'
+  ];
+  for (const logPath of logDestinations) {
+    try {
+      fs.appendFileSync(logPath, line);
+    } catch (_) {}
+  }
 }
 
 process.on('uncaughtException', (err) => {
@@ -130,10 +139,41 @@ try {
     : path.resolve(__dirname, 'apps/backend/src/index.js');
   const backendModule = await import(pathToFileURL(backendPath).href);
   backendApp = backendModule.default || backendModule.app || backendModule;
-  console.log('> [Gateway] Backend API inicializado correctamente.');
+  logDebug('> [Gateway] Backend API inicializado correctamente.');
 } catch (err) {
-  console.error('> [Gateway] Error al cargar Backend API:', err.message);
+  logDebug(`> [Gateway] Error al cargar Backend API: ${err.stack || err.message}`);
 }
+
+// Inicialización asíncrona de base de datos (segura en segundo plano sin bloquear el arranque de los puertos)
+setTimeout(async () => {
+  try {
+    if (process.env.DATABASE_URL && !process.env.DATABASE_URL.includes('u123456789')) {
+      const { execSync } = await import('child_process');
+      logDebug('> [DB-Init] Verificando y sincronizando tablas en MySQL...');
+      execSync('npx prisma db push --schema=apps/backend/prisma/schema.prisma --accept-data-loss', {
+        stdio: 'pipe',
+        timeout: 30000
+      });
+      logDebug('> [DB-Init] ✅ Tablas de MySQL verificadas y sincronizadas con éxito.');
+
+      // Ejecutar seed si las tablas están vacías
+      try {
+        const { prisma } = await import('./apps/backend/dist/lib/prisma.js');
+        const passCount = await prisma.hummingbirdPass.count();
+        if (passCount === 0) {
+          logDebug('> [DB-Init] Base de datos vacía detectada. Insertando datos iniciales (seed)...');
+          execSync('npx tsx apps/backend/prisma/seed.ts', { stdio: 'pipe', timeout: 45000 });
+          logDebug('> [DB-Init] ✅ Datos iniciales (seed) insertados con éxito.');
+        }
+      } catch (seedErr) {
+        logDebug(`> [DB-Init] Aviso al verificar seed: ${seedErr.message}`);
+      }
+    }
+  } catch (dbErr) {
+    logDebug(`> [DB-Init] Aviso en sincronización de base de datos: ${dbErr.message}`);
+  }
+}, 3000);
+
 
 try {
   const adminPath = fs.existsSync(path.resolve(__dirname, 'apps/admin/dist/index.js'))

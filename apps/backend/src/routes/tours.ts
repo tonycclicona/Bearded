@@ -13,7 +13,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     const where: Record<string, unknown> = { activo: true };
 
     if (region && typeof region === 'string' && region !== 'TODAS') {
-      where.regionRuta = { contains: region, mode: 'insensitive' };
+      where.regionRuta = { contains: region };
     }
 
     if (destacado !== undefined) {

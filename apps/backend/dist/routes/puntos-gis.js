@@ -12,7 +12,7 @@ router.get('/', async (req, res, next) => {
             where.categoria = categoria;
         }
         if (departamento && typeof departamento === 'string') {
-            where.departamento = { contains: departamento, mode: 'insensitive' };
+            where.departamento = { contains: departamento };
         }
         if (piso && typeof piso === 'string') {
             if (piso === 'YUNGA') {
