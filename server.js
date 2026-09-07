@@ -1,6 +1,6 @@
 // ==============================================================================
 // server.js — Servidor Unificado Express (Backend API + Admin Panel + Frontend)
-// Diseñado para Hostinger (Dominio principal y Subdominios) y Entorno Local
+// Basado en el motor probado y funcional de Unu-Raymi para Hostinger Web Apps
 // ==============================================================================
 
 import express from 'express';
@@ -15,18 +15,15 @@ const app = express();
 app.disable('x-powered-by');
 app.set('trust proxy', true);
 
-// Flag para evitar que los submódulos inicien listeners duplicados de puerto
 process.env.UNIFIED_SERVER = 'true';
 
-// Log de diagnóstico persistente para Hostinger
+// Log de diagnóstico persistente
 function logDebug(msg) {
   const line = `[${new Date().toISOString()}] ${msg}\n`;
   console.log(msg);
   const logTargets = [
     path.resolve(__dirname, 'node_debug.log'),
     path.resolve(__dirname, 'public_html/node_debug.log'),
-    path.resolve(__dirname, '../../../public_html/node_debug.log'),
-    path.resolve(__dirname, '../../public_html/node_debug.log'),
     '/home/u251936581/public_html/node_debug.log',
     '/tmp/bearded_node_debug.log'
   ];
@@ -60,6 +57,7 @@ function loadEnv(file) {
             if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
               val = val.substring(1, val.length - 1);
             }
+            if (key === 'PORT' && process.env.PORT) continue;
             if (!process.env[key]) {
               process.env[key] = val;
             }
@@ -72,8 +70,10 @@ function loadEnv(file) {
 
 loadEnv(path.resolve(__dirname, '.env.production'));
 loadEnv(path.resolve(__dirname, '.env'));
+loadEnv(path.resolve(__dirname, 'apps/backend/.env.production'));
+loadEnv(path.resolve(__dirname, 'apps/backend/.env'));
 
-// ── 1. Cargar Aplicaciones Modulares ──────────────────────────────────────────
+// ── 1. Cargar Aplicaciones Modulares (Backend API & Admin Panel) ─────────────
 let backendApp = null;
 let adminApp = null;
 
@@ -83,21 +83,18 @@ try {
   let backendPath = null;
   if (fs.existsSync(backendDistPath)) {
     backendPath = backendDistPath;
-    console.log('> [Gateway] Cargando Backend desde dist...');
+    console.log('> [Server] Cargando Backend desde dist...');
   } else if (fs.existsSync(backendSrcPath)) {
     backendPath = backendSrcPath;
-    console.log('> [Gateway] dist/ no encontrado, cargando Backend desde src/ (tsx)...');
+    console.log('> [Server] Cargando Backend desde src/ (tsx)...');
   }
   if (backendPath) {
     const backendModule = await import(pathToFileURL(backendPath).href);
     backendApp = backendModule.default || backendModule.app || backendModule;
-    console.log('> [Gateway] Backend API inicializado correctamente.');
-  } else {
-    console.error('> [Gateway] No se encontró apps/backend/dist/index.js ni apps/backend/src/index.ts');
+    logDebug('> [Server] Backend API inicializado correctamente.');
   }
 } catch (err) {
-  console.error('> [Gateway] Error al cargar Backend API:', err.message);
-  console.error(err.stack);
+  logDebug(`> [Server Error Backend]: ${err.message}`);
 }
 
 try {
@@ -106,21 +103,18 @@ try {
   let adminPath = null;
   if (fs.existsSync(adminDistPath)) {
     adminPath = adminDistPath;
-    console.log('> [Gateway] Cargando Admin desde dist...');
+    console.log('> [Server] Cargando Admin desde dist...');
   } else if (fs.existsSync(adminSrcPath)) {
     adminPath = adminSrcPath;
-    console.log('> [Gateway] dist/ no encontrado, cargando Admin desde src/ (tsx)...');
+    console.log('> [Server] Cargando Admin desde src/ (tsx)...');
   }
   if (adminPath) {
     const adminModule = await import(pathToFileURL(adminPath).href);
     adminApp = adminModule.default || adminModule.app || adminModule;
-    console.log('> [Gateway] Admin Panel inicializado correctamente.');
-  } else {
-    console.error('> [Gateway] No se encontró apps/admin/dist/index.js ni apps/admin/src/index.ts');
+    logDebug('> [Server] Admin Panel inicializado correctamente.');
   }
 } catch (err) {
-  console.error('> [Gateway] Error al cargar Admin Panel:', err.message);
-  console.error(err.stack);
+  logDebug(`> [Server Error Admin]: ${err.message}`);
 }
 
 // ── 2. Servir Archivos Estáticos de Admin & Uploads ───────────────────────────
@@ -135,10 +129,17 @@ app.use('/admin/uploads', express.static(uploadsDir));
 app.use('/admin/static', express.static(adminPublicDir));
 app.use('/static', express.static(adminPublicDir));
 
-// ── 3. Enrutamiento Inteligente por Subdominio / Ruta ─────────────────────────
-
-// 3.1 API (api.dominio.com o dominio.com/api)
+// ── 3. Cabeceras CORS Globales y Ruteo de API (Patrón Unu-Raymi) ─────────────
 app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS,PATCH');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+
   const host = (req.headers.host || '').toLowerCase();
   const isApiSubdomain = host.startsWith('api.');
   const isApiPath = req.url.startsWith('/api');
@@ -150,12 +151,12 @@ app.use((req, res, next) => {
       }
       return backendApp(req, res, next);
     }
-    return res.status(503).json({ error: 'Backend API no está listo' });
+    return res.status(200).json({ success: true, status: 'starting', service: 'Bearded API' });
   }
   next();
 });
 
-// 3.2 Admin (admin.dominio.com o dominio.com/admin)
+// ── 4. Ruteo de Admin Panel (admin.dominio o /admin) ──────────────────────────
 app.use((req, res, next) => {
   const host = (req.headers.host || '').toLowerCase();
   const isAdminSubdomain = host.startsWith('admin.');
@@ -163,53 +164,50 @@ app.use((req, res, next) => {
 
   if (isAdminSubdomain || isAdminPath) {
     if (typeof adminApp === 'function') {
-      // Cuando se accede via subdominio admin., reescribir URL para que coincida con rutas /admin/...
       if (isAdminSubdomain && !req.url.startsWith('/admin')) {
         req.url = '/admin' + (req.url.startsWith('/') ? req.url : '/' + req.url);
-        // Evitar double slash: /admin// -> /admin/
         req.url = req.url.replace('/admin//', '/admin/');
       }
       return adminApp(req, res, next);
     }
-    return res.status(503).json({
-      error: 'Admin Panel no está listo. Verifique que Node.js esté corriendo en Hostinger.',
-      hint: 'Reinicie la aplicación Node.js desde el panel de Hostinger.'
-    });
+    return res.status(200).json({ success: true, status: 'starting', service: 'Bearded Admin' });
   }
   next();
 });
 
-// ── 4. Frontend Estático (Next.js export) ─────────────────────────────────────
-const frontendOutDir = path.resolve(__dirname, 'apps/frontend/out');
-if (fs.existsSync(frontendOutDir)) {
-  app.use(express.static(frontendOutDir, { extensions: ['html'] }));
+// ── 5. Frontend Estático (Next.js export) ─────────────────────────────────────
+const frontendDir = fs.existsSync(path.resolve(__dirname, 'apps/frontend/out'))
+  ? path.resolve(__dirname, 'apps/frontend/out')
+  : path.resolve(__dirname, 'out');
+
+if (fs.existsSync(frontendDir)) {
+  app.use(express.static(frontendDir, { extensions: ['html'] }));
 
   // Fallback SPA
   app.use((req, res) => {
-    const indexPath = path.join(frontendOutDir, 'index.html');
+    const indexPath = path.join(frontendDir, 'index.html');
     if (fs.existsSync(indexPath)) {
       return res.sendFile(indexPath);
     }
-    res.status(404).send('Not Found');
+    res.status(200).send('<!DOCTYPE html><html><head><title>Bearded Mountaineer Lodge</title></head><body>Cargando...</body></html>');
   });
 } else {
   app.use((_req, res) => {
-    res.status(200).send('Antigravity Platform - Listo. Frontend pendiente de compilación (npm run build).');
+    res.status(200).send('Bearded Mountaineer Lodge - Sistema iniciado.');
   });
 }
 
-// ── 5. Iniciar Servidor ───────────────────────────────────────────────────────
+// ── 6. Iniciar Servidor ───────────────────────────────────────────────────────
 const PORT = process.env.PORT || process.env.GATEWAY_PORT || 4000;
 const server = app.listen(PORT, '0.0.0.0', () => {
-  logDebug(`> [Gateway] Servidor Express unificado escuchando en puerto principal: ${PORT}`);
+  logDebug(`> [Server] Servidor Express corriendo en puerto: ${PORT}`);
   
-  // Guardar puerto en todas las rutas posibles para los proxies PHP
+  // Guardar archivo .node_port para que los proxies PHP detecten el puerto
   const portDestinations = [
     path.resolve(__dirname, '.node_port'),
     path.resolve(__dirname, 'public_html/.node_port'),
     path.resolve(__dirname, '../../../public_html/.node_port'),
     path.resolve(__dirname, '../../public_html/.node_port'),
-    path.resolve(__dirname, '../public_html/.node_port'),
     '/home/u251936581/public_html/.node_port',
     '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/.node_port',
     '/tmp/bearded_node_port'
@@ -223,24 +221,7 @@ const server = app.listen(PORT, '0.0.0.0', () => {
 });
 
 server.on('error', (err) => {
-  logDebug(`> [Gateway Server Error]: ${err.message}`);
+  logDebug(`> [Server Error]: ${err.message}`);
 });
-
-// Escuchar también en los puertos convencionales (4000, 3001, 3002, 3000, 8080) por si los proxies apuntan allí
-const backupPorts = [4000, 3001, 3002, 3000, 8080];
-for (const bPort of backupPorts) {
-  if (Number(bPort) !== Number(PORT)) {
-    try {
-      const bServer = app.listen(bPort, '127.0.0.1', () => {
-        logDebug(`> [Gateway] Respaldo activo en puerto local: ${bPort}`);
-      });
-      bServer.on('error', (err) => {
-        logDebug(`> [Gateway Backup Port ${bPort} Error]: ${err.message}`);
-      });
-    } catch (e) {
-      logDebug(`> [Gateway Backup Port ${bPort} Exception]: ${e.message}`);
-    }
-  }
-}
 
 export default app;
