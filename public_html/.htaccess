@@ -22,25 +22,14 @@
   RewriteEngine On
   RewriteBase /
 
-  # 1. API Subdomain / Rutas -> Reenviar a Node.js
-  RewriteCond %{HTTP_HOST} ^api\. [NC,OR]
-  RewriteCond %{REQUEST_URI} ^/api [NC]
-  RewriteRule ^(.*)$ http://127.0.0.1:4000/$1 [P,L]
-
-  # 2. Admin Subdomain / Rutas -> Reenviar a Node.js
-  RewriteCond %{HTTP_HOST} ^admin\. [NC,OR]
-  RewriteCond %{REQUEST_URI} ^/admin [NC]
-  RewriteRule ^(.*)$ http://127.0.0.1:4000/$1 [P,L]
-
-  # 3. Acceso directo a _next/ y uploads/ (NUNCA REESCRIBIR A index.html)
-  RewriteRule ^_next/ - [L]
-  RewriteRule ^uploads/ - [L]
-
-  # 4. Servir archivos estáticos reales directamente si existen
+  # 1. Servir SIEMPRE archivos y directorios que existen en disco directamente
   RewriteCond %{REQUEST_FILENAME} -f [OR]
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
 
-  # 5. Fallback dinámico: si el archivo no existe en disco, entregar vía Node.js (puerto 4000)
-  RewriteRule ^(.*)$ http://127.0.0.1:4000/$1 [P,L]
+  # 2. SPA Fallback: rutas sin extension que no existen en disco -> index.html
+  RewriteCond %{REQUEST_URI} !\.(js|css|png|jpg|jpeg|gif|svg|webp|woff|woff2|ttf|ico|json|txt|php|html)$
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule ^ /index.html [L]
 </IfModule>
