@@ -295,6 +295,10 @@ function syncWebroot(dest) {
     fs.writeFileSync(path.join(dest, '.htaccess'), subHtaccess, 'utf8');
     fs.writeFileSync(path.join(dest, 'index.php'), phpProxyTemplate, 'utf8');
     fs.writeFileSync(path.join(dest, '.node_port'), '4000', 'utf8');
+    if (fs.existsSync(adminPublicDir)) {
+      copyDirSync(adminPublicDir, dest);
+      copyDirSync(adminPublicDir, path.join(dest, 'static'));
+    }
     if (fs.existsSync(adminUploads)) {
       const upDest = path.join(dest, 'uploads');
       fs.mkdirSync(upDest, { recursive: true });
@@ -325,16 +329,56 @@ function syncWebroot(dest) {
   fs.writeFileSync(path.join(tApi, 'index.php'), phpProxyTemplate, 'utf8');
   fs.writeFileSync(path.join(tAdmin, 'index.php'), phpProxyTemplate, 'utf8');
 
+  if (fs.existsSync(adminPublicDir)) {
+    copyDirSync(adminPublicDir, tAdmin);
+    copyDirSync(adminPublicDir, path.join(tAdmin, 'static'));
+  }
+
   if (fs.existsSync(adminUploads)) {
     const upDest = path.join(dest, 'uploads');
     fs.mkdirSync(upDest, { recursive: true });
     copyDirSync(adminUploads, upDest);
+    copyDirSync(adminUploads, path.join(tAdmin, 'uploads'));
   }
 
   console.log(`✅ [Postinstall] Dominio principal sincronizado en: ${dest}`);
 }
 
-// 5. Localizaciones objetivo de Hostinger
+// 5. Preparar public_html local con Frontend, Admin y API
+const adminPublicDir = path.resolve(rootDir, 'apps/admin/public');
+const localAdminDir = path.join(localPublicHtml, 'admin');
+const localApiDir = path.join(localPublicHtml, 'api');
+fs.mkdirSync(localAdminDir, { recursive: true });
+fs.mkdirSync(localApiDir, { recursive: true });
+
+if (fs.existsSync(frontendOut)) {
+  copyDirSync(frontendOut, localPublicHtml);
+}
+if (fs.existsSync(adminPublicDir)) {
+  copyDirSync(adminPublicDir, localAdminDir);
+  copyDirSync(adminPublicDir, path.join(localAdminDir, 'static'));
+}
+if (fs.existsSync(adminUploads)) {
+  copyDirSync(adminUploads, path.join(localPublicHtml, 'uploads'));
+  copyDirSync(adminUploads, path.join(localAdminDir, 'uploads'));
+}
+
+fs.writeFileSync(path.join(localPublicHtml, '.htaccess'), rootHtaccess, 'utf8');
+fs.writeFileSync(path.join(localAdminDir, '.htaccess'), subHtaccess, 'utf8');
+fs.writeFileSync(path.join(localApiDir, '.htaccess'), subHtaccess, 'utf8');
+fs.writeFileSync(path.join(localAdminDir, 'index.php'), phpProxyTemplate, 'utf8');
+fs.writeFileSync(path.join(localApiDir, 'index.php'), phpProxyTemplate, 'utf8');
+fs.writeFileSync(path.join(localPublicHtml, '.node_port'), '4000', 'utf8');
+
+// 6. Copia directa ascendente a todos los public_html encontrados (Patrón Unu-Raymi)
+if (fs.existsSync(localPublicHtml)) {
+  copyToAllPublicHtml(localPublicHtml, 'public_html completo (Frontend + Admin + API)');
+}
+if (fs.existsSync(frontendOut)) {
+  copyToAllPublicHtml(frontendOut, 'frontend build');
+}
+
+// 7. Localizaciones objetivo de Hostinger
 const targetDestinations = [
   '/home/u251936581/public_html',
   '/home/u251936581/domains/beardedmountaineerlodge.com/public_html',

@@ -22,10 +22,17 @@ process.env.UNIFIED_SERVER = 'true';
 function logDebug(msg) {
   const line = `[${new Date().toISOString()}] ${msg}\n`;
   console.log(msg);
-  try {
-    fs.appendFileSync(path.resolve(__dirname, 'public_html/node_debug.log'), line);
-    fs.appendFileSync('/tmp/bearded_node_debug.log', line);
-  } catch (_) {}
+  const logTargets = [
+    path.resolve(__dirname, 'node_debug.log'),
+    path.resolve(__dirname, 'public_html/node_debug.log'),
+    path.resolve(__dirname, '../../../public_html/node_debug.log'),
+    path.resolve(__dirname, '../../public_html/node_debug.log'),
+    '/home/u251936581/public_html/node_debug.log',
+    '/tmp/bearded_node_debug.log'
+  ];
+  for (const lt of logTargets) {
+    try { fs.appendFileSync(lt, line); } catch (_) {}
+  }
 }
 
 process.on('uncaughtException', (err) => {
@@ -65,54 +72,6 @@ function loadEnv(file) {
 
 loadEnv(path.resolve(__dirname, '.env.production'));
 loadEnv(path.resolve(__dirname, '.env'));
-
-// ── Sincronizar frontend/out y public_html a la raíz del hosting en tiempo de ejecución ──
-try {
-  const localPublic = path.resolve(__dirname, 'public_html');
-  const frontendOut = path.resolve(__dirname, 'apps/frontend/out');
-  const adminUploads = path.resolve(__dirname, 'apps/admin/uploads');
-  const pubTargets = [
-    '/home/u251936581/public_html',
-    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html',
-    process.env.HOME ? path.resolve(process.env.HOME, 'public_html') : null
-  ];
-
-  // Buscar carpetas public_html superiores (ej: si el proyecto corre en ~/hbuilds)
-  let parentCheck = __dirname;
-  for (let i = 0; i < 5; i++) {
-    const candidate = path.join(parentCheck, 'public_html');
-    if (candidate !== localPublic) {
-      pubTargets.push(candidate);
-    }
-    const nextParent = path.dirname(parentCheck);
-    if (nextParent === parentCheck) break;
-    parentCheck = nextParent;
-  }
-
-  const validTargets = Array.from(new Set(pubTargets.filter(Boolean)));
-
-  validTargets.forEach(target => {
-    // NUNCA sobreescribir subdominios dedicados de api o admin con los archivos del frontend
-    if (target.includes('api.') || target.includes('admin.')) return;
-
-    if (fs.existsSync(target) && path.resolve(target) !== localPublic) {
-      if (fs.existsSync(localPublic)) {
-        fs.cpSync(localPublic, target, { recursive: true });
-      }
-      if (fs.existsSync(frontendOut)) {
-        fs.cpSync(frontendOut, target, { recursive: true });
-      }
-      if (fs.existsSync(adminUploads)) {
-        const upDest = path.join(target, 'uploads');
-        fs.mkdirSync(upDest, { recursive: true });
-        fs.cpSync(adminUploads, upDest, { recursive: true });
-      }
-      logDebug(`> [Server] Sincronización exitosa hacia webroot: ${target}`);
-    }
-  });
-} catch (e) {
-  logDebug(`> [Server] Advertencia sincronizando webroot: ${e.message}`);
-}
 
 // ── 1. Cargar Aplicaciones Modulares ──────────────────────────────────────────
 let backendApp = null;

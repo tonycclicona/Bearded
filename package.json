@@ -39,11 +39,18 @@
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.2",
     "@types/node": "^22.0.0",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "ejs": "^3.1.10",
     "express": "^5.1.0",
+    "express-session": "^1.18.1",
+    "helmet": "^8.0.0",
     "http-proxy-middleware": "^3.0.3",
+    "multer": "^2.2.0",
     "prisma": "^6.19.3",
     "tailwindcss": "^4",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",

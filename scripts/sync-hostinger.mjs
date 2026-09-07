@@ -35,24 +35,33 @@ fs.mkdirSync(publicHtml, { recursive: true });
 const adminDir = path.join(publicHtml, 'admin');
 const apiDir = path.join(publicHtml, 'api');
 const uploadsDir = path.join(publicHtml, 'uploads');
+const adminPublicDir = path.resolve(rootDir, 'apps/admin/public');
 
 fs.mkdirSync(adminDir, { recursive: true });
+fs.mkdirSync(path.join(adminDir, 'static'), { recursive: true });
+fs.mkdirSync(path.join(adminDir, 'uploads'), { recursive: true });
 fs.mkdirSync(apiDir, { recursive: true });
 fs.mkdirSync(uploadsDir, { recursive: true });
 
-// 2. Copiar archivos compilados de Next.js
+// 2. Copiar archivos compilados de Next.js (Frontend)
 if (fs.existsSync(frontendOut)) {
   copyDirSync(frontendOut, publicHtml);
 }
 
-// 3. Copiar assets públicos
+// 3. Copiar assets públicos del frontend
 if (fs.existsSync(frontendPublic)) {
   copyDirSync(frontendPublic, publicHtml);
 }
 
-// 4. Copiar uploads
+// 4. Copiar assets y uploads del Admin Panel (para cargar como página web en public_html/admin)
+if (fs.existsSync(adminPublicDir)) {
+  copyDirSync(adminPublicDir, adminDir);
+  copyDirSync(adminPublicDir, path.join(adminDir, 'static'));
+}
+
 if (fs.existsSync(adminUploads)) {
   copyDirSync(adminUploads, uploadsDir);
+  copyDirSync(adminUploads, path.join(adminDir, 'uploads'));
 }
 
 // 5. Generar reglas .htaccess
