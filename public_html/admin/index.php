@@ -49,7 +49,7 @@ foreach ($candidatePorts as $p) {
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_HEADER, true);
     curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
-    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT_MS, 300); // 300ms timeout para verificación rápida
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT_MS, 2000); // 2000ms timeout para verificación segura
     curl_setopt($ch, CURLOPT_TIMEOUT, 30);
     curl_setopt($ch, CURLOPT_HTTPHEADER, $reqHeaders);
 

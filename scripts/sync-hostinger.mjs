@@ -165,7 +165,7 @@ foreach ($candidatePorts as $p) {
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_HEADER, true);
     curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
-    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT_MS, 300); // 300ms timeout para verificación rápida
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT_MS, 2000); // 2000ms timeout para verificación segura
     curl_setopt($ch, CURLOPT_TIMEOUT, 30);
     curl_setopt($ch, CURLOPT_HTTPHEADER, $reqHeaders);
 
@@ -224,6 +224,8 @@ fs.writeFileSync(path.join(publicHtml, '.node_port'), '4000', 'utf8');
 const externalTargets = [
   '/home/u251936581/public_html',
   '/home/u251936581/domains/beardedmountaineerlodge.com/public_html',
+  '/home/u251936581/domains/api.beardedmountaineerlodge.com/public_html',
+  '/home/u251936581/domains/admin.beardedmountaineerlodge.com/public_html',
   process.env.HOME ? path.resolve(process.env.HOME, 'public_html') : null
 ];
 
@@ -260,6 +262,16 @@ uniqueTargets.forEach(target => {
       fs.writeFileSync(path.join(tApi, '.htaccess'), subHtaccess, 'utf8');
       fs.writeFileSync(path.join(tAdmin, 'index.php'), phpProxyTemplate, 'utf8');
       fs.writeFileSync(path.join(tApi, 'index.php'), phpProxyTemplate, 'utf8');
+
+      // Si el target es la carpeta de un subdominio dedicado (ej: domains/api.* o domains/admin.*)
+      if (target.includes('api.')) {
+        fs.writeFileSync(path.join(target, 'index.php'), phpProxyTemplate, 'utf8');
+        fs.writeFileSync(path.join(target, '.htaccess'), subHtaccess, 'utf8');
+      } else if (target.includes('admin.')) {
+        fs.writeFileSync(path.join(target, 'index.php'), phpProxyTemplate, 'utf8');
+        fs.writeFileSync(path.join(target, '.htaccess'), subHtaccess, 'utf8');
+      }
+
       console.log(`✅ [Sync Hostinger] Sincronizado exitosamente en: ${target}`);
     }
   } catch (err) {

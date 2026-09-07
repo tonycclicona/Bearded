@@ -52,6 +52,8 @@ try {
   const pubTargets = [
     '/home/u251936581/public_html',
     '/home/u251936581/domains/beardedmountaineerlodge.com/public_html',
+    '/home/u251936581/domains/api.beardedmountaineerlodge.com/public_html',
+    '/home/u251936581/domains/admin.beardedmountaineerlodge.com/public_html',
     process.env.HOME ? path.resolve(process.env.HOME, 'public_html') : null
   ];
 

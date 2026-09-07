@@ -61,7 +61,9 @@ function copyToAllPublicHtml(srcDir, label) {
 // 3. Localizaciones objetivo de Hostinger
 const targetDestinations = [
   '/home/u251936581/public_html',
-  '/home/u251936581/domains/beardedmountaineerlodge.com/public_html'
+  '/home/u251936581/domains/beardedmountaineerlodge.com/public_html',
+  '/home/u251936581/domains/api.beardedmountaineerlodge.com/public_html',
+  '/home/u251936581/domains/admin.beardedmountaineerlodge.com/public_html'
 ];
 
 if (process.env.HOME) {
