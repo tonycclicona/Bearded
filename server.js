@@ -17,35 +17,6 @@ app.disable('x-powered-by');
 // Flag para evitar que los submódulos inicien listeners duplicados de puerto
 process.env.UNIFIED_SERVER = 'true';
 
-// Log de diagnóstico persistente para Hostinger
-function logDebug(msg) {
-  const line = `[${new Date().toISOString()}] ${msg}\n`;
-  console.log(msg);
-  const logDestinations = [
-    path.resolve(__dirname, 'node_debug.log'),
-    '/tmp/bearded_node_debug.log',
-    '/home/u251936581/public_html/node_debug.log',
-    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/node_debug.log',
-    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/api/node_debug.log',
-    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/admin/node_debug.log'
-  ];
-  for (const logPath of logDestinations) {
-    try {
-      fs.appendFileSync(logPath, line);
-    } catch (_) {}
-  }
-}
-
-process.on('uncaughtException', (err) => {
-  logDebug(`[FATAL UNCAUGHT EXCEPTION]: ${err.stack || err.message}`);
-});
-
-process.on('unhandledRejection', (reason) => {
-  logDebug(`[UNHANDLED REJECTION]: ${reason?.stack || reason}`);
-});
-
-logDebug(`Iniciando server.js en Node ${process.version} (PID: ${process.pid}, CWD: ${process.cwd()})`);
-
 // ── 0. Cargar Variables de Entorno ──────────────────────────────────────────
 function loadEnv(file) {
   if (fs.existsSync(file)) {
@@ -108,20 +79,6 @@ try {
       if (fs.existsSync(frontendOut)) {
         fs.cpSync(frontendOut, target, { recursive: true });
       }
-      
-      // Si el target es un subdominio dedicado
-      if (target.includes('api.')) {
-        const apiIndex = path.join(localPublic, 'api', 'index.php');
-        const apiHt = path.join(localPublic, 'api', '.htaccess');
-        if (fs.existsSync(apiIndex)) fs.copyFileSync(apiIndex, path.join(target, 'index.php'));
-        if (fs.existsSync(apiHt)) fs.copyFileSync(apiHt, path.join(target, '.htaccess'));
-      } else if (target.includes('admin.')) {
-        const adminIndex = path.join(localPublic, 'admin', 'index.php');
-        const adminHt = path.join(localPublic, 'admin', '.htaccess');
-        if (fs.existsSync(adminIndex)) fs.copyFileSync(adminIndex, path.join(target, 'index.php'));
-        if (fs.existsSync(adminHt)) fs.copyFileSync(adminHt, path.join(target, '.htaccess'));
-      }
-
       console.log('> [Server] Sincronización exitosa hacia webroot:', target);
     }
   });
@@ -134,56 +91,49 @@ let backendApp = null;
 let adminApp = null;
 
 try {
-  const backendPath = fs.existsSync(path.resolve(__dirname, 'apps/backend/dist/index.js'))
-    ? path.resolve(__dirname, 'apps/backend/dist/index.js')
-    : path.resolve(__dirname, 'apps/backend/src/index.js');
-  const backendModule = await import(pathToFileURL(backendPath).href);
-  backendApp = backendModule.default || backendModule.app || backendModule;
-  logDebug('> [Gateway] Backend API inicializado correctamente.');
+  const backendDistPath = path.resolve(__dirname, 'apps/backend/dist/index.js');
+  const backendSrcPath = path.resolve(__dirname, 'apps/backend/src/index.ts');
+  let backendPath = null;
+  if (fs.existsSync(backendDistPath)) {
+    backendPath = backendDistPath;
+    console.log('> [Gateway] Cargando Backend desde dist...');
+  } else if (fs.existsSync(backendSrcPath)) {
+    backendPath = backendSrcPath;
+    console.log('> [Gateway] dist/ no encontrado, cargando Backend desde src/ (tsx)...');
+  }
+  if (backendPath) {
+    const backendModule = await import(pathToFileURL(backendPath).href);
+    backendApp = backendModule.default || backendModule.app || backendModule;
+    console.log('> [Gateway] Backend API inicializado correctamente.');
+  } else {
+    console.error('> [Gateway] No se encontró apps/backend/dist/index.js ni apps/backend/src/index.ts');
+  }
 } catch (err) {
-  logDebug(`> [Gateway] Error al cargar Backend API: ${err.stack || err.message}`);
+  console.error('> [Gateway] Error al cargar Backend API:', err.message);
+  console.error(err.stack);
 }
 
-// Inicialización asíncrona de base de datos (segura en segundo plano sin bloquear el arranque de los puertos)
-setTimeout(async () => {
-  try {
-    if (process.env.DATABASE_URL && !process.env.DATABASE_URL.includes('u123456789')) {
-      const { execSync } = await import('child_process');
-      logDebug('> [DB-Init] Verificando y sincronizando tablas en MySQL...');
-      execSync('npx prisma db push --schema=apps/backend/prisma/schema.prisma --accept-data-loss', {
-        stdio: 'pipe',
-        timeout: 30000
-      });
-      logDebug('> [DB-Init] ✅ Tablas de MySQL verificadas y sincronizadas con éxito.');
-
-      // Ejecutar seed si las tablas están vacías
-      try {
-        const { prisma } = await import('./apps/backend/dist/lib/prisma.js');
-        const passCount = await prisma.hummingbirdPass.count();
-        if (passCount === 0) {
-          logDebug('> [DB-Init] Base de datos vacía detectada. Insertando datos iniciales (seed)...');
-          execSync('npx tsx apps/backend/prisma/seed.ts', { stdio: 'pipe', timeout: 45000 });
-          logDebug('> [DB-Init] ✅ Datos iniciales (seed) insertados con éxito.');
-        }
-      } catch (seedErr) {
-        logDebug(`> [DB-Init] Aviso al verificar seed: ${seedErr.message}`);
-      }
-    }
-  } catch (dbErr) {
-    logDebug(`> [DB-Init] Aviso en sincronización de base de datos: ${dbErr.message}`);
-  }
-}, 3000);
-
-
 try {
-  const adminPath = fs.existsSync(path.resolve(__dirname, 'apps/admin/dist/index.js'))
-    ? path.resolve(__dirname, 'apps/admin/dist/index.js')
-    : path.resolve(__dirname, 'apps/admin/src/index.js');
-  const adminModule = await import(pathToFileURL(adminPath).href);
-  adminApp = adminModule.default || adminModule.app || adminModule;
-  console.log('> [Gateway] Admin Panel inicializado correctamente.');
+  const adminDistPath = path.resolve(__dirname, 'apps/admin/dist/index.js');
+  const adminSrcPath = path.resolve(__dirname, 'apps/admin/src/index.ts');
+  let adminPath = null;
+  if (fs.existsSync(adminDistPath)) {
+    adminPath = adminDistPath;
+    console.log('> [Gateway] Cargando Admin desde dist...');
+  } else if (fs.existsSync(adminSrcPath)) {
+    adminPath = adminSrcPath;
+    console.log('> [Gateway] dist/ no encontrado, cargando Admin desde src/ (tsx)...');
+  }
+  if (adminPath) {
+    const adminModule = await import(pathToFileURL(adminPath).href);
+    adminApp = adminModule.default || adminModule.app || adminModule;
+    console.log('> [Gateway] Admin Panel inicializado correctamente.');
+  } else {
+    console.error('> [Gateway] No se encontró apps/admin/dist/index.js ni apps/admin/src/index.ts');
+  }
 } catch (err) {
   console.error('> [Gateway] Error al cargar Admin Panel:', err.message);
+  console.error(err.stack);
 }
 
 // ── 2. Servir Archivos Estáticos de Admin & Uploads ───────────────────────────
@@ -226,9 +176,18 @@ app.use((req, res, next) => {
 
   if (isAdminSubdomain || isAdminPath) {
     if (typeof adminApp === 'function') {
+      // Cuando se accede via subdominio admin., reescribir URL para que coincida con rutas /admin/...
+      if (isAdminSubdomain && !req.url.startsWith('/admin')) {
+        req.url = '/admin' + (req.url.startsWith('/') ? req.url : '/' + req.url);
+        // Evitar double slash: /admin// -> /admin/
+        req.url = req.url.replace('/admin//', '/admin/');
+      }
       return adminApp(req, res, next);
     }
-    return res.status(503).send('Admin Panel no está listo');
+    return res.status(503).json({
+      error: 'Admin Panel no está listo. Verifique que Node.js esté corriendo en Hostinger.',
+      hint: 'Reinicie la aplicación Node.js desde el panel de Hostinger.'
+    });
   }
   next();
 });
@@ -255,7 +214,7 @@ if (fs.existsSync(frontendOutDir)) {
 // ── 5. Iniciar Servidor ───────────────────────────────────────────────────────
 const PORT = process.env.GATEWAY_PORT || process.env.PORT || 4000;
 const server = app.listen(PORT, '0.0.0.0', () => {
-  logDebug(`> [Gateway] Servidor Express unificado escuchando en puerto principal: ${PORT}`);
+  console.log(`> [Gateway] Servidor Express unificado escuchando en puerto principal: ${PORT}`);
   
   // Guardar puerto en todas las rutas posibles para los proxies PHP
   const portDestinations = [
@@ -277,7 +236,7 @@ const server = app.listen(PORT, '0.0.0.0', () => {
 });
 
 server.on('error', (err) => {
-  logDebug(`> [Gateway Server Error]: ${err.message}`);
+  console.error('> [Gateway Server Error]:', err.message);
 });
 
 // Escuchar también en los puertos convencionales (3001, 3002, 3000, 8080) por si los proxies apuntan allí
@@ -286,14 +245,12 @@ for (const bPort of backupPorts) {
   if (Number(bPort) !== Number(PORT)) {
     try {
       const bServer = app.listen(bPort, '127.0.0.1', () => {
-        logDebug(`> [Gateway] Respaldo activo en puerto local: ${bPort}`);
+        console.log(`> [Gateway] Respaldo activo en puerto local: ${bPort}`);
       });
-      bServer.on('error', (err) => {
-        logDebug(`> [Gateway Backup Port ${bPort} Error]: ${err.message}`);
+      bServer.on('error', () => {
+        // Puerto ya en uso o no permitido, ignorar silenciosamente
       });
-    } catch (e) {
-      logDebug(`> [Gateway Backup Port ${bPort} Exception]: ${e.message}`);
-    }
+    } catch (_) {}
   }
 }
 

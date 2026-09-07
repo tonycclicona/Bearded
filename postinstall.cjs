@@ -15,6 +15,25 @@ try {
   console.warn('⚠️ [Postinstall] Warning prisma generate:', e.message);
 }
 
+// 1b. Compilar TypeScript de Backend
+try {
+  console.log('> [Postinstall] Compilando TypeScript del Backend...');
+  execSync('npm run build --workspace=apps/backend', { stdio: 'inherit' });
+  console.log('✅ [Postinstall] Backend compilado con éxito.');
+} catch (e) {
+  console.warn('⚠️ [Postinstall] Warning compilando backend:', e.message);
+}
+
+// 1c. Compilar TypeScript de Admin
+try {
+  console.log('> [Postinstall] Compilando TypeScript del Admin...');
+  execSync('npm run build --workspace=apps/admin', { stdio: 'inherit' });
+  console.log('✅ [Postinstall] Admin compilado con éxito.');
+} catch (e) {
+  console.warn('⚠️ [Postinstall] Warning compilando admin:', e.message);
+}
+
+
 // 2. Definir directorios
 const rootDir = __dirname;
 const localPublicHtml = path.resolve(rootDir, 'public_html');
@@ -103,7 +122,7 @@ for (const dest of uniqueDestinations) {
         copyDirSync(adminUploads, upDest);
       }
 
-      // D. Asegurar copia estricta de los .htaccess y proxies
+      // D. Asegurar copia estricta de los .htaccess
       const rootHt = path.join(localPublicHtml, '.htaccess');
       if (fs.existsSync(rootHt)) {
         fs.copyFileSync(rootHt, path.join(dest, '.htaccess'));
@@ -117,25 +136,6 @@ for (const dest of uniqueDestinations) {
       if (fs.existsSync(apiHt)) {
         fs.mkdirSync(path.join(dest, 'api'), { recursive: true });
         fs.copyFileSync(apiHt, path.join(dest, 'api', '.htaccess'));
-      }
-
-      // E. Si el destino es un subdominio dedicado (ej: domains/api.* o domains/admin.*)
-      if (dest.includes('api.')) {
-        const apiIndex = path.join(localPublicHtml, 'api', 'index.php');
-        if (fs.existsSync(apiIndex)) {
-          fs.copyFileSync(apiIndex, path.join(dest, 'index.php'));
-        }
-        if (fs.existsSync(apiHt)) {
-          fs.copyFileSync(apiHt, path.join(dest, '.htaccess'));
-        }
-      } else if (dest.includes('admin.')) {
-        const adminIndex = path.join(localPublicHtml, 'admin', 'index.php');
-        if (fs.existsSync(adminIndex)) {
-          fs.copyFileSync(adminIndex, path.join(dest, 'index.php'));
-        }
-        if (fs.existsSync(adminHt)) {
-          fs.copyFileSync(adminHt, path.join(dest, '.htaccess'));
-        }
       }
 
       console.log(`✅ [Postinstall] Webroot sincronizado con éxito en: ${dest}`);
