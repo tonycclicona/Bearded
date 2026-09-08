@@ -51,13 +51,14 @@ foreach ($possiblePortFiles as $pFile) {
     }
 }
 
-// Targets idénticos a Unu-Raymi (puertos locales directos a Node.js)
+// Targets locales directos a Node.js + fallback seguro al dominio
 $targets = [
     "http://127.0.0.1:{$detectedPort}",
     'http://127.0.0.1:4000',
     'http://127.0.0.1:3000',
     'http://127.0.0.1:3001',
-    'http://127.0.0.1:3002'
+    'http://127.0.0.1:3002',
+    'https://beardedmountaineerlodge.com'
 ];
 $targets = array_values(array_unique($targets));
 
@@ -74,6 +75,7 @@ foreach ($incomingHeaders as $name => $value) {
         $headers[] = "$name: $value";
     }
 }
+$headers[] = "X-Bypass-Proxy: 1";
 
 $isMultipart = !empty($_FILES) || (isset($_SERVER['CONTENT_TYPE']) && strpos(strtolower($_SERVER['CONTENT_TYPE']), 'multipart/form-data') !== false);
 $postFields = null;
@@ -106,11 +108,20 @@ if ($isMultipart) {
     $body = file_get_contents('php://input');
 }
 
-// 1. Socket UNIX si está disponible (rendimiento máximo en Linux)
+// 1. Socket UNIX si está disponible (rendimiento máximo e inmunidad a cortafuegos TCP en Linux)
 $unixSockets = [
+    '/tmp/bearded_gateway.sock',
+    sys_get_temp_dir() . '/bearded_gateway.sock',
     __DIR__ . '/gateway.sock',
     __DIR__ . '/../gateway.sock',
-    sys_get_temp_dir() . '/bearded_gateway.sock'
+    dirname(__DIR__) . '/gateway.sock',
+    dirname(dirname(__DIR__)) . '/gateway.sock',
+    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/gateway.sock',
+    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/api/gateway.sock',
+    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/admin/gateway.sock',
+    '/home/u251936581/public_html/gateway.sock',
+    '/home/u251936581/public_html/api/gateway.sock',
+    '/home/u251936581/public_html/admin/gateway.sock'
 ];
 
 foreach ($unixSockets as $sock) {

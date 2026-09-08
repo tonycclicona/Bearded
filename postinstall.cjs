@@ -185,6 +185,10 @@ Options -Indexes +FollowSymLinks
   RewriteEngine On
   RewriteBase /
 
+  # 0. Si la petición viene del proxy inverso interno, no reescribir (entregar directo a Node.js)
+  RewriteCond %{HTTP:X-Bypass-Proxy} 1
+  RewriteRule ^ - [L]
+
   # 1. Enviar peticiones del subdominio API (ej: api.beardedmountaineerlodge.com)
   RewriteCond %{HTTP_HOST} ^api\\. [NC]
   RewriteRule ^(.*)$ api/index.php [L,QSA]

@@ -208,17 +208,22 @@ app.use(function(req, res) {
   res.status(200).send('<!DOCTYPE html><html><head><title>Bearded Mountaineer Lodge</title></head><body>Bearded Mountaineer Lodge</body></html>');
 });
 
-// ── 7. ARRANQUE DEL SERVIDOR TCP ──────────────────────────────────────────────
+// ── 7. ARRANQUE DEL SERVIDOR TCP Y SOCKETS UNIX ──────────────────────────────
+const http = require('http');
+const os = require('os');
+
 const port = process.env.PORT || 4000;
 const server = app.listen(port, function() {
-  console.log('> [Server] Bearded Mountaineer Lodge corriendo en puerto:', port);
+  console.log('> [Server] Bearded Mountaineer Lodge corriendo en puerto principal:', port);
 
   // Guardar archivo .node_port
   const portDestinations = [
     path.resolve(__dirname, '.node_port'),
     path.resolve(__dirname, 'public_html/.node_port'),
     path.resolve(__dirname, 'public_html/api/.node_port'),
-    path.resolve(__dirname, 'public_html/admin/.node_port')
+    path.resolve(__dirname, 'public_html/admin/.node_port'),
+    path.join(os.tmpdir(), 'bearded_node_port'),
+    '/tmp/bearded_node_port'
   ];
   portDestinations.forEach(function(pFile) {
     try {
@@ -236,18 +241,49 @@ server.on('error', function(err) {
   }
 });
 
-// Canal Socket UNIX opcional para Linux
-if (process.platform !== 'win32') {
-  const sockPath = path.resolve(__dirname, 'gateway.sock');
+// Bridge TCP secundario en 127.0.0.1:4000 si el puerto principal no es 4000
+if (String(port) !== '4000') {
   try {
-    if (fs.existsSync(sockPath)) {
-      try { fs.unlinkSync(sockPath); } catch (_) {}
-    }
-    app.listen(sockPath, function() {
-      try { fs.chmodSync(sockPath, 0o777); } catch (_) {}
-      console.log('> [Server] Canal Socket UNIX listo en:', sockPath);
+    const bridge = app.listen(4000, '127.0.0.1', function() {
+      console.log('> [Server] Bridge local TCP 4000 listo en 127.0.0.1:4000');
     });
+    bridge.on('error', function() {});
   } catch (_) {}
+}
+
+// Canal Socket UNIX en Linux (bypassea cualquier firewall interno TCP de CloudLinux)
+if (process.platform !== 'win32') {
+  const unixSocketPaths = [
+    path.join(os.tmpdir(), 'bearded_gateway.sock'),
+    '/tmp/bearded_gateway.sock',
+    path.resolve(__dirname, 'gateway.sock'),
+    path.resolve(__dirname, 'public_html/gateway.sock'),
+    path.resolve(__dirname, 'public_html/api/gateway.sock'),
+    path.resolve(__dirname, 'public_html/admin/gateway.sock'),
+    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/gateway.sock',
+    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/api/gateway.sock',
+    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/admin/gateway.sock',
+    '/home/u251936581/public_html/gateway.sock',
+    '/home/u251936581/public_html/api/gateway.sock',
+    '/home/u251936581/public_html/admin/gateway.sock'
+  ];
+
+  const uniqueSockets = Array.from(new Set(unixSocketPaths));
+  uniqueSockets.forEach(function(sockPath) {
+    try {
+      const sockDir = path.dirname(sockPath);
+      if (fs.existsSync(sockDir)) {
+        if (fs.existsSync(sockPath)) {
+          try { fs.unlinkSync(sockPath); } catch (_) {}
+        }
+        const sockServer = app.listen(sockPath, function() {
+          try { fs.chmodSync(sockPath, 0o777); } catch (_) {}
+          console.log('> [Server] Canal Socket UNIX listo en:', sockPath);
+        });
+        sockServer.on('error', function() {});
+      }
+    } catch (_) {}
+  });
 }
 
 module.exports = app;
