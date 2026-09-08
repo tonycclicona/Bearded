@@ -210,14 +210,31 @@ console.log('\n[postinstall] === [4/5] Build Frontend ===');
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL;
 if (!apiUrl) {
-  console.warn('[postinstall] ⚠️  NEXT_PUBLIC_API_URL no está definida.');
-  console.warn('   Define esta variable en el panel de Hostinger → Environment variables.');
-  console.warn('   El frontend compilará sin URL de API y fallará en producción.');
+  console.warn('[postinstall] ⚠️  NEXT_PUBLIC_API_URL no está definida en el entorno.');
+  console.warn('   Se usará fallback relativo "/api".');
+  process.env.NEXT_PUBLIC_API_URL = '/api';
 } else {
   console.log('[postinstall] ✅ NEXT_PUBLIC_API_URL =', apiUrl);
 }
 
-run('npm run build', 'frontend');
+const frontendBuildScript = path.join(ROOT, 'frontend/scripts/build.cjs');
+let frontendOk = false;
+
+if (fs.existsSync(frontendBuildScript)) {
+  console.log('[postinstall] → Compilando frontend con script autónomo:', frontendBuildScript);
+  try {
+    execSync(`node "${frontendBuildScript}"`, { cwd: path.join(ROOT, 'frontend'), stdio: 'inherit', env: customEnv });
+    frontendOk = true;
+    console.log('[postinstall] ✅ Frontend exportado exitosamente con build.cjs.');
+  } catch (err) {
+    console.warn('[postinstall] ⚠️  Falló compilación directa con build.cjs:', err.message);
+  }
+}
+
+if (!frontendOk) {
+  console.log('[postinstall] → Intentando npm run build en frontend...');
+  frontendOk = run('npm run build', 'frontend');
+}
 
 // ── 5. DEPLOY A PUBLIC_HTML ───────────────────────────────────────────────────
 console.log('\n[postinstall] === [5/6] Deploy a public_html ===');
@@ -227,22 +244,80 @@ const proxyApiSrc   = path.join(ROOT, 'deployment/proxy-api.php');
 const proxyAdminSrc = path.join(ROOT, 'deployment/proxy-admin.php');
 const nodePort      = String(process.env.GATEWAY_PORT || process.env.PORT || '4000');
 
-// Destinos oficiales de Hostinger para Bearded Mountaineer Lodge
-const HOSTINGER_PRIMARY_PATH = '/home/u251936581/domains/beardedmountaineerlodge.com/public_html';
+// Si frontend/out/index.html no existe, intentar build de emergencia directo
+if (!fs.existsSync(path.join(frontendOut, 'index.html')) && fs.existsSync(frontendBuildScript)) {
+  console.warn('[postinstall] ⚠️  frontend/out/index.html aún no existe. Ejecutando build de emergencia...');
+  try {
+    execSync(`node "${frontendBuildScript}"`, { cwd: path.join(ROOT, 'frontend'), stdio: 'inherit', env: customEnv });
+  } catch (e) {
+    console.error('[postinstall] ❌ Build de emergencia de frontend falló:', e.message);
+  }
+}
 
-const targetDirs = [
-  HOSTINGER_PRIMARY_PATH,
-  path.join(ROOT, 'public_html')
-];
+// Resolver TODOS los destinos válidos de public_html
+function resolveTargetDirs() {
+  const candidates = [];
 
-// .htaccess para subcarpetas /api y /admin (estándar oficial proporcionado por el usuario)
+  // 1. Destino canónico oficial en Hostinger para Bearded Mountaineer Lodge (solo en Linux / producción)
+  if (isHostinger) {
+    candidates.push('/home/u251936581/domains/beardedmountaineerlodge.com/public_html');
+  }
+
+  // 2. Si ROOT mismo es public_html
+  if (path.basename(ROOT) === 'public_html') {
+    candidates.push(ROOT);
+  } else {
+    // 3. Subcarpeta public_html dentro de ROOT
+    candidates.push(path.join(ROOT, 'public_html'));
+
+    // 4. Solo si ROOT es un subdirectorio como nodejs/ o app/ dentro del dominio
+    const parentName = path.basename(path.dirname(ROOT));
+    const baseName = path.basename(ROOT);
+    if ((baseName === 'nodejs' || baseName === 'app') && parentName === 'beardedmountaineerlodge.com') {
+      candidates.push(path.resolve(ROOT, '../public_html'));
+    }
+  }
+
+  // 5. Variable opcional de entorno
+  if (process.env.PUBLIC_HTML_PATH) {
+    candidates.push(path.resolve(process.env.PUBLIC_HTML_PATH));
+  }
+
+  const seen = new Set();
+  const valid = [];
+
+  for (const raw of candidates) {
+    const norm = isHostinger ? path.posix.normalize(raw) : path.resolve(raw);
+    if (seen.has(norm)) continue;
+    seen.add(norm);
+
+    // SANDBOX GUARD: Jamás tocar mycoandes ni raíces de usuario no autorizadas
+    if (norm.includes('mycoandes')) {
+      console.error(`[postinstall] 🛑 BLOQUEO DE SEGURIDAD: Destino rechazado: "${norm}"`);
+      continue;
+    }
+    if (norm === '/home/u251936581' || norm === '/home/u251936581/public_html' || norm === '/home/u251936581/domains') {
+      console.error(`[postinstall] 🛑 BLOQUEO DE SEGURIDAD: Raíz no permitida: "${norm}"`);
+      continue;
+    }
+
+    valid.push(norm);
+  }
+
+  return valid;
+}
+
+const targetDirs = resolveTargetDirs();
+console.log('[postinstall] Destinos detectados para despliegue:', targetDirs);
+
+// .htaccess para subcarpetas /api y /admin (relativo a su directorio)
 const subHtaccess = `<IfModule mod_rewrite.c>
 RewriteEngine On
 RewriteBase /
 RewriteRule ^index\\.php$ - [L]
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule . /index.php [L]
+RewriteRule . index.php [L]
 </IfModule>
 `;
 
@@ -281,93 +356,113 @@ Options -Indexes +FollowSymLinks
 </IfModule>
 `;
 
-if (!fs.existsSync(frontendOut)) {
-  console.warn('[postinstall] ⚠️  frontend/out/ no existe, omitiendo deploy a public_html.');
-} else {
-  fs.mkdirSync(path.join(ROOT, 'admin/uploads'), { recursive: true });
-  let deployedCount = 0;
+const hasFrontendOut = fs.existsSync(frontendOut) && fs.existsSync(path.join(frontendOut, 'index.html'));
+if (!hasFrontendOut) {
+  console.warn('[postinstall] ⚠️  frontend/out/index.html no está presente.');
+}
 
-  for (const pubDir of targetDirs) {
-    // Sandbox Guard
-    if (pubDir.includes('mycoandes') || pubDir === '/home/u251936581' || pubDir === '/home/u251936581/public_html') {
-      console.error(`[postinstall] 🛑 BLOQUEO DE SEGURIDAD: Destino rechazado: "${pubDir}"`);
-      continue;
-    }
+fs.mkdirSync(path.join(ROOT, 'admin/uploads'), { recursive: true });
+let deployedCount = 0;
 
-    const isLocal = pubDir.startsWith(ROOT);
-    const parentDir = path.dirname(pubDir);
-    if (!isLocal && !fs.existsSync(parentDir)) {
-      console.log(`[postinstall] ℹ️  Omitiendo ${pubDir} (entorno local).`);
-      continue;
-    }
+for (const pubDir of targetDirs) {
+  console.log(`\n[postinstall] → Desplegando en destino: ${pubDir}`);
 
-    console.log(`[postinstall] → Desplegando en destino: ${pubDir}`);
+  try {
+    // 1. Crear carpetas principales
+    fs.mkdirSync(pubDir, { recursive: true });
+    const apiDir = path.join(pubDir, 'api');
+    const adminDir = path.join(pubDir, 'admin');
+    const adminStaticDir = path.join(adminDir, 'static');
+    const uploadsDir = path.join(pubDir, 'uploads');
+    const adminUploadsDir = path.join(adminDir, 'uploads');
 
-    try {
-      // 1. Crear carpetas principales
-      fs.mkdirSync(pubDir, { recursive: true });
-      fs.mkdirSync(path.join(pubDir, 'api'), { recursive: true });
-      fs.mkdirSync(path.join(pubDir, 'admin'), { recursive: true });
+    fs.mkdirSync(apiDir, { recursive: true });
+    fs.mkdirSync(adminDir, { recursive: true });
+    fs.mkdirSync(adminStaticDir, { recursive: true });
+    fs.mkdirSync(uploadsDir, { recursive: true });
+    fs.mkdirSync(adminUploadsDir, { recursive: true });
 
-      // 2. Limpiar _next anterior
+    // 2. Copiar frontend estático si existe
+    if (hasFrontendOut) {
       const nextDir = path.join(pubDir, '_next');
       if (fs.existsSync(nextDir)) fs.rmSync(nextDir, { recursive: true, force: true });
-
-      // 3. Copiar frontend estático
       fs.cpSync(frontendOut, pubDir, { recursive: true });
-
-      // 4. Limpiar archivos .txt residuales
-      for (const f of fs.readdirSync(pubDir)) {
-        if (f.startsWith('__next.') || (f.endsWith('.txt') && f !== 'robots.txt')) {
-          try { fs.unlinkSync(path.join(pubDir, f)); } catch (_) {}
-        }
+      console.log(`[postinstall]   ✅ Archivos de frontend/out copiados a: ${pubDir}`);
+    } else {
+      const fallbackHtml = path.join(pubDir, 'index.html');
+      if (!fs.existsSync(fallbackHtml)) {
+        fs.writeFileSync(fallbackHtml, '<!DOCTYPE html><html><head><title>Bearded Mountaineer Lodge</title></head><body><h1>Bearded Mountaineer Lodge</h1></body></html>');
       }
-
-      // 5. Eliminar default.php de Hostinger si existe
-      const defaultPhp = path.join(pubDir, 'default.php');
-      if (fs.existsSync(defaultPhp)) {
-        try { fs.unlinkSync(defaultPhp); } catch (_) {}
-      }
-
-      // 6. Escribir .htaccess y .node_port raíz
-      fs.writeFileSync(path.join(pubDir, '.htaccess'), rootHtaccess.trim());
-      fs.writeFileSync(path.join(pubDir, '.node_port'), nodePort);
-      console.log(`[postinstall]   ✅ Frontend desplegado en: ${pubDir}`);
-
-      // 7. Configurar subcarpeta /api
-      const apiDir = path.join(pubDir, 'api');
-      if (fs.existsSync(proxyApiSrc)) {
-        fs.copyFileSync(proxyApiSrc, path.join(apiDir, 'index.php'));
-      }
-      fs.writeFileSync(path.join(apiDir, '.htaccess'), subHtaccess.trim());
-      fs.writeFileSync(path.join(apiDir, '.node_port'), nodePort);
-      console.log(`[postinstall]   ✅ API proxy configurado en: ${apiDir}`);
-
-      // 8. Configurar subcarpeta /admin
-      const adminDir = path.join(pubDir, 'admin');
-      if (fs.existsSync(proxyAdminSrc)) {
-        fs.copyFileSync(proxyAdminSrc, path.join(adminDir, 'index.php'));
-      } else if (fs.existsSync(proxyApiSrc)) {
-        fs.copyFileSync(proxyApiSrc, path.join(adminDir, 'index.php'));
-      }
-      fs.writeFileSync(path.join(adminDir, '.htaccess'), subHtaccess.trim());
-      fs.writeFileSync(path.join(adminDir, '.node_port'), nodePort);
-      console.log(`[postinstall]   ✅ Admin proxy configurado en: ${adminDir}`);
-
-      deployedCount++;
-    } catch (err) {
-      console.error(`[postinstall] ❌ Error desplegando en ${pubDir}:`, err.message);
     }
+
+    // 3. Copiar assets de frontend/public/ a pubDir
+    const frontendPublic = path.join(ROOT, 'frontend/public');
+    if (fs.existsSync(frontendPublic)) {
+      copyDir(frontendPublic, pubDir);
+      console.log(`[postinstall]   ✅ Assets de frontend/public copiados a: ${pubDir}`);
+    }
+
+    // 4. Limpiar archivos .txt residuales de Next.js
+    for (const f of fs.readdirSync(pubDir)) {
+      if (f.startsWith('__next.') || (f.endsWith('.txt') && f !== 'robots.txt')) {
+        try { fs.unlinkSync(path.join(pubDir, f)); } catch (_) {}
+      }
+    }
+
+    // 5. Eliminar default.php de Hostinger si existe
+    const defaultPhp = path.join(pubDir, 'default.php');
+    if (fs.existsSync(defaultPhp)) {
+      try { fs.unlinkSync(defaultPhp); } catch (_) {}
+    }
+
+    // 6. Escribir .htaccess y .node_port raíz
+    fs.writeFileSync(path.join(pubDir, '.htaccess'), rootHtaccess.trim());
+    fs.writeFileSync(path.join(pubDir, '.node_port'), nodePort);
+    console.log(`[postinstall]   ✅ Frontend raíz configurado en: ${pubDir}`);
+
+    // 7. Configurar subcarpeta /api
+    if (fs.existsSync(proxyApiSrc)) {
+      fs.copyFileSync(proxyApiSrc, path.join(apiDir, 'index.php'));
+    }
+    fs.writeFileSync(path.join(apiDir, '.htaccess'), subHtaccess.trim());
+    fs.writeFileSync(path.join(apiDir, '.node_port'), nodePort);
+    console.log(`[postinstall]   ✅ API proxy configurado en: ${apiDir}`);
+
+    // 8. Configurar subcarpeta /admin
+    if (fs.existsSync(proxyAdminSrc)) {
+      fs.copyFileSync(proxyAdminSrc, path.join(adminDir, 'index.php'));
+    } else if (fs.existsSync(proxyApiSrc)) {
+      fs.copyFileSync(proxyApiSrc, path.join(adminDir, 'index.php'));
+    }
+    fs.writeFileSync(path.join(adminDir, '.htaccess'), subHtaccess.trim());
+    fs.writeFileSync(path.join(adminDir, '.node_port'), nodePort);
+
+    // 9. Copiar assets de admin a adminDir y adminDir/static
+    const adminPublic = path.join(ROOT, 'admin/public');
+    if (fs.existsSync(adminPublic)) {
+      copyDir(adminPublic, adminDir);
+      copyDir(adminPublic, adminStaticDir);
+    }
+    const adminDistPublic = path.join(ROOT, 'admin/dist/public');
+    if (fs.existsSync(adminDistPublic)) {
+      copyDir(adminDistPublic, adminDir);
+      copyDir(adminDistPublic, adminStaticDir);
+    }
+    console.log(`[postinstall]   ✅ Admin proxy y assets configurados en: ${adminDir}`);
+
+    deployedCount++;
+  } catch (err) {
+    console.error(`[postinstall] ❌ Error desplegando en ${pubDir}:`, err.message);
   }
-
-  console.log(`[postinstall] Despliegues completados: ${deployedCount}`);
-
-  // restart.txt para Passenger/LiteSpeed
-  try {
-    fs.mkdirSync(path.join(ROOT, 'tmp'), { recursive: true });
-    fs.writeFileSync(path.join(ROOT, 'tmp/restart.txt'), String(Date.now()));
-  } catch (_) {}
 }
+
+console.log(`[postinstall] Despliegues completados: ${deployedCount}`);
+
+// restart.txt para Passenger/LiteSpeed
+try {
+  fs.mkdirSync(path.join(ROOT, 'tmp'), { recursive: true });
+  fs.writeFileSync(path.join(ROOT, 'tmp/restart.txt'), String(Date.now()));
+} catch (_) {}
 
 // ── 6. LIMPIEZA DE CACHÉ EN HOSTINGER ─────────────────────────────────────────
 console.log('\n[postinstall] === [6/6] Limpieza de caché temporal ===');

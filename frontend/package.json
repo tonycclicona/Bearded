@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build",
+    "build": "node scripts/build.cjs",
     "start": "next start",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",

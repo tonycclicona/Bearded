@@ -15,7 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 $requestUri = $_SERVER['REQUEST_URI'];
 if (strpos($requestUri, '/api') !== 0) {
-    $requestUri = '/api' . $requestUri;
+    $requestUri = '/api' . (strpos($requestUri, '/') === 0 ? $requestUri : '/' . $requestUri);
 }
 
 // 1. Detectar puerto dinámico desde .node_port si existe
