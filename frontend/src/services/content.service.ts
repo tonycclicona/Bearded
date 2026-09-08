@@ -12,8 +12,8 @@ import {
   Guia
 } from '@/types';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
-const ADMIN_URL = process.env.NEXT_PUBLIC_ADMIN_URL || 'http://localhost:3002';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? '/api' : 'http://localhost:3001/api');
+const ADMIN_URL = process.env.NEXT_PUBLIC_ADMIN_URL || (typeof window !== 'undefined' ? '' : 'http://localhost:3002');
 
 export function resolveImageUrl(url: string | null | undefined): string {
   if (!url) return '';

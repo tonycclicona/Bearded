@@ -151,12 +151,15 @@ Options -Indexes +FollowSymLinks
   RewriteEngine On
   RewriteBase /
 
-  # 1. Rutas de API, Admin y Uploads pasan directo a Node.js (Phusion Passenger)
-  RewriteRule ^(api|admin|uploads)(/.*)?$ - [L]
+  # 1. Redirección de subdominios si LiteSpeed los enruta al public_html principal
+  RewriteCond %{HTTP_HOST} ^admin\. [NC]
+  RewriteRule ^(.*)$ https://beardedmountaineerlodge.com/admin/$1 [R=301,L]
 
-  # 2. Subdominios api. y admin. pasan directo a Node.js
-  RewriteCond %{HTTP_HOST} ^(api|admin)\\. [NC]
-  RewriteRule ^ - [L]
+  RewriteCond %{HTTP_HOST} ^api\. [NC]
+  RewriteRule ^(.*)$ https://beardedmountaineerlodge.com/api/$1 [R=307,L]
+
+  # 2. Rutas de API, Admin y Uploads pasan directo a Node.js (Phusion Passenger)
+  RewriteRule ^(api|admin|uploads)(/.*)?$ - [L]
 
   # 3. Servir archivos estáticos físicos directamente desde disco (Next.js SSG)
   RewriteCond %{REQUEST_FILENAME} -f [OR]
@@ -246,37 +249,100 @@ RewriteEngine On
 RewriteBase /
 RewriteCond %{REQUEST_FILENAME} -f
 RewriteRule ^ - [L]
-RewriteCond %{HTTP_HOST} ^admin\\. [NC]
 RewriteRule ^(.*)$ https://beardedmountaineerlodge.com/admin/$1 [R=301,L]
 </IfModule>
 `;
+    const subAdminIndexHtml = `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Bearded Mountaineer Lodge Admin</title>
+  <meta http-equiv="refresh" content="0;url=https://beardedmountaineerlodge.com/admin/">
+  <script>window.location.replace("https://beardedmountaineerlodge.com/admin/");</script>
+</head>
+<body>
+  <p>Redirigiendo a <a href="https://beardedmountaineerlodge.com/admin/">Bearded Mountaineer Lodge Admin</a>...</p>
+</body>
+</html>
+`;
+    const subAdminIndexPhp = `<?php
+$uri = $_SERVER['REQUEST_URI'] ?? '/';
+header("Location: https://beardedmountaineerlodge.com/admin" . $uri, true, 301);
+exit;
+`;
+
     const subApiHtaccess = `<IfModule mod_rewrite.c>
 RewriteEngine On
 RewriteBase /
 RewriteCond %{REQUEST_FILENAME} -f
 RewriteRule ^ - [L]
-RewriteCond %{HTTP_HOST} ^api\\. [NC]
-RewriteRule ^(.*)$ https://beardedmountaineerlodge.com/api/$1 [R=301,L]
+RewriteRule ^(.*)$ https://beardedmountaineerlodge.com/api/$1 [R=307,L]
 </IfModule>
 `;
+    const subApiIndexHtml = `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Bearded Mountaineer Lodge API</title>
+  <meta http-equiv="refresh" content="0;url=https://beardedmountaineerlodge.com/api/">
+  <script>window.location.replace("https://beardedmountaineerlodge.com/api/");</script>
+</head>
+<body>
+  <p>Redirigiendo a <a href="https://beardedmountaineerlodge.com/api/">Bearded Mountaineer Lodge API</a>...</p>
+</body>
+</html>
+`;
+    const subApiIndexPhp = `<?php
+$uri = $_SERVER['REQUEST_URI'] ?? '/';
+header("Location: https://beardedmountaineerlodge.com/api" . $uri, true, 307);
+exit;
+`;
 
-    const adminFolder = path.join(targetDir, 'admin');
-    if (fs.existsSync(adminFolder)) {
-      fs.writeFileSync(path.join(adminFolder, '.htaccess'), subAdminHtaccess.trim());
-    }
-    const apiFolder = path.join(targetDir, 'api');
-    if (fs.existsSync(apiFolder)) {
-      fs.writeFileSync(path.join(apiFolder, '.htaccess'), subApiHtaccess.trim());
+    function writeSubdomainFiles(folder, htaccess, html, php) {
+      try {
+        fs.mkdirSync(folder, { recursive: true });
+        fs.writeFileSync(path.join(folder, '.htaccess'), htaccess.trim());
+        fs.writeFileSync(path.join(folder, 'index.html'), html.trim());
+        fs.writeFileSync(path.join(folder, 'index.php'), php.trim());
+        console.log(`  ✅ Redirección instalada en: ${folder}`);
+      } catch (e) {
+        console.warn(`  ⚠️ No se pudo escribir en ${folder}:`, e.message);
+      }
     }
 
-    const dedicatedAdmin = '/home/u251936581/domains/admin.beardedmountaineerlodge.com/public_html';
-    if (fs.existsSync(dedicatedAdmin)) {
-      fs.writeFileSync(path.join(dedicatedAdmin, '.htaccess'), subAdminHtaccess.trim());
+    // Buscar y diagnosticar carpetas de dominios en Hostinger
+    const domainsBase = '/home/u251936581/domains';
+    if (fs.existsSync(domainsBase)) {
+      try {
+        const found = fs.readdirSync(domainsBase);
+        console.log('  📂 Dominios encontrados en Hostinger:', found.join(', '));
+      } catch (_) {}
     }
-    const dedicatedApi = '/home/u251936581/domains/api.beardedmountaineerlodge.com/public_html';
-    if (fs.existsSync(dedicatedApi)) {
-      fs.writeFileSync(path.join(dedicatedApi, '.htaccess'), subApiHtaccess.trim());
-    }
+
+    // Rutas dedicadas donde Hostinger puede mapear los subdominios
+    const adminTargets = [
+      '/home/u251936581/domains/admin.beardedmountaineerlodge.com/public_html',
+      '/home/u251936581/domains/admin.beardedmountaineerlodge.com',
+      '/home/u251936581/domains/beardedmountaineerlodge.com/subdomains/admin',
+      '/home/u251936581/subdomains/admin'
+    ];
+    adminTargets.forEach(function(p) {
+      if (fs.existsSync(p) || fs.existsSync(path.dirname(p))) {
+        writeSubdomainFiles(p, subAdminHtaccess, subAdminIndexHtml, subAdminIndexPhp);
+      }
+    });
+
+    const apiTargets = [
+      '/home/u251936581/domains/api.beardedmountaineerlodge.com/public_html',
+      '/home/u251936581/domains/api.beardedmountaineerlodge.com',
+      '/home/u251936581/domains/beardedmountaineerlodge.com/subdomains/api',
+      '/home/u251936581/subdomains/api'
+    ];
+    apiTargets.forEach(function(p) {
+      if (fs.existsSync(p) || fs.existsSync(path.dirname(p))) {
+        writeSubdomainFiles(p, subApiHtaccess, subApiIndexHtml, subApiIndexPhp);
+      }
+    });
 
     console.log(`[deploy] ✅ Despliegue completado con éxito en: ${targetDir}\n`);
     return true;

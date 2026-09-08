@@ -163,8 +163,10 @@ export const BookingModal: React.FC = () => {
         guests: allGuests
       };
 
-      const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-      const res = await fetch(`${backendUrl}/api/bookings`, {
+      const rawApiUrl = process.env.NEXT_PUBLIC_API_URL || '/api';
+      const cleanBase = rawApiUrl.replace(/\/api\/?$/, '').replace(/\/+$/, '');
+      const bookingsEndpoint = `${cleanBase}/api/bookings`;
+      const res = await fetch(bookingsEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
