@@ -69,6 +69,32 @@ function loadEnv(file) {
 loadEnv(path.resolve(__dirname, '.env'));
 loadEnv(path.resolve(__dirname, 'backend/.env'));
 
+// ── Sincronizar frontend/out a public_html en tiempo de ejecución (Patrón Unu-Raymi) ──
+try {
+  const pubTargets = [
+    path.resolve(__dirname, 'public_html'),
+    process.platform === 'linux' ? '/home/u251936581/domains/beardedmountaineerlodge.com/public_html' : null,
+    process.platform === 'linux' ? '/home/u251936581/public_html' : null,
+    process.env.HOME ? path.join(process.env.HOME, 'domains/beardedmountaineerlodge.com/public_html') : null,
+    process.env.HOME ? path.join(process.env.HOME, 'public_html') : null
+  ].filter(Boolean);
+
+  const fDir = fs.existsSync(path.resolve(__dirname, 'frontend/out'))
+    ? path.resolve(__dirname, 'frontend/out')
+    : (fs.existsSync(path.resolve(__dirname, 'out')) ? path.resolve(__dirname, 'out') : null);
+
+  if (fDir) {
+    pubTargets.forEach((target) => {
+      if (fs.existsSync(target) && target !== fDir) {
+        fs.cpSync(fDir, target, { recursive: true });
+        logDebug(`> [Server] Sincronizado frontend estático hacia: ${target}`);
+      }
+    });
+  }
+} catch (e) {
+  logDebug(`> [Server] Advertencia sincronizando public_html: ${e.message}`);
+}
+
 // ── 1. Inicialización Asíncrona de Módulos (Sin bloquear el arranque HTTP) ──
 let backendApp = null;
 let adminApp = null;
