@@ -15,6 +15,37 @@ console.log('[postinstall] CWD:', process.cwd());
 console.log('[postinstall] PLATFORM:', process.platform);
 console.log('[postinstall] ==========================================\n');
 
+// ── Cargar Variables de Entorno para Postinstall ─────────────────────────────
+function loadEnv(file) {
+  if (fs.existsSync(file)) {
+    try {
+      const lines = fs.readFileSync(file, 'utf8').split('\n');
+      lines.forEach(function(l) {
+        const t = l.trim();
+        if (t && !t.startsWith('#')) {
+          const eq = t.indexOf('=');
+          if (eq !== -1) {
+            const k = t.substring(0, eq).trim();
+            let v = t.substring(eq + 1).trim();
+            if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+              v = v.substring(1, v.length - 1);
+            }
+            if (!process.env[k]) process.env[k] = v;
+          }
+        }
+      });
+    } catch (e) {}
+  }
+}
+
+loadEnv(path.resolve(process.cwd(), '.env'));
+loadEnv(path.resolve(process.cwd(), 'backend/.env'));
+
+// Si DATABASE_URL no está en el entorno CI, proveer una URL dummy para que prisma generate no falle
+if (!process.env.DATABASE_URL) {
+  process.env.DATABASE_URL = 'mysql://u251936581_bearded:DummyPass123@localhost:3306/u251936581_bearded';
+}
+
 function run(cmd, subdir) {
   const cwd = path.join(process.cwd(), subdir);
   if (!fs.existsSync(cwd)) {
@@ -77,12 +108,41 @@ try {
   }
 } catch (_) {}
 
-try {
-  execSync('npx prisma generate --schema=backend/prisma/schema.prisma', { stdio: 'inherit' });
-  console.log('✅ [postinstall] Prisma Client generado.');
-} catch (e) {
-  console.warn('⚠️ [postinstall] Warning prisma generate:', e.message);
+// Ejecución robusta de Prisma Generate con múltiples fallbacks locales
+let prismaGenerated = false;
+const schemaFile = path.join(process.cwd(), 'backend/prisma/schema.prisma');
+const localPrismaCli = path.join(process.cwd(), 'node_modules/prisma/build/index.js');
+const binPrismaCli = path.join(process.cwd(), 'node_modules/.bin/prisma');
+
+const prismaCommands = [
+  fs.existsSync(localPrismaCli) ? `node "${localPrismaCli}" generate --schema="${schemaFile}"` : null,
+  fs.existsSync(binPrismaCli) ? `"${binPrismaCli}" generate --schema="${schemaFile}"` : null,
+  `npx prisma generate --schema="${schemaFile}"`
+].filter(Boolean);
+
+for (const pCmd of prismaCommands) {
+  try {
+    console.log(`[postinstall] Attempting Prisma generate: ${pCmd}`);
+    execSync(pCmd, { stdio: 'inherit', env: process.env });
+    console.log('✅ [postinstall] Prisma Client generado exitosamente.');
+    prismaGenerated = true;
+    break;
+  } catch (e) {
+    console.warn(`[postinstall] Warning trying '${pCmd}':`, e.message);
+  }
 }
+
+// Sincronizar node_modules/.prisma hacia los workspaces admin y backend
+try {
+  const rootPrismaDir = path.join(process.cwd(), 'node_modules/.prisma');
+  if (fs.existsSync(rootPrismaDir)) {
+    const adminPrismaDir = path.join(process.cwd(), 'admin/node_modules/.prisma');
+    const backendPrismaDir = path.join(process.cwd(), 'backend/node_modules/.prisma');
+    copyDirSync(rootPrismaDir, adminPrismaDir);
+    copyDirSync(rootPrismaDir, backendPrismaDir);
+    console.log('✅ [postinstall] Prisma Client propagado a admin y backend node_modules.');
+  }
+} catch (_) {}
 
 run('npm run build', 'backend');
 
@@ -346,7 +406,15 @@ try {
             }
           }
         });
-        console.log(`[postinstall] ✅ Automatically synced app files to: ${target}`);
+
+        // Sincronizar cliente Prisma generado al directorio de ejecución
+        const prismaClientSrc = path.join(process.cwd(), 'node_modules/.prisma');
+        const prismaClientDest = path.join(target, 'node_modules/.prisma');
+        if (fs.existsSync(prismaClientSrc)) {
+          copyDirSync(prismaClientSrc, prismaClientDest);
+        }
+
+        console.log(`[postinstall] ✅ Automatically synced app files & Prisma client to: ${target}`);
       } catch (err) {
         console.error(`Warning: Failed to sync to ${target}:`, err.message);
       }

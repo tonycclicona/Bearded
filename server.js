@@ -77,6 +77,33 @@ try {
   console.error('> [Server] Warning sincronizando a public_html:', e.message);
 }
 
+// ── 0. VERIFICACIÓN Y AUTO-GENERACIÓN DE PRISMA CLIENT ──────────────────────
+try {
+  const { PrismaClient } = require('@prisma/client');
+  new PrismaClient();
+  console.log('> [Server] Prisma Client verificado correctamente.');
+} catch (e) {
+  if (e.message && e.message.includes('did not initialize yet')) {
+    console.log('> [Server] Prisma Client no inicializado. Ejecutando generación de emergencia...');
+    try {
+      const { execSync } = require('child_process');
+      if (!process.env.DATABASE_URL) {
+        process.env.DATABASE_URL = 'mysql://u251936581_bearded:DummyPass123@localhost:3306/u251936581_bearded';
+      }
+      const schemaPath = path.resolve(__dirname, 'backend/prisma/schema.prisma');
+      const localPrisma = path.resolve(__dirname, 'node_modules/prisma/build/index.js');
+      const binPrisma = path.resolve(__dirname, 'node_modules/.bin/prisma');
+      const cmd = fs.existsSync(localPrisma)
+        ? `node "${localPrisma}" generate --schema="${schemaPath}"`
+        : (fs.existsSync(binPrisma) ? `"${binPrisma}" generate --schema="${schemaPath}"` : `npx prisma generate --schema="${schemaPath}"`);
+      execSync(cmd, { stdio: 'inherit', env: process.env });
+      console.log('> [Server] Prisma Client auto-generado con éxito en runtime.');
+    } catch (genErr) {
+      console.error('> [Server] Error en auto-generación de Prisma:', genErr.message);
+    }
+  }
+}
+
 // ── 1. CARGAR BACKEND API (ASÍNCRONO CON PATH TO FILE URL) ────────────────────
 let backendApp = null;
 let backendError = null;
