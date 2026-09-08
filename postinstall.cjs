@@ -406,5 +406,31 @@ RewriteRule ^(.*)$ index.php [L,QSA]
   } catch (_) {}
 }
 
+// ── 6. LIMPIEZA DE CACHÉ EN HOSTINGER ─────────────────────────────────────────
+console.log('\n[postinstall] === [6/6] Limpieza de caché temporal ===');
+if (isHostinger) {
+  try {
+    // 1. Limpiar caché global de npm
+    execSync('npm cache clean --force 2>/dev/null || true', { stdio: 'ignore' });
+    console.log('[postinstall] ✅ npm cache clean ejecutado.');
+
+    // 2. Limpiar cachés pesadas acumuladas en ~/.cache/
+    const userHome = process.env.HOME || '/home/u251936581';
+    const cacheDir = path.join(userHome, '.cache');
+    if (fs.existsSync(cacheDir)) {
+      const heavyDirs = ['next', 'turbo', 'prisma', 'yarn', 'pip'];
+      for (const d of heavyDirs) {
+        const p = path.join(cacheDir, d);
+        if (fs.existsSync(p)) {
+          fs.rmSync(p, { recursive: true, force: true });
+        }
+      }
+      console.log('[postinstall] ✅ Subdirectorios pesados de ~/.cache limpiados.');
+    }
+  } catch (err) {
+    console.warn('[postinstall] ⚠️  Aviso en limpieza de caché:', err.message);
+  }
+}
+
 console.log('\n[postinstall] ✅ Build & Deploy completado.\n');
 process.exit(0);
