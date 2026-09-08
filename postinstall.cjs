@@ -205,7 +205,9 @@ http_response_code(502);
 echo "<h1>502 Bad Gateway</h1><p>El servidor Node.js no responde en el puerto local {$port}. Verifica que la aplicacion este iniciada.</p>";
 `;
 
-const subHtaccess = `<IfModule mod_rewrite.c>
+const subHtaccess = `DirectoryIndex index.php index.html
+
+<IfModule mod_rewrite.c>
 RewriteEngine On
 RewriteBase /
 RewriteRule ^index\\.php$ - [L]
@@ -308,13 +310,20 @@ function deployTo(targetDir) {
       copyDir(adminPub, adminDir);
       copyDir(adminPub, path.join(adminDir, 'static'));
     }
+    const adminDistPub = path.join(ROOT, 'admin/dist/public');
+    if (fs.existsSync(adminDistPub)) {
+      copyDir(adminDistPub, adminDir);
+      copyDir(adminDistPub, path.join(adminDir, 'static'));
+    }
     console.log('  ✅ Admin proxy y assets configurados en public_html/admin');
 
-    // 7. Eliminar default.php de Hostinger si existe
-    const defPhp = path.join(targetDir, 'default.php');
-    if (fs.existsSync(defPhp)) {
-      try { fs.unlinkSync(defPhp); } catch (_) {}
-    }
+    // 7. Eliminar default.php de Hostinger en todas las carpetas
+    [targetDir, apiDir, adminDir].forEach(function(dir) {
+      const defPhp = path.join(dir, 'default.php');
+      if (fs.existsSync(defPhp)) {
+        try { fs.unlinkSync(defPhp); } catch (_) {}
+      }
+    });
 
     console.log(`[deploy] ✅ Despliegue completado con éxito en: ${targetDir}\n`);
     return true;
