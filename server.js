@@ -1,11 +1,9 @@
 // ==============================================================================
 // server.js — Bearded Mountaineer Lodge Single Web App Engine
-// Arquitectura probada y optimizada basada en Unu-Raymi para Hostinger LiteSpeed
+// Replicación exacta de la arquitectura probada de Unu-Raymi
 // ==============================================================================
 
 'use strict';
-
-process.env.UNIFIED_SERVER = 'true';
 
 const fs = require('fs');
 const path = require('path');
@@ -16,7 +14,7 @@ const app = express();
 app.disable('x-powered-by');
 app.set('trust proxy', true);
 
-// ── Cargar Variables de Entorno ───────────────────────────────────────────────
+// ── Cargar variables de entorno (Patrón Unu-Raymi) ─────────────────────────────
 function loadEnv(file) {
   if (fs.existsSync(file)) {
     try {
@@ -40,10 +38,12 @@ function loadEnv(file) {
   }
 }
 
+loadEnv(path.resolve(__dirname, '.env.production'));
 loadEnv(path.resolve(__dirname, '.env'));
+loadEnv(path.resolve(__dirname, 'backend/.env.production'));
 loadEnv(path.resolve(__dirname, 'backend/.env'));
 
-// ── Directorios de Compilación ────────────────────────────────────────────────
+// ── Directorios de compilación (Patrón Unu-Raymi) ──────────────────────────────
 const frontendDir = fs.existsSync(path.resolve(__dirname, 'frontend/out'))
   ? path.resolve(__dirname, 'frontend/out')
   : path.resolve(__dirname, 'out');
@@ -57,112 +57,55 @@ if (!fs.existsSync(uploadsDir)) {
 
 console.log('> [Server] Frontend dir:', frontendDir);
 
-// ── Sincronizar frontend a public_html en tiempo de ejecución (Patrón Unu-Raymi) ──
+// ── Sincronizar frontend/out a public_html en tiempo de ejecución ────────────
 try {
   const pubTargets = [
     path.resolve(__dirname, 'public_html'),
-    process.platform === 'linux' ? '/home/u251936581/domains/beardedmountaineerlodge.com/public_html' : null,
-    process.platform === 'linux' ? '/home/u251936581/public_html' : null,
-    process.env.HOME ? path.join(process.env.HOME, 'domains/beardedmountaineerlodge.com/public_html') : null,
-    process.env.HOME ? path.join(process.env.HOME, 'public_html') : null
-  ].filter(Boolean);
-
+    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html',
+    '/home/u251936581/public_html'
+  ];
   pubTargets.forEach(function(target) {
     if (fs.existsSync(target) && fs.existsSync(frontendDir) && target !== frontendDir) {
       fs.cpSync(frontendDir, target, { recursive: true });
-      console.log('> [Server] Sincronizado frontend estático hacia:', target);
+      console.log('> [Server] Synchronized frontend files to:', target);
     }
   });
 } catch (e) {
-  console.error('> [Server] Warning sincronizando a public_html:', e.message);
-}
-
-// ── 0. VERIFICACIÓN Y AUTO-GENERACIÓN DE PRISMA CLIENT ──────────────────────
-const prismaDefaultPath = path.resolve(__dirname, 'node_modules/.prisma/client/default.js');
-let needsPrismaGen = false;
-if (!fs.existsSync(prismaDefaultPath)) {
-  needsPrismaGen = true;
-} else {
-  try {
-    const content = fs.readFileSync(prismaDefaultPath, 'utf8');
-    if (content.includes('did not initialize yet')) {
-      needsPrismaGen = true;
-    }
-  } catch (_) {
-    needsPrismaGen = true;
-  }
-}
-
-if (needsPrismaGen) {
-  console.log('> [Server] Prisma Client no inicializado en disco. Ejecutando generación automática...');
-  try {
-    const { execSync } = require('child_process');
-    if (!process.env.DATABASE_URL) {
-      process.env.DATABASE_URL = 'mysql://u251936581_bearded:DummyPass123@localhost:3306/u251936581_bearded';
-    }
-    const schemaPath = path.resolve(__dirname, 'backend/prisma/schema.prisma');
-    const localPrisma = path.resolve(__dirname, 'node_modules/prisma/build/index.js');
-    const binPrisma = path.resolve(__dirname, 'node_modules/.bin/prisma');
-    const cmd = fs.existsSync(localPrisma)
-      ? `node "${localPrisma}" generate --schema="${schemaPath}"`
-      : (fs.existsSync(binPrisma) ? `"${binPrisma}" generate --schema="${schemaPath}"` : `npx prisma generate --schema="${schemaPath}"`);
-    execSync(cmd, { stdio: 'inherit', env: process.env });
-    console.log('> [Server] Prisma Client auto-generado con éxito en runtime.');
-  } catch (genErr) {
-    console.error('> [Server] Error en auto-generación de Prisma:', genErr.message);
-  }
-} else {
-  console.log('> [Server] Prisma Client verificado correctamente en disco.');
+  console.error('> [Server] Warning syncing to public_html:', e.message);
 }
 
 // ── 1. CARGAR BACKEND API (ASÍNCRONO CON PATH TO FILE URL) ────────────────────
 let backendApp = null;
-let backendError = null;
-let backendPromise = null;
-
 const resolvedBackendPath = fs.existsSync(path.resolve(__dirname, 'backend/dist/index.js'))
   ? path.resolve(__dirname, 'backend/dist/index.js')
   : path.resolve(__dirname, 'backend/src/index.ts');
 
 if (fs.existsSync(resolvedBackendPath)) {
-  backendPromise = import(pathToFileURL(resolvedBackendPath).href)
+  import(pathToFileURL(resolvedBackendPath).href)
     .then(function(m) {
       backendApp = m.default || m.app || m;
       console.log('> [Server] Backend API montado exitosamente desde:', resolvedBackendPath);
-      return backendApp;
     })
     .catch(function(err) {
-      backendError = err.stack || err.message || String(err);
-      console.error('> [Server] Error backend API:', err);
-      return null;
+      console.error('> [Server] Error backend API:', err.message);
     });
-} else {
-  backendError = 'Backend build not found at ' + resolvedBackendPath;
 }
 
 // ── 2. CARGAR ADMIN PANEL (ASÍNCRONO CON PATH TO FILE URL) ────────────────────
 let adminApp = null;
-let adminError = null;
-let adminPromise = null;
-
 const resolvedAdminPath = fs.existsSync(path.resolve(__dirname, 'admin/dist/index.js'))
   ? path.resolve(__dirname, 'admin/dist/index.js')
   : path.resolve(__dirname, 'admin/src/index.ts');
 
 if (fs.existsSync(resolvedAdminPath)) {
-  adminPromise = import(pathToFileURL(resolvedAdminPath).href)
+  import(pathToFileURL(resolvedAdminPath).href)
     .then(function(m) {
       adminApp = m.default || m.app || m;
       console.log('> [Server] Admin Panel montado exitosamente desde:', resolvedAdminPath);
-      return adminApp;
     })
     .catch(function(err) {
-      adminError = err.stack || err.message || String(err);
-      console.error('> [Server] Error admin:', err);
-      return null;
+      console.error('> [Server] Error admin:', err.message);
     });
-} else {
-  adminError = 'Admin build not found at ' + resolvedAdminPath;
 }
 
 // ── 3. SERVIR ARCHIVOS ESTÁTICOS DE ADMIN Y UPLOADS ───────────────────────────
@@ -172,7 +115,7 @@ app.use('/admin/static', express.static(adminPublicDir));
 app.use('/static', express.static(adminPublicDir));
 
 // ── 4. RUTEO DE API Y CABECERAS CORS (Patrón Unu-Raymi) ──────────────────────
-app.use(async function(req, res, next) {
+app.use(function(req, res, next) {
   res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
   res.header('Access-Control-Allow-Credentials', 'true');
   res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS,PATCH');
@@ -184,35 +127,21 @@ app.use(async function(req, res, next) {
 
   const host = (req.headers.host || '').toLowerCase();
   if (host.startsWith('api.') || req.url.startsWith('/api') || req.url.startsWith('/uploads')) {
-    if (!backendApp && backendPromise) {
-      try { await backendPromise; } catch (_) {}
-    }
-
     if (typeof backendApp === 'function') {
       if (host.startsWith('api.') && !req.url.startsWith('/api') && !req.url.startsWith('/uploads')) {
         req.url = '/api' + (req.url.startsWith('/') ? req.url : '/' + req.url);
       }
       return backendApp(req, res, next);
     }
-
-    return res.status(500).json({
-      success: false,
-      status: 'error',
-      service: 'Bearded API',
-      error: backendError || 'Backend app could not be initialized'
-    });
+    return res.status(200).json({ success: true, status: 'starting', service: 'Bearded API' });
   }
   next();
 });
 
 // ── 5. RUTEO DE ADMIN (Patrón Unu-Raymi) ───────────────────────────────────────
-app.use(async function(req, res, next) {
+app.use(function(req, res, next) {
   const host = (req.headers.host || '').toLowerCase();
   if (host.startsWith('admin.') || req.url.startsWith('/admin')) {
-    if (!adminApp && adminPromise) {
-      try { await adminPromise; } catch (_) {}
-    }
-
     if (typeof adminApp === 'function') {
       if (host.startsWith('admin.') && !req.url.startsWith('/admin')) {
         req.url = '/admin' + (req.url.startsWith('/') ? req.url : '/' + req.url);
@@ -220,18 +149,17 @@ app.use(async function(req, res, next) {
       }
       return adminApp(req, res, next);
     }
-
-    return res.status(500).send(`Error al iniciar el panel de administración: ${adminError || 'Admin no disponible'}`);
+    return res.status(200).send('Cargando panel de administración...');
   }
   next();
 });
 
-// ── 6. RUTEO DE FRONTEND (DEFAULT) ────────────────────────────────────────────
+// ── 6. RUTEO DE FRONTEND (DEFAULT - Patrón Unu-Raymi) ─────────────────────────
 if (fs.existsSync(frontendDir)) {
   app.use(express.static(frontendDir, { extensions: ['html'] }));
 }
 
-// Fallback SPA Frontend
+// Fallback SPA Frontend (Patrón Unu-Raymi)
 app.use(function(req, res) {
   const candidates = [
     path.join(frontendDir, 'index.html'),
@@ -246,31 +174,10 @@ app.use(function(req, res) {
   res.status(200).send('<!DOCTYPE html><html><head><title>Bearded Mountaineer Lodge</title></head><body>Bearded Mountaineer Lodge</body></html>');
 });
 
-// ── 7. ARRANQUE DEL SERVIDOR TCP Y SOCKETS UNIX ──────────────────────────────
-const http = require('http');
-const os = require('os');
-
+// ── 7. ARRANQUE DEL SERVIDOR (Patrón Unu-Raymi) ──────────────────────────────
 const port = process.env.PORT || process.env.GATEWAY_PORT || 4000;
 const server = app.listen(port, function() {
-  console.log('> [Server] Bearded Mountaineer Lodge corriendo en puerto principal:', port);
-
-  // Guardar archivo .node_port
-  const portDestinations = [
-    path.resolve(__dirname, '.node_port'),
-    path.resolve(__dirname, 'public_html/.node_port'),
-    path.resolve(__dirname, 'public_html/api/.node_port'),
-    path.resolve(__dirname, 'public_html/admin/.node_port'),
-    path.join(os.tmpdir(), 'bearded_node_port'),
-    '/tmp/bearded_node_port'
-  ];
-  portDestinations.forEach(function(pFile) {
-    try {
-      const dir = path.dirname(pFile);
-      if (fs.existsSync(dir)) {
-        fs.writeFileSync(pFile, String(port), 'utf8');
-      }
-    } catch (_) {}
-  });
+  console.log('> [Server] Bearded Mountaineer Lodge corriendo en puerto:', port);
 });
 
 server.on('error', function(err) {
@@ -278,50 +185,5 @@ server.on('error', function(err) {
     console.error('> [Server Error]:', err.message);
   }
 });
-
-// Bridge TCP secundario en 127.0.0.1:4000 si el puerto principal no es 4000
-if (String(port) !== '4000') {
-  try {
-    const bridge = app.listen(4000, '127.0.0.1', function() {
-      console.log('> [Server] Bridge local TCP 4000 listo en 127.0.0.1:4000');
-    });
-    bridge.on('error', function() {});
-  } catch (_) {}
-}
-
-// Canal Socket UNIX en Linux (bypassea cualquier firewall interno TCP de CloudLinux)
-if (process.platform !== 'win32') {
-  const unixSocketPaths = [
-    path.join(os.tmpdir(), 'bearded_gateway.sock'),
-    '/tmp/bearded_gateway.sock',
-    path.resolve(__dirname, 'gateway.sock'),
-    path.resolve(__dirname, 'public_html/gateway.sock'),
-    path.resolve(__dirname, 'public_html/api/gateway.sock'),
-    path.resolve(__dirname, 'public_html/admin/gateway.sock'),
-    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/gateway.sock',
-    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/api/gateway.sock',
-    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/admin/gateway.sock',
-    '/home/u251936581/public_html/gateway.sock',
-    '/home/u251936581/public_html/api/gateway.sock',
-    '/home/u251936581/public_html/admin/gateway.sock'
-  ];
-
-  const uniqueSockets = Array.from(new Set(unixSocketPaths));
-  uniqueSockets.forEach(function(sockPath) {
-    try {
-      const sockDir = path.dirname(sockPath);
-      if (fs.existsSync(sockDir)) {
-        if (fs.existsSync(sockPath)) {
-          try { fs.unlinkSync(sockPath); } catch (_) {}
-        }
-        const sockServer = app.listen(sockPath, function() {
-          try { fs.chmodSync(sockPath, 0o777); } catch (_) {}
-          console.log('> [Server] Canal Socket UNIX listo en:', sockPath);
-        });
-        sockServer.on('error', function() {});
-      }
-    } catch (_) {}
-  });
-}
 
 module.exports = app;

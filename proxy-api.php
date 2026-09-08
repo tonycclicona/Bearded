@@ -51,19 +51,25 @@ foreach ($possiblePortFiles as $pFile) {
     }
 }
 
-// Targets locales directos a Node.js + fallback seguro al dominio
+// Targets locales a Node.js (Patrón Unu-Raymi)
 $targets = [
     "http://127.0.0.1:{$detectedPort}",
     'http://127.0.0.1:4000',
     'http://127.0.0.1:3000',
     'http://127.0.0.1:3001',
-    'http://127.0.0.1:3002',
-    'https://beardedmountaineerlodge.com'
+    'http://127.0.0.1:3002'
 ];
+
 $gatewayEnvPort = getenv('GATEWAY_PORT') ?: ($_SERVER['GATEWAY_PORT'] ?? ($_ENV['GATEWAY_PORT'] ?? null));
 if ($gatewayEnvPort && is_numeric($gatewayEnvPort)) {
     array_unshift($targets, "http://127.0.0.1:{$gatewayEnvPort}");
 }
+
+$portEnv = getenv('PORT') ?: ($_SERVER['PORT'] ?? ($_ENV['PORT'] ?? null));
+if ($portEnv && is_numeric($portEnv)) {
+    array_unshift($targets, "http://127.0.0.1:{$portEnv}");
+}
+
 $targets = array_values(array_unique($targets));
 
 $response = false;
@@ -79,7 +85,6 @@ foreach ($incomingHeaders as $name => $value) {
         $headers[] = "$name: $value";
     }
 }
-$headers[] = "X-Bypass-Proxy: 1";
 
 $isMultipart = !empty($_FILES) || (isset($_SERVER['CONTENT_TYPE']) && strpos(strtolower($_SERVER['CONTENT_TYPE']), 'multipart/form-data') !== false);
 $postFields = null;
@@ -112,94 +117,18 @@ if ($isMultipart) {
     $body = file_get_contents('php://input');
 }
 
-// 1. Socket UNIX si está disponible (rendimiento máximo e inmunidad a cortafuegos TCP en Linux)
-$unixSockets = [
-    '/tmp/bearded_gateway.sock',
-    sys_get_temp_dir() . '/bearded_gateway.sock',
-    __DIR__ . '/gateway.sock',
-    __DIR__ . '/../gateway.sock',
-    dirname(__DIR__) . '/gateway.sock',
-    dirname(dirname(__DIR__)) . '/gateway.sock',
-    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/gateway.sock',
-    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/api/gateway.sock',
-    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/admin/gateway.sock',
-    '/home/u251936581/public_html/gateway.sock',
-    '/home/u251936581/public_html/api/gateway.sock',
-    '/home/u251936581/public_html/admin/gateway.sock'
-];
-
-foreach ($unixSockets as $sock) {
-    if (file_exists($sock)) {
-        $ch = curl_init('http://localhost' . $requestUri);
-        curl_setopt($ch, CURLOPT_UNIX_SOCKET_PATH, $sock);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $_SERVER['REQUEST_METHOD']);
-        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
-        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 2);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-        
-        $reqHeaders = $headers;
-        $reqHeaders[] = "Host: " . ($_SERVER['HTTP_HOST'] ?? 'localhost');
-        $reqHeaders[] = "X-Forwarded-For: " . ($_SERVER['REMOTE_ADDR'] ?? '127.0.0.1');
-        $reqHeaders[] = "X-Forwarded-Proto: " . (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http');
-        
-        $sockRespHeaders = [];
-        curl_setopt($ch, CURLOPT_HEADERFUNCTION, function($c, $h) use (&$sockRespHeaders) {
-            $len = strlen($h);
-            $t = trim($h);
-            if ($t !== '') $sockRespHeaders[] = $t;
-            return $len;
-        });
-
-        if ($isMultipart) {
-            $filtered = array_filter($reqHeaders, function($h) {
-                $lh = strtolower($h);
-                return strpos($lh, 'content-type:') !== 0 && strpos($lh, 'content-length:') !== 0;
-            });
-            curl_setopt($ch, CURLOPT_HTTPHEADER, array_values($filtered));
-            curl_setopt($ch, CURLOPT_POSTFIELDS, $postFields);
-        } else {
-            curl_setopt($ch, CURLOPT_HTTPHEADER, $reqHeaders);
-            if ($body !== null) curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
-        }
-
-        $res = curl_exec($ch);
-        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-
-        if ($code > 0 && $res !== false) {
-            http_response_code($code);
-            foreach ($sockRespHeaders as $h) {
-                $lh = strtolower($h);
-                if (strpos($lh, 'set-cookie:') === 0 || strpos($lh, 'location:') === 0 || strpos($lh, 'content-type:') === 0 || strpos($lh, 'access-control-') === 0) {
-                    header($h, false);
-                }
-            }
-            echo $res;
-            exit(0);
-        }
-    }
-}
-
-// 2. Loop sobre targets (127.0.0.1 y fallback al dominio https://beardedmountaineerlodge.com)
+// Conexión directa TCP local hacia Node.js
 foreach ($targets as $baseTarget) {
     $targetUrl = $baseTarget . $requestUri;
     $ch = curl_init($targetUrl);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $_SERVER['REQUEST_METHOD']);
     curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
-    curl_setopt($ch, CURLOPT_ENCODING, '');
     curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
     curl_setopt($ch, CURLOPT_TIMEOUT, 30);
     
     $reqHeaders = $headers;
-    if (strpos($baseTarget, 'beardedmountaineerlodge.com') !== false) {
-        $reqHeaders[] = "Host: beardedmountaineerlodge.com";
-    } else {
-        $reqHeaders[] = "Host: " . ($_SERVER['HTTP_HOST'] ?? 'localhost');
-    }
+    $reqHeaders[] = "Host: " . ($_SERVER['HTTP_HOST'] ?? 'localhost');
     $reqHeaders[] = "X-Forwarded-For: " . ($_SERVER['REMOTE_ADDR'] ?? '127.0.0.1');
     $reqHeaders[] = "X-Forwarded-Proto: " . (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http');
 
