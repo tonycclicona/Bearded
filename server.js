@@ -78,30 +78,41 @@ try {
 }
 
 // ── 0. VERIFICACIÓN Y AUTO-GENERACIÓN DE PRISMA CLIENT ──────────────────────
-try {
-  const { PrismaClient } = require('@prisma/client');
-  new PrismaClient();
-  console.log('> [Server] Prisma Client verificado correctamente.');
-} catch (e) {
-  if (e.message && e.message.includes('did not initialize yet')) {
-    console.log('> [Server] Prisma Client no inicializado. Ejecutando generación de emergencia...');
-    try {
-      const { execSync } = require('child_process');
-      if (!process.env.DATABASE_URL) {
-        process.env.DATABASE_URL = 'mysql://u251936581_bearded:DummyPass123@localhost:3306/u251936581_bearded';
-      }
-      const schemaPath = path.resolve(__dirname, 'backend/prisma/schema.prisma');
-      const localPrisma = path.resolve(__dirname, 'node_modules/prisma/build/index.js');
-      const binPrisma = path.resolve(__dirname, 'node_modules/.bin/prisma');
-      const cmd = fs.existsSync(localPrisma)
-        ? `node "${localPrisma}" generate --schema="${schemaPath}"`
-        : (fs.existsSync(binPrisma) ? `"${binPrisma}" generate --schema="${schemaPath}"` : `npx prisma generate --schema="${schemaPath}"`);
-      execSync(cmd, { stdio: 'inherit', env: process.env });
-      console.log('> [Server] Prisma Client auto-generado con éxito en runtime.');
-    } catch (genErr) {
-      console.error('> [Server] Error en auto-generación de Prisma:', genErr.message);
+const prismaDefaultPath = path.resolve(__dirname, 'node_modules/.prisma/client/default.js');
+let needsPrismaGen = false;
+if (!fs.existsSync(prismaDefaultPath)) {
+  needsPrismaGen = true;
+} else {
+  try {
+    const content = fs.readFileSync(prismaDefaultPath, 'utf8');
+    if (content.includes('did not initialize yet')) {
+      needsPrismaGen = true;
     }
+  } catch (_) {
+    needsPrismaGen = true;
   }
+}
+
+if (needsPrismaGen) {
+  console.log('> [Server] Prisma Client no inicializado en disco. Ejecutando generación automática...');
+  try {
+    const { execSync } = require('child_process');
+    if (!process.env.DATABASE_URL) {
+      process.env.DATABASE_URL = 'mysql://u251936581_bearded:DummyPass123@localhost:3306/u251936581_bearded';
+    }
+    const schemaPath = path.resolve(__dirname, 'backend/prisma/schema.prisma');
+    const localPrisma = path.resolve(__dirname, 'node_modules/prisma/build/index.js');
+    const binPrisma = path.resolve(__dirname, 'node_modules/.bin/prisma');
+    const cmd = fs.existsSync(localPrisma)
+      ? `node "${localPrisma}" generate --schema="${schemaPath}"`
+      : (fs.existsSync(binPrisma) ? `"${binPrisma}" generate --schema="${schemaPath}"` : `npx prisma generate --schema="${schemaPath}"`);
+    execSync(cmd, { stdio: 'inherit', env: process.env });
+    console.log('> [Server] Prisma Client auto-generado con éxito en runtime.');
+  } catch (genErr) {
+    console.error('> [Server] Error en auto-generación de Prisma:', genErr.message);
+  }
+} else {
+  console.log('> [Server] Prisma Client verificado correctamente en disco.');
 }
 
 // ── 1. CARGAR BACKEND API (ASÍNCRONO CON PATH TO FILE URL) ────────────────────
@@ -239,7 +250,7 @@ app.use(function(req, res) {
 const http = require('http');
 const os = require('os');
 
-const port = process.env.PORT || 4000;
+const port = process.env.PORT || process.env.GATEWAY_PORT || 4000;
 const server = app.listen(port, function() {
   console.log('> [Server] Bearded Mountaineer Lodge corriendo en puerto principal:', port);
 

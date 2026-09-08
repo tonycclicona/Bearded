@@ -60,6 +60,10 @@ $targets = [
     'http://127.0.0.1:3002',
     'https://beardedmountaineerlodge.com'
 ];
+$gatewayEnvPort = getenv('GATEWAY_PORT') ?: ($_SERVER['GATEWAY_PORT'] ?? ($_ENV['GATEWAY_PORT'] ?? null));
+if ($gatewayEnvPort && is_numeric($gatewayEnvPort)) {
+    array_unshift($targets, "http://127.0.0.1:{$gatewayEnvPort}");
+}
 $targets = array_values(array_unique($targets));
 
 $response = false;
