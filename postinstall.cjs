@@ -154,60 +154,56 @@ if (!apiUrl) {
 
 run('npm run build', 'frontend');
 
-// ── 5. DEPLOY a public_html ───────────────────────────────────────────────────
+// ── 5. DEPLOY A PUBLIC_HTML ───────────────────────────────────────────────────
 console.log('\n[postinstall] === [5/5] Deploy a public_html ===');
 
 const frontendOut = path.join(ROOT, 'frontend/out');
-const publicHtml  = process.env.PUBLIC_HTML_PATH || path.join(ROOT, 'public_html');
-const proxySrc    = path.join(ROOT, 'deployment/proxy-api.php');
-const nodePort    = process.env.GATEWAY_PORT || '4000';
+const proxySrc    = fs.existsSync(path.join(ROOT, 'deployment/proxy-api.php'))
+  ? path.join(ROOT, 'deployment/proxy-api.php')
+  : path.join(ROOT, 'proxy-api.php');
+const nodePort    = String(process.env.GATEWAY_PORT || process.env.PORT || '4000');
+
+// ── DIRECCIONES OFICIALES DE HOSTINGER ────────────────────────────────────────
+// 1. Dominio principal: /home/u251936581/domains/beardedmountaineerlodge.com/public_html
+// 2. Admin subcarpeta: /home/u251936581/domains/beardedmountaineerlodge.com/public_html/admin
+// 3. API subcarpeta:   /home/u251936581/domains/beardedmountaineerlodge.com/public_html/api
+const HOSTINGER_OFFICIAL_PUBLIC_HTML = '/home/u251936581/domains/beardedmountaineerlodge.com/public_html';
+
+const targetCandidates = [
+  path.join(ROOT, 'public_html'),
+  HOSTINGER_OFFICIAL_PUBLIC_HTML,
+  process.env.PUBLIC_HTML_PATH
+].filter(Boolean);
+
+// Filtrar targets únicos normalizados
+const targetDirs = [];
+const seenTargets = new Set();
+for (const cand of targetCandidates) {
+  const norm = path.normalize(cand);
+  if (!seenTargets.has(norm.toLowerCase())) {
+    seenTargets.add(norm.toLowerCase());
+    targetDirs.push(norm);
+  }
+}
 
 // ── SAFETY SANDBOX GUARD ──────────────────────────────────────────────────────
-// Proteger estrictamente contra contaminación de otros dominios (ej. mycoandes)
-// o sobreescritura de la raíz compartida de la cuenta de hosting.
-const forbiddenPaths = [
-  '/home/u251936581',
-  '/home/u251936581/public_html',
-  'mycoandes'
-];
-
-const normalizedTarget = path.normalize(publicHtml).toLowerCase();
-for (const forbidden of forbiddenPaths) {
-  if (normalizedTarget === path.normalize(forbidden).toLowerCase() || (forbidden === 'mycoandes' && normalizedTarget.includes('mycoandes'))) {
-    console.error(`\n[postinstall] 🛑 BLOQUEO DE SEGURIDAD: Intento de escribir en ruta protegida o ajena: "${publicHtml}"`);
-    console.error('[postinstall] El despliegue de Bearded debe permanecer 100% aislado dentro de su propio dominio.\n');
-    process.exit(1);
-  }
+function isAllowedSandboxPath(targetPath) {
+  const lower = path.normalize(targetPath).toLowerCase();
+  // 1. Prohibir estrictamente cualquier referencia a mycoandes
+  if (lower.includes('mycoandes')) return false;
+  // 2. Prohibir la raíz genérica de la cuenta de hosting
+  if (lower === '/home/u251936581' || lower === '/home/u251936581/public_html' || lower === 'c:\\home\\u251936581') return false;
+  // 3. Si es una ruta bajo /home/u251936581, DEBE pertenecer a beardedmountaineerlodge.com
+  if (lower.startsWith('/home/u251936581') && !lower.includes('beardedmountaineerlodge.com')) return false;
+  return true;
 }
 
 if (!fs.existsSync(frontendOut)) {
   console.warn('[postinstall] ⚠️  frontend/out/ no existe, omitiendo deploy a public_html.');
 } else {
-  // Crear estructura
-  fs.mkdirSync(publicHtml, { recursive: true });
-  fs.mkdirSync(path.join(publicHtml, 'api'), { recursive: true });
-  fs.mkdirSync(path.join(publicHtml, 'admin'), { recursive: true });
-
-  // Asegurar que admin/uploads existe y es persistente
+  // Asegurar persistencia del directorio de uploads del admin
   fs.mkdirSync(path.join(ROOT, 'admin/uploads'), { recursive: true });
 
-  // Limpiar _next/ viejo (chunks obsoletos)
-  const nextDir = path.join(publicHtml, '_next');
-  if (fs.existsSync(nextDir)) fs.rmSync(nextDir, { recursive: true, force: true });
-
-  // Copiar frontend/out/ → public_html/
-  try {
-    fs.cpSync(frontendOut, publicHtml, { recursive: true });
-    console.log('[postinstall] ✅ Frontend copiado a public_html/');
-  } catch (e) {
-    console.error('[postinstall] ❌ Error copiando frontend:', e.message);
-  }
-
-  // Eliminar default.php de Hostinger si existe
-  const defaultPhp = path.join(publicHtml, 'default.php');
-  if (fs.existsSync(defaultPhp)) fs.unlinkSync(defaultPhp);
-
-  // .htaccess raíz
   const htaccessRoot = `DirectoryIndex index.html index.php
 Options -Indexes +FollowSymLinks
 
@@ -260,14 +256,7 @@ Options -Indexes +FollowSymLinks
   RewriteRule ^ /index.html [L]
 </IfModule>`;
 
-  fs.writeFileSync(path.join(publicHtml, '.htaccess'), htaccessRoot);
-  fs.writeFileSync(path.join(publicHtml, '.node_port'), nodePort);
-  console.log('[postinstall] ✅ .htaccess generado');
-
-  // Proxy PHP para /api/ y /admin/
-  if (fs.existsSync(proxySrc)) {
-    const proxyContent = fs.readFileSync(proxySrc, 'utf8');
-    const apiHtaccess = `<IfModule mod_rewrite.c>
+  const subHtaccess = `<IfModule mod_rewrite.c>
 RewriteEngine On
 RewriteCond %{REQUEST_FILENAME} -f
 RewriteRule ^ - [L]
@@ -276,18 +265,74 @@ RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^(.*)$ index.php [L,QSA]
 </IfModule>`;
 
-    fs.writeFileSync(path.join(publicHtml, 'api/index.php'), proxyContent);
-    fs.writeFileSync(path.join(publicHtml, 'api/.htaccess'), apiHtaccess);
-    fs.writeFileSync(path.join(publicHtml, 'api/.node_port'), nodePort);
+  let deployedCount = 0;
 
-    fs.writeFileSync(path.join(publicHtml, 'admin/index.php'), proxyContent);
-    fs.writeFileSync(path.join(publicHtml, 'admin/.htaccess'), apiHtaccess);
-    fs.writeFileSync(path.join(publicHtml, 'admin/.node_port'), nodePort);
+  for (const pubDir of targetDirs) {
+    if (!isAllowedSandboxPath(pubDir)) {
+      console.error(`[postinstall] 🛑 BLOQUEO DE SEGURIDAD: Destino rechazado: "${pubDir}"`);
+      continue;
+    }
 
-    console.log('[postinstall] ✅ Proxies PHP creados en api/ y admin/');
-  } else {
-    console.warn('[postinstall] ⚠️  deployment/proxy-api.php no encontrado, omitiendo proxies.');
+    // Si es una ruta absoluta en Hostinger, verificar que el padre exista antes de escribir
+    const parentDir = path.dirname(pubDir);
+    const isLocalDir = pubDir.startsWith(ROOT);
+    if (!isLocalDir && !fs.existsSync(parentDir)) {
+      console.log(`[postinstall] ℹ️  Omitiendo ruta de producción (${parentDir} no existe en este entorno).`);
+      continue;
+    }
+
+    console.log(`[postinstall] → Desplegando en destino: ${pubDir}`);
+
+    try {
+      // 1. Crear directorios principales y subdominios correspondientes
+      fs.mkdirSync(pubDir, { recursive: true });
+      fs.mkdirSync(path.join(pubDir, 'api'), { recursive: true });
+      fs.mkdirSync(path.join(pubDir, 'admin'), { recursive: true });
+
+      // 2. Limpiar _next viejo
+      const nextDir = path.join(pubDir, '_next');
+      if (fs.existsSync(nextDir)) fs.rmSync(nextDir, { recursive: true, force: true });
+
+      // 3. Copiar frontend estático
+      fs.cpSync(frontendOut, pubDir, { recursive: true });
+      console.log(`[postinstall]   ✅ Frontend copiado en: ${pubDir}`);
+
+      // 4. Eliminar default.php de Hostinger si existe
+      const defaultPhp = path.join(pubDir, 'default.php');
+      if (fs.existsSync(defaultPhp)) {
+        try { fs.unlinkSync(defaultPhp); } catch (_) {}
+      }
+
+      // 5. Configurar .htaccess y .node_port raíz
+      fs.writeFileSync(path.join(pubDir, '.htaccess'), htaccessRoot);
+      fs.writeFileSync(path.join(pubDir, '.node_port'), nodePort);
+
+      // 6. Configurar proxies PHP en /api/ y /admin/
+      if (fs.existsSync(proxySrc)) {
+        const proxyContent = fs.readFileSync(proxySrc, 'utf8');
+
+        // /api
+        const apiDir = path.join(pubDir, 'api');
+        fs.writeFileSync(path.join(apiDir, 'index.php'), proxyContent);
+        fs.writeFileSync(path.join(apiDir, '.htaccess'), subHtaccess);
+        fs.writeFileSync(path.join(apiDir, '.node_port'), nodePort);
+
+        // /admin
+        const adminDir = path.join(pubDir, 'admin');
+        fs.writeFileSync(path.join(adminDir, 'index.php'), proxyContent);
+        fs.writeFileSync(path.join(adminDir, '.htaccess'), subHtaccess);
+        fs.writeFileSync(path.join(adminDir, '.node_port'), nodePort);
+
+        console.log(`[postinstall]   ✅ Proxies PHP configurados en: ${pubDir}/api y ${pubDir}/admin`);
+      }
+
+      deployedCount++;
+    } catch (err) {
+      console.error(`[postinstall] ❌ Error desplegando en ${pubDir}:`, err.message);
+    }
   }
+
+  console.log(`[postinstall] Despliegues a public_html completados: ${deployedCount}`);
 
   // restart.txt para Passenger/LiteSpeed
   try {

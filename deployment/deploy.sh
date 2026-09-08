@@ -18,11 +18,22 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
 # ── Configuración ─────────────────────────────────────────────────────────────
-# En Hostinger, public_html está en:
-#   /home/[usuario]/domains/beardedmountaineerlodge.com/public_html
-# Ajusta PUBLIC_HTML_DIR si la ruta es diferente en tu servidor.
-PUBLIC_HTML_DIR="${PUBLIC_HTML_DIR:-$ROOT_DIR/public_html}"
-NODE_PORT="${GATEWAY_PORT:-4000}"
+HOSTINGER_OFFICIAL="/home/u251936581/domains/beardedmountaineerlodge.com/public_html"
+if [[ -z "${PUBLIC_HTML_DIR:-}" ]]; then
+  if [[ -d "/home/u251936581/domains/beardedmountaineerlodge.com" ]]; then
+    PUBLIC_HTML_DIR="$HOSTINGER_OFFICIAL"
+  else
+    PUBLIC_HTML_DIR="$ROOT_DIR/public_html"
+  fi
+fi
+
+# Sandbox Guard
+if [[ "$PUBLIC_HTML_DIR" == *"mycoandes"* ]] || [[ "$PUBLIC_HTML_DIR" == "/home/u251936581" ]] || [[ "$PUBLIC_HTML_DIR" == "/home/u251936581/public_html" ]]; then
+  echo "🛑 ERROR DE SEGURIDAD: Ruta de destino prohibida: $PUBLIC_HTML_DIR"
+  exit 1
+fi
+
+NODE_PORT="${GATEWAY_PORT:-${PORT:-4000}}"
 PROXY_SRC="$ROOT_DIR/deployment/proxy-api.php"
 
 echo ""

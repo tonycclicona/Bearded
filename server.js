@@ -47,12 +47,11 @@ loadEnv(path.resolve(__dirname, '.env'));
 loadEnv(path.resolve(__dirname, 'backend/.env.production'));
 loadEnv(path.resolve(__dirname, 'backend/.env'));
 
-// ── Directorios de compilación (Patrón Unu-Raymi) ──────────────────────────────
+// ── Directorios de contenido ────────────────────────────────────────────────
 const frontendDir = fs.existsSync(path.resolve(__dirname, 'frontend/out'))
   ? path.resolve(__dirname, 'frontend/out')
   : path.resolve(__dirname, 'out');
 
-const adminDir = path.resolve(__dirname, 'admin/out');
 const uploadsDir = path.resolve(__dirname, 'admin/uploads');
 const adminPublicDir = path.resolve(__dirname, 'admin/public');
 
@@ -61,9 +60,7 @@ if (!fs.existsSync(uploadsDir)) {
 }
 
 console.log('> [Server] Frontend dir:', frontendDir);
-console.log('> [Server] Admin dir:', adminDir);
-// Nota: la copia a public_html se realiza en build/deploy, no en runtime.
-// Ver: deployment/deploy.sh
+console.log('> [Server] Uploads dir:', uploadsDir);
 
 // ── 1. CARGAR BACKEND API (ASÍNCRONO CON PATH TO FILE URL) ────────────────────
 let backendApp = null;
@@ -167,27 +164,17 @@ app.use(function(req, res, next) {
       }
       return adminApp(req, res, next);
     }
-    if (fs.existsSync(adminDir)) {
-      return express.static(adminDir, { extensions: ['html'] })(req, res, function() {
-        const parsed = req.path.replace(/^\/+|\/+$/g, '').split('/');
-        if (parsed.length >= 3 && parsed[2] === 'editar') {
-          const editPage = path.join(adminDir, parsed[0], '1', 'editar', 'index.html');
-          if (fs.existsSync(editPage)) return res.sendFile(editPage);
-        }
-        res.sendFile(path.join(adminDir, 'index.html'));
-      });
-    }
     return res.status(200).send('<!DOCTYPE html><html><head><title>Admin Panel</title></head><body>Iniciando panel de administración...</body></html>');
   }
   next();
 });
 
-// ── 5. RUTEO DE FRONTEND (DEFAULT - Patrón Unu-Raymi) ─────────────────────────
+// ── 5. RUTEO DE FRONTEND (DEFAULT) ───────────────────────────────────────────
 if (fs.existsSync(frontendDir)) {
   app.use(express.static(frontendDir, { extensions: ['html'] }));
 }
 
-// Fallback SPA Frontend (Patrón Unu-Raymi)
+// Fallback SPA Frontend
 app.use(function(req, res) {
   const candidates = [
     path.join(frontendDir, 'index.html'),
@@ -207,11 +194,23 @@ const port = process.env.PORT || process.env.GATEWAY_PORT || 4000;
 const server = app.listen(port, function() {
   console.log('> [Server] Bearded Mountaineer Lodge corriendo en puerto:', port);
   try {
-    const actualPort = server.address().port;
-    fs.writeFileSync(path.resolve(__dirname, '.node_port'), String(actualPort));
+    const actualPort = String(server.address().port);
+    fs.writeFileSync(path.resolve(__dirname, '.node_port'), actualPort);
+
+    // Escribir en public_html local
     const pubPort = path.resolve(__dirname, 'public_html/.node_port');
     if (fs.existsSync(path.dirname(pubPort))) {
-      fs.writeFileSync(pubPort, String(actualPort));
+      fs.writeFileSync(pubPort, actualPort);
+    }
+
+    // Escribir en rutas oficiales de Hostinger si existen
+    const hostingerPublic = '/home/u251936581/domains/beardedmountaineerlodge.com/public_html';
+    if (fs.existsSync(hostingerPublic)) {
+      fs.writeFileSync(path.join(hostingerPublic, '.node_port'), actualPort);
+      const apiPort = path.join(hostingerPublic, 'api/.node_port');
+      if (fs.existsSync(path.dirname(apiPort))) fs.writeFileSync(apiPort, actualPort);
+      const adminPort = path.join(hostingerPublic, 'admin/.node_port');
+      if (fs.existsSync(path.dirname(adminPort))) fs.writeFileSync(adminPort, actualPort);
     }
   } catch (_) {}
 });
