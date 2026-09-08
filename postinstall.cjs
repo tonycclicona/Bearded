@@ -107,8 +107,9 @@ if (fs.existsSync(frontendOutIndex)) {
 // ── 4. Despliegue directo a Hostinger public_html ─────────────────────────────
 console.log('\n[deploy] [4/4] Desplegando en public_html...');
 
-// Plantilla de Proxy PHP inverso hacia Node.js (puerto dinámico / 4000)
-const proxyPhp = `<?php
+// Generador de Proxy PHP inverso con soporte multi-puerto
+function generateProxyPhp(prefix) {
+  return `<?php
 // Bearded Mountaineer Lodge - Reverse Proxy to Node.js Gateway
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Credentials: true");
@@ -120,25 +121,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit(0);
 }
 
-$port = 4000;
-$portFile = dirname(__DIR__) . '/.node_port';
-if (file_exists(__DIR__ . '/.node_port')) {
-    $portFile = __DIR__ . '/.node_port';
+// 1. Detectar puerto desde .node_port
+$detectedPort = null;
+$portCandidates = [
+    __DIR__ . '/.node_port',
+    dirname(__DIR__) . '/.node_port',
+    dirname(dirname(__DIR__)) . '/.node_port',
+    '/home/u251936581/domains/beardedmountaineerlodge.com/.node_port'
+];
+foreach ($portCandidates as $pf) {
+    if (file_exists($pf)) {
+        $val = trim(@file_get_contents($pf));
+        if (!empty($val) && is_numeric($val)) {
+            $detectedPort = intval($val);
+            break;
+        }
+    }
 }
-if (file_exists($portFile)) {
-    $p = trim(@file_get_contents($portFile));
-    if (!empty($p) && is_numeric($p)) $port = intval($p);
+
+$targets = [];
+if ($detectedPort) {
+    $targets[] = "http://127.0.0.1:{$detectedPort}";
 }
+$targets[] = 'http://127.0.0.1:4000';
+$targets[] = 'http://127.0.0.1:3001';
+$targets[] = 'http://127.0.0.1:3000';
+$targets = array_values(array_unique($targets));
 
 $uri = $_SERVER['REQUEST_URI'];
-$targetUrl = "http://127.0.0.1:{$port}" . $uri;
-
-$ch = curl_init($targetUrl);
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $_SERVER['REQUEST_METHOD']);
-curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
-curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
-curl_setopt($ch, CURLOPT_TIMEOUT, 60);
+${prefix === 'admin' ? `if (strpos($uri, '/admin') !== 0 && strpos($uri, '/static') !== 0 && strpos($uri, '/uploads') !== 0) {
+    $uri = '/admin' . (strpos($uri, '/') === 0 ? $uri : '/' . $uri);
+}` : prefix === 'api' ? `if (strpos($uri, '/api') !== 0) {
+    $uri = '/api' . (strpos($uri, '/') === 0 ? $uri : '/' . $uri);
+}` : ''}
 
 $headers = [];
 $incoming = function_exists('getallheaders') ? getallheaders() : [];
@@ -168,35 +183,57 @@ if ($isMultipart) {
             $postFields[$field] = new CURLFile($fileData['tmp_name'], $fileData['type'] ?: 'application/octet-stream', $fileData['name']);
         }
     }
-    $filtered = array_filter($headers, function($h) {
-        $lh = strtolower($h);
-        return strpos($lh, 'content-type:') !== 0 && strpos($lh, 'content-length:') !== 0;
-    });
-    curl_setopt($ch, CURLOPT_HTTPHEADER, array_values($filtered));
-    curl_setopt($ch, CURLOPT_POSTFIELDS, $postFields);
-} else {
-    if (in_array($_SERVER['REQUEST_METHOD'], ['POST', 'PUT', 'PATCH', 'DELETE'])) {
-        $body = file_get_contents('php://input');
-        if ($body !== false) curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
-    }
-    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+} else if (in_array($_SERVER['REQUEST_METHOD'], ['POST', 'PUT', 'PATCH', 'DELETE'])) {
+    $body = file_get_contents('php://input');
 }
 
-$respHeaders = [];
-curl_setopt($ch, CURLOPT_HEADERFUNCTION, function($c, $h) use (&$respHeaders) {
-    $len = strlen($h);
-    $t = trim($h);
-    if ($t !== '') $respHeaders[] = $t;
-    return $len;
-});
+$response = false;
+$httpCode = 0;
+$responseHeaders = [];
 
-$response = curl_exec($ch);
-$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-curl_close($ch);
+foreach ($targets as $base) {
+    $ch = curl_init($base . $uri);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $_SERVER['REQUEST_METHOD']);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 2);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+
+    $respHeaders = [];
+    curl_setopt($ch, CURLOPT_HEADERFUNCTION, function($c, $h) use (&$respHeaders) {
+        $len = strlen($h);
+        $t = trim($h);
+        if ($t !== '') $respHeaders[] = $t;
+        return $len;
+    });
+
+    if ($isMultipart) {
+        $filtered = array_filter($headers, function($h) {
+            $lh = strtolower($h);
+            return strpos($lh, 'content-type:') !== 0 && strpos($lh, 'content-length:') !== 0;
+        });
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array_values($filtered));
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $postFields);
+    } else {
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        if ($body !== null && $body !== false) {
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
+        }
+    }
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($httpCode > 0 && $response !== false) {
+        $responseHeaders = $respHeaders;
+        break;
+    }
+}
 
 if ($httpCode > 0 && $response !== false) {
     http_response_code($httpCode);
-    foreach ($respHeaders as $h) {
+    foreach ($responseHeaders as $h) {
         $lh = strtolower($h);
         if (strpos($lh, 'set-cookie:') === 0 || strpos($lh, 'location:') === 0 || strpos($lh, 'content-type:') === 0 || strpos($lh, 'access-control-') === 0) {
             header($h, false);
@@ -207,8 +244,9 @@ if ($httpCode > 0 && $response !== false) {
 }
 
 http_response_code(502);
-echo "<h1>502 Bad Gateway</h1><p>El servidor Node.js no responde en el puerto local {$port}. Verifica que la aplicacion este iniciada.</p>";
+echo "<h1>502 Bad Gateway</h1><p>El servidor Node.js de Bearded Mountaineer Lodge no responde en los puertos locales. Verifica que la Web App este en estado <strong>Started (Iniciada)</strong> en el panel de Hostinger.</p>";
 `;
+}
 
 const subHtaccess = `DirectoryIndex index.php index.html
 
@@ -303,12 +341,12 @@ function deployTo(targetDir) {
     fs.writeFileSync(path.join(targetDir, '.htaccess'), rootHtaccess.trim());
 
     // 5. Configurar API proxy
-    fs.writeFileSync(path.join(apiDir, 'index.php'), proxyPhp.trim());
+    fs.writeFileSync(path.join(apiDir, 'index.php'), generateProxyPhp('api').trim());
     fs.writeFileSync(path.join(apiDir, '.htaccess'), subHtaccess.trim());
     console.log('  ✅ API proxy configurado en public_html/api');
 
     // 6. Configurar Admin proxy y assets
-    fs.writeFileSync(path.join(adminDir, 'index.php'), proxyPhp.trim());
+    fs.writeFileSync(path.join(adminDir, 'index.php'), generateProxyPhp('admin').trim());
     fs.writeFileSync(path.join(adminDir, '.htaccess'), subHtaccess.trim());
     const adminPub = path.join(ROOT, 'admin/public');
     if (fs.existsSync(adminPub)) {
