@@ -157,6 +157,49 @@ if ($httpCode > 0 && $response !== false) {
     exit(0);
 }
 
+$debugLog = '';
+$possibleLogs = [
+    __DIR__ . '/node_debug.log',
+    __DIR__ . '/../node_debug.log',
+    __DIR__ . '/../../node_debug.log',
+    dirname(__DIR__) . '/node_debug.log',
+    '/home/u251936581/public_html/node_debug.log',
+    '/home/u251936581/public_html/api/node_debug.log',
+    '/home/u251936581/public_html/admin/node_debug.log',
+    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/node_debug.log',
+    '/home/u251936581/domains/beardedmountaineerlodge.com/hbuilds/current/nodejs/node_debug.log',
+    '/tmp/bearded_node_debug.log'
+];
+foreach ($possibleLogs as $pl) {
+    if (file_exists($pl)) {
+        $c = @file_get_contents($pl);
+        if (!empty($c)) {
+            $lines = explode("
+", trim($c));
+            $debugLog = implode("
+", array_slice($lines, -15));
+            break;
+        }
+    }
+}
+
+$portFilesFound = [];
+foreach ($possiblePortFiles as $pf) {
+    if (file_exists($pf)) {
+        $portFilesFound[$pf] = trim(@file_get_contents($pf));
+    }
+}
+
+$psOutput = '';
+if (function_exists('shell_exec')) {
+    $psOutput = @shell_exec('ps aux 2>&1 | grep -i node | grep -v grep');
+}
+
+$netstatOutput = '';
+if (function_exists('shell_exec')) {
+    $netstatOutput = @shell_exec('ss -tlpn 2>&1 || netstat -tlpn 2>&1');
+}
+
 header("Content-Type: application/json; charset=UTF-8");
 http_response_code(502);
 echo json_encode([
@@ -165,6 +208,12 @@ echo json_encode([
     "path" => $requestUri,
     "tried_targets" => $targets,
     "curl_error" => $lastError,
+    "detected_port" => $detectedPort,
+    "port_files_found" => $portFilesFound,
+    "node_debug_log" => $debugLog ?: "Sin registros de node_debug.log",
+    "ps_output" => $psOutput ?: "No se detectaron procesos Node o shell_exec desactivado",
+    "listen_ports" => $netstatOutput ?: "netstat no disponible",
+    "current_dir" => __DIR__,
     "timestamp" => date("c")
-]);
+], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
 exit(0);
