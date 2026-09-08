@@ -59,7 +59,10 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
+const adminDir = path.resolve(__dirname, 'admin/out');
+
 console.log('> [Server] Frontend dir:', frontendDir);
+console.log('> [Server] Admin dir:', adminDir);
 console.log('> [Server] Uploads dir:', uploadsDir);
 
 // ── 1. CARGAR BACKEND API (ASÍNCRONO CON PATH TO FILE URL) ────────────────────
@@ -92,41 +95,9 @@ const backendPromise = resolvedBackendPath
       backendError = new Error('No se encontró backend/dist/index.js');
     });
 
-// ── 2. CARGAR ADMIN PANEL (ASÍNCRONO CON PATH TO FILE URL) ────────────────────
-let adminApp = null;
-let adminError = null;
-const candidateAdminPaths = [
-  path.resolve(__dirname, 'admin/dist/index.js'),
-  path.resolve(__dirname, '../admin/dist/index.js'),
-  '/home/u251936581/domains/beardedmountaineerlodge.com/admin/dist/index.js',
-  path.resolve(__dirname, 'admin/dist/server.js'),
-  path.resolve(__dirname, '../admin/dist/server.js'),
-  path.resolve(__dirname, 'admin/src/index.ts'),
-  path.resolve(__dirname, '../admin/src/index.ts'),
-  path.resolve(__dirname, 'admin/src/server.js'),
-  path.resolve(__dirname, '../admin/src/server.js')
-];
-const resolvedAdminPath = candidateAdminPaths.find(function(p) { return fs.existsSync(p); });
-
-const adminPromise = resolvedAdminPath
-  ? import(pathToFileURL(resolvedAdminPath).href)
-      .then(function(m) {
-        adminApp = m.default || m.app || m;
-        console.log('> [Server] Admin Panel montado exitosamente desde:', resolvedAdminPath);
-      })
-      .catch(function(err) {
-        adminError = err;
-        console.error('> [Server] Error cargando admin:', err);
-      })
-  : Promise.resolve().then(function() {
-      adminError = new Error('No se encontró admin/dist/index.js');
-    });
-
-// ── Servir archivos estáticos de Admin y Uploads ──────────────────────────────
+// ── Servir archivos estáticos de Uploads ──────────────────────────────────────
 app.use('/uploads', express.static(uploadsDir));
 app.use('/admin/uploads', express.static(uploadsDir));
-app.use('/admin/static', express.static(adminPublicDir));
-app.use('/static', express.static(adminPublicDir));
 
 // ── 3. CORS + RUTEO DE API ────────────────────────────────────────────────────
 const CORS_ALLOWED = process.env.CORS_ORIGIN
@@ -186,28 +157,24 @@ app.use(function(req, res, next) {
   next();
 });
 
-// ── 4. RUTEO DE ADMIN (Patrón Unu-Raymi) ───────────────────────────────────────
+// ── 4. RUTEO DE ADMIN (Patrón Unu-Raymi — Static Next.js App Router) ─────────
 app.use(function(req, res, next) {
   const host = (req.headers.host || '').toLowerCase();
   if (host.startsWith('admin.') || req.url.startsWith('/admin')) {
-    const handleAdmin = function() {
-      if (typeof adminApp === 'function') {
-        if (host.startsWith('admin.') && !req.url.startsWith('/admin')) {
-          req.url = '/admin' + (req.url.startsWith('/') ? req.url : '/' + req.url);
-          req.url = req.url.replace('/admin//', '/admin/');
-        }
-        return adminApp(req, res, next);
+    if (fs.existsSync(adminDir)) {
+      if (req.url.startsWith('/admin')) {
+        const originalUrl = req.url;
+        const subPath = req.url.substring(6) || '/';
+        req.url = subPath;
+        return express.static(adminDir, { extensions: ['html'] })(req, res, function() {
+          req.url = originalUrl;
+          res.sendFile(path.join(adminDir, 'index.html'));
+        });
       }
-      if (adminError) {
-        return res.status(500).send('<!DOCTYPE html><html><head><title>Admin Error</title></head><body><h1>Error cargando Admin Panel</h1><pre>' + adminError.message + '</pre></body></html>');
-      }
-      return res.status(200).send('<!DOCTYPE html><html><head><title>Admin Panel</title></head><body>Iniciando panel de administración...</body></html>');
-    };
-
-    if (adminApp) {
-      return handleAdmin();
+      return express.static(adminDir, { extensions: ['html'] })(req, res, function() {
+        res.sendFile(path.join(adminDir, 'index.html'));
+      });
     }
-    return adminPromise.then(handleAdmin).catch(next);
   }
   next();
 });

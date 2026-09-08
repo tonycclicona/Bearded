@@ -11,7 +11,8 @@ export function authenticate(req, _res, next) {
 }
 export function authorize(roles) {
     return (req, res, next) => {
-        if (!req.user || !roles.includes(req.user.role)) {
+        const userRole = req.user?.role;
+        if (!req.user || !userRole || !roles.includes(userRole)) {
             res.status(403).json({
                 data: null,
                 error: {

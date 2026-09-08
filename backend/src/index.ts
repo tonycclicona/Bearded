@@ -15,6 +15,7 @@ import puntosGisRouter from './routes/puntos-gis.js';
 import toursRouter from './routes/tours.js';
 import guiasRouter from './routes/guias.js';
 import bookingsRouter from './routes/bookings.js';
+import authRouter from './routes/auth.js';
 
 const app = express();
 app.set('trust proxy', true);
@@ -53,6 +54,10 @@ app.use(cors({
   credentials: true
 }));
 app.use(express.json());
+
+// Auth routes (para login del panel de administración)
+app.use('/api/auth', authRouter);
+app.use('/auth', authRouter);
 
 // Routes (compatibilidad dual: con /api/ y directa para subdominio api.)
 app.use('/api/passes', passesRouter);

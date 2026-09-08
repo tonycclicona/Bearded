@@ -118,17 +118,24 @@ try {
   console.warn('[deploy] ⚠️  Aviso Prisma generate:', e.message);
 }
 
-// ── 2. Build Backend y Admin ──────────────────────────────────────────────────
-console.log('\n[deploy] [2/4] Compilando Backend y Admin...');
+// ── 2. Build Backend ──────────────────────────────────────────────────────────
+console.log('\n[deploy] [2/4] Compilando Backend...');
 run('node scripts/build.cjs', 'backend');
-run('node scripts/build.cjs', 'admin');
 
-// ── 3. Build Frontend (Next.js SSG) ───────────────────────────────────────────
+// ── 3. Build Admin y Frontend (Next.js SSG) ───────────────────────────────────
+const adminOutIndex = path.join(ROOT, 'admin/out/index.html');
+if (fs.existsSync(adminOutIndex)) {
+  console.log('\n[deploy] [3/4] admin/out/ ya existe y está listo (omitiendo compilación pesada)...');
+} else {
+  console.log('\n[deploy] [3/4] Compilando Admin (Next.js SSG)...');
+  run('node scripts/build.cjs', 'admin');
+}
+
 const frontendOutIndex = path.join(ROOT, 'frontend/out/index.html');
 if (fs.existsSync(frontendOutIndex)) {
-  console.log('\n[deploy] [3/4] frontend/out/ ya existe y está listo (omitiendo compilación pesada en servidor)...');
+  console.log('[deploy] [3/4] frontend/out/ ya existe y está listo (omitiendo compilación pesada)...');
 } else {
-  console.log('\n[deploy] [3/4] Compilando Frontend (Next.js SSG)...');
+  console.log('[deploy] [3/4] Compilando Frontend (Next.js SSG)...');
   run('node scripts/build.cjs', 'frontend');
 }
 
@@ -152,16 +159,16 @@ Options -Indexes +FollowSymLinks
   RewriteBase /
 
   # 1. Redirección de subdominios si LiteSpeed los enruta al public_html principal
-  RewriteCond %{HTTP_HOST} ^admin\. [NC]
+  RewriteCond %{HTTP_HOST} ^admin\\. [NC]
   RewriteRule ^(.*)$ https://beardedmountaineerlodge.com/admin/$1 [R=301,L]
 
-  RewriteCond %{HTTP_HOST} ^api\. [NC]
+  RewriteCond %{HTTP_HOST} ^api\\. [NC]
   RewriteRule ^(.*)$ https://beardedmountaineerlodge.com/api/$1 [R=307,L]
 
-  # 2. Rutas de API, Admin y Uploads pasan directo a Node.js (Phusion Passenger)
-  RewriteRule ^(api|admin|uploads)(/.*)?$ - [L]
+  # 2. Rutas de API y Uploads pasan directo a Node.js (Phusion Passenger)
+  RewriteRule ^(api|uploads)(/.*)?$ - [L]
 
-  # 3. Servir archivos estáticos físicos directamente desde disco (Next.js SSG)
+  # 3. Servir archivos estáticos físicos directamente desde disco (Frontend y Admin SSG)
   RewriteCond %{REQUEST_FILENAME} -f [OR]
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
@@ -185,34 +192,18 @@ function deployTo(targetDir) {
   try {
     fs.mkdirSync(targetDir, { recursive: true });
 
-    // 1. Limpiar proxies obsoletos PHP en public_html para evitar intercepciones de LiteSpeed
+    // 1. Limpiar proxies obsoletos PHP en public_html
     const obsoleteFiles = [
       path.join(targetDir, 'api', 'index.php'),
       path.join(targetDir, 'api', '.htaccess'),
       path.join(targetDir, 'api', 'default.php'),
       path.join(targetDir, 'admin', 'index.php'),
-      path.join(targetDir, 'admin', '.htaccess'),
       path.join(targetDir, 'admin', 'default.php'),
       path.join(targetDir, 'default.php')
     ];
     obsoleteFiles.forEach(function(f) {
       if (fs.existsSync(f)) {
         try { fs.unlinkSync(f); } catch (_) {}
-      }
-    });
-
-    // Eliminar carpetas api y admin si solo contenían proxies, permitiendo que Express atienda las rutas
-    ['api', 'admin'].forEach(function(dirName) {
-      const d = path.join(targetDir, dirName);
-      if (fs.existsSync(d)) {
-        try {
-          const items = fs.readdirSync(d);
-          const remaining = items.filter(function(i) { return i !== '.node_port' && i !== '.node_socket'; });
-          if (remaining.length === 0) {
-            fs.rmSync(d, { recursive: true, force: true });
-            console.log(`  ✅ Carpeta ${dirName} limpia para enrutamiento nativo Node.js`);
-          }
-        } catch (_) {}
       }
     });
 
@@ -232,7 +223,32 @@ function deployTo(targetDir) {
       console.log('  ✅ Frontend public assets copiados a public_html');
     }
 
-    // 4. Limpiar .txt residuales de Next.js
+    // 4. Copiar Admin estático (Next.js out) a public_html/admin
+    const adminOut = path.join(ROOT, 'admin/out');
+    if (fs.existsSync(adminOut)) {
+      const pubAdmin = path.join(targetDir, 'admin');
+      if (fs.existsSync(pubAdmin)) {
+        fs.rmSync(pubAdmin, { recursive: true, force: true });
+      }
+      fs.mkdirSync(pubAdmin, { recursive: true });
+      copyDir(adminOut, pubAdmin);
+
+      const adminHtaccess = `<IfModule mod_rewrite.c>
+RewriteEngine On
+RewriteBase /admin/
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME}/index.html -f
+RewriteRule ^(.*)$ $1/index.html [L]
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ index.html [L]
+</IfModule>
+`;
+      fs.writeFileSync(path.join(pubAdmin, '.htaccess'), adminHtaccess.trim());
+      console.log('  ✅ Admin estático (Next.js) copiado a public_html/admin con .htaccess SPA');
+    }
+
+    // 5. Limpiar .txt residuales de Next.js
     for (const f of fs.readdirSync(targetDir)) {
       if (f.startsWith('__next.') || (f.endsWith('.txt') && f !== 'robots.txt')) {
         try { fs.unlinkSync(path.join(targetDir, f)); } catch (_) {}

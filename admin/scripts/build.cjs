@@ -6,14 +6,14 @@ const { execSync } = require('child_process');
 const ROOT = path.resolve(__dirname, '..');
 const MONOREPO_ROOT = path.resolve(ROOT, '..');
 
-function findTsc() {
+console.log('[build:admin] Iniciando build de Next.js para Admin...');
+
+function findNextBin() {
   const candidates = [
-    path.join(MONOREPO_ROOT, 'node_modules/typescript/bin/tsc'),
-    path.join(MONOREPO_ROOT, 'node_modules/typescript/lib/tsc.js'),
-    path.join(ROOT, 'node_modules/typescript/bin/tsc'),
-    path.join(ROOT, 'node_modules/typescript/lib/tsc.js'),
-    path.join(MONOREPO_ROOT, 'node_modules/.bin/tsc'),
-    path.join(ROOT, 'node_modules/.bin/tsc')
+    path.join(MONOREPO_ROOT, 'node_modules/next/dist/bin/next'),
+    path.join(ROOT, 'node_modules/next/dist/bin/next'),
+    path.join(MONOREPO_ROOT, 'node_modules/.bin/next'),
+    path.join(ROOT, 'node_modules/.bin/next')
   ];
   for (const c of candidates) {
     if (fs.existsSync(c)) return c;
@@ -21,44 +21,42 @@ function findTsc() {
   return null;
 }
 
-const tscPath = findTsc();
-const tsconfig = path.join(ROOT, 'tsconfig.json');
-let compiled = false;
+const nextBin = findNextBin();
+let buildOk = false;
 
-if (tscPath) {
-  try {
-    console.log(`[build:admin] Compiling with ${tscPath}...`);
-    execSync(`node "${tscPath}" --project "${tsconfig}"`, { stdio: 'inherit' });
-    compiled = true;
-  } catch (err) {
-    console.warn('[build:admin] Warning: Direct tsc compilation failed:', err.message);
-  }
-} else {
-  try {
-    console.log('[build:admin] Attempting npx tsc...');
-    execSync(`npx --no-install tsc --project "${tsconfig}"`, { stdio: 'inherit' });
-    compiled = true;
-  } catch (_) {}
+const env = {
+  ...process.env,
+  NODE_ENV: 'production',
+  NEXT_TELEMETRY_DISABLED: '1'
+};
+if (!env.NEXT_PUBLIC_API_URL) {
+  env.NEXT_PUBLIC_API_URL = '/api';
 }
 
-if (!compiled) {
-  const distIndex = path.join(ROOT, 'dist/index.js');
-  if (fs.existsSync(distIndex)) {
-    console.log('[build:admin] ✅ Using precompiled dist/index.js (ready for production).');
-  } else {
-    console.error('[build:admin] ❌ Error: Neither tsc nor precompiled dist/index.js found.');
+if (nextBin) {
+  try {
+    console.log(`[build:admin] Ejecutando: node "${nextBin}" build...`);
+    execSync(`node "${nextBin}" build`, { cwd: ROOT, stdio: 'inherit', env });
+    buildOk = true;
+  } catch (err) {
+    console.warn('[build:admin] Error con node nextBin, intentando npx next build...');
+  }
+}
+
+if (!buildOk) {
+  try {
+    execSync('npx next build', { cwd: ROOT, stdio: 'inherit', env });
+    buildOk = true;
+  } catch (err) {
+    console.error('[build:admin] ❌ Error compilando Next.js en admin:', err.message);
     process.exit(1);
   }
-} else {
-  console.log('[build:admin] ✅ Admin compilation successful.');
 }
 
-// Copiar assets (views y public) a dist/
-const copyScript = path.join(ROOT, 'scripts/copy-assets.mjs');
-if (fs.existsSync(copyScript)) {
-  try {
-    execSync(`node "${copyScript}"`, { stdio: 'inherit' });
-  } catch (e) {
-    console.warn('[build:admin] Warning copying assets:', e.message);
-  }
+const outDir = path.join(ROOT, 'out');
+if (fs.existsSync(outDir)) {
+  console.log('[build:admin] ✅ Exportación estática generada exitosamente en admin/out/');
+} else {
+  console.error('[build:admin] ❌ No se encontró la carpeta admin/out/ tras el build.');
+  process.exit(1);
 }
