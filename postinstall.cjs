@@ -56,7 +56,7 @@ try {
 
 try {
   console.log('> [postinstall] Generando cliente Prisma ORM...');
-  execSync('npx prisma generate --schema=apps/backend/prisma/schema.prisma', { stdio: 'inherit' });
+  execSync('npx prisma generate --schema=backend/prisma/schema.prisma', { stdio: 'inherit' });
   console.log('✅ [postinstall] Cliente Prisma generado con éxito.');
 } catch (e) {
   console.warn('⚠️ [postinstall] Warning prisma generate:', e.message);
@@ -65,35 +65,35 @@ try {
 if (process.env.DATABASE_URL) {
   try {
     console.log('> [postinstall] Sincronizando esquema de base de datos con Prisma db push...');
-    execSync('npx prisma db push --schema=apps/backend/prisma/schema.prisma --accept-data-loss', { stdio: 'inherit' });
+    execSync('npx prisma db push --schema=backend/prisma/schema.prisma --accept-data-loss', { stdio: 'inherit' });
     console.log('✅ [postinstall] Prisma db push completado.');
   } catch (e) {
     console.warn('⚠️ [postinstall] Warning prisma db push:', e.message);
   }
 }
 
-const backendDist = path.resolve(process.cwd(), 'apps/backend/dist/index.js');
-const adminDist = path.resolve(process.cwd(), 'apps/admin/dist/index.js');
+const backendDist = path.resolve(process.cwd(), 'backend/dist/index.js');
+const adminDist = path.resolve(process.cwd(), 'admin/dist/index.js');
 
 if (fs.existsSync(backendDist)) {
   console.log('✅ [postinstall] Backend dist/ ya existe — omitiendo compilación TypeScript.');
 } else {
-  run('npm run build', 'apps/backend');
+  run('npm run build', 'backend');
 }
 
 if (fs.existsSync(adminDist)) {
   console.log('✅ [postinstall] Admin dist/ ya existe — omitiendo compilación TypeScript.');
 } else {
-  run('npm run build', 'apps/admin');
+  run('npm run build', 'admin');
 }
 
 // ── 2. PREPARAR LOCAL public_html COMPLETO ─────────────────────────────────────
 console.log('[postinstall] === 2/4 Preparando public_html local con Frontend, Admin y API ===');
 const rootDir = process.cwd();
 const localPublicHtml = path.resolve(rootDir, 'public_html');
-const frontendOut = path.resolve(rootDir, 'apps/frontend/out');
-const adminPublicDir = path.resolve(rootDir, 'apps/admin/public');
-const adminUploadsDir = path.resolve(rootDir, 'apps/admin/uploads');
+const frontendOut = path.resolve(rootDir, 'frontend/out');
+const adminPublicDir = path.resolve(rootDir, 'admin/public');
+const adminUploadsDir = path.resolve(rootDir, 'admin/uploads');
 
 fs.mkdirSync(localPublicHtml, { recursive: true });
 const localAdminDir = path.join(localPublicHtml, 'admin');
@@ -586,7 +586,7 @@ try {
     if (fs.existsSync(path.dirname(target))) {
       try {
         fs.mkdirSync(target, { recursive: true });
-        const itemsToCopy = ['server.js', 'package.json', 'out', 'apps', 'packages', 'public_html', '.env', '.env.production'];
+        const itemsToCopy = ['server.js', 'package.json', 'proxy-api.php', '.npmrc', 'admin', 'backend', 'frontend', 'out', 'public_html', '.env', '.env.production'];
         itemsToCopy.forEach(item => {
           const itemSrc = path.join(process.cwd(), item);
           const itemDest = path.join(target, item);

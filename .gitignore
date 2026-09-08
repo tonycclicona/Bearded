@@ -45,13 +45,13 @@ coverage/
 *.tsbuildinfo
 
 # Prisma (migrations MUST be committed for deploys)
-apps/backend/prisma/*.js
-apps/backend/prisma/*.d.ts
-apps/backend/prisma/*.js.map
+backend/prisma/*.js
+backend/prisma/*.d.ts
+backend/prisma/*.js.map
 
 # Uploaded media (runtime content)
-apps/admin/uploads/*
-!apps/admin/uploads/.gitkeep
+admin/uploads/*
+!admin/uploads/.gitkeep
 
 # Misc
 *.zip

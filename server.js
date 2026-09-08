@@ -91,15 +91,15 @@ function loadEnv(file) {
 
 loadEnv(path.resolve(__dirname, '.env.production'));
 loadEnv(path.resolve(__dirname, '.env'));
-loadEnv(path.resolve(__dirname, 'apps/backend/.env.production'));
-loadEnv(path.resolve(__dirname, 'apps/backend/.env'));
+loadEnv(path.resolve(__dirname, 'backend/.env.production'));
+loadEnv(path.resolve(__dirname, 'backend/.env'));
 
 // ── 1. Inicialización Asíncrona de Módulos (Sin bloquear el arranque HTTP) ──
 let backendApp = null;
 let adminApp = null;
 
-const backendDistPath = path.resolve(__dirname, 'apps/backend/dist/index.js');
-const backendSrcPath = path.resolve(__dirname, 'apps/backend/src/index.ts');
+const backendDistPath = path.resolve(__dirname, 'backend/dist/index.js');
+const backendSrcPath = path.resolve(__dirname, 'backend/src/index.ts');
 const backendPath = fs.existsSync(backendDistPath) ? backendDistPath : (fs.existsSync(backendSrcPath) ? backendSrcPath : null);
 
 if (backendPath) {
@@ -113,8 +113,8 @@ if (backendPath) {
     });
 }
 
-const adminDistPath = path.resolve(__dirname, 'apps/admin/dist/index.js');
-const adminSrcPath = path.resolve(__dirname, 'apps/admin/src/index.ts');
+const adminDistPath = path.resolve(__dirname, 'admin/dist/index.js');
+const adminSrcPath = path.resolve(__dirname, 'admin/src/index.ts');
 const adminPath = fs.existsSync(adminDistPath) ? adminDistPath : (fs.existsSync(adminSrcPath) ? adminSrcPath : null);
 
 if (adminPath) {
@@ -129,8 +129,8 @@ if (adminPath) {
 }
 
 // ── 2. Servir Archivos Estáticos de Admin & Uploads ───────────────────────────
-const uploadsDir = path.resolve(__dirname, 'apps/admin/uploads');
-const adminPublicDir = path.resolve(__dirname, 'apps/admin/public');
+const uploadsDir = path.resolve(__dirname, 'admin/uploads');
+const adminPublicDir = path.resolve(__dirname, 'admin/public');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
@@ -187,8 +187,8 @@ app.use((req, res, next) => {
 });
 
 // ── 5. Frontend Estático (Next.js export) ─────────────────────────────────────
-const frontendDir = fs.existsSync(path.resolve(__dirname, 'apps/frontend/out'))
-  ? path.resolve(__dirname, 'apps/frontend/out')
+const frontendDir = fs.existsSync(path.resolve(__dirname, 'frontend/out'))
+  ? path.resolve(__dirname, 'frontend/out')
   : (fs.existsSync(path.resolve(__dirname, 'out')) ? path.resolve(__dirname, 'out') : path.resolve(__dirname, 'public_html'));
 
 if (fs.existsSync(frontendDir)) {
