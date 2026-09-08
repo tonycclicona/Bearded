@@ -189,7 +189,7 @@ if (fs.existsSync(frontendDir)) {
 
 // ── 6. Iniciar Servidor (Sincrónico Inmediato para LiteSpeed / Passenger) ────
 const PORT = process.env.PORT || process.env.GATEWAY_PORT || 4000;
-const server = app.listen(PORT, () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
   logDebug(`> [Server] Servidor Express iniciado inmediatamente en puerto: ${PORT}`);
   
   // Guardar archivo .node_port para que los proxies PHP detecten el puerto
