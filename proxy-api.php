@@ -1,7 +1,7 @@
 <?php
 // ==============================================================================
 // proxy-api.php — Bearded Mountaineer Lodge Dynamic Reverse Proxy
-// Replicación exacta del gateway LiteSpeed / PHP -> Node.js de Unu-Raymi
+// Replicación limpia del gateway LiteSpeed / PHP -> Node.js de Unu-Raymi
 // ==============================================================================
 
 header("Access-Control-Allow-Origin: *");
@@ -32,15 +32,16 @@ if ($isAdmin && strpos($requestUri, '/admin') !== 0 && strpos($requestUri, '/sta
     $requestUri = str_replace('/admin//', '/admin/', $requestUri);
 }
 
-// Buscar puerto activo desde archivos de señal
+// ── 1. Detectar puerto activo de Node.js ──────────────────────────────────────
 $possiblePortFiles = [
     __DIR__ . '/.node_port',
     __DIR__ . '/../.node_port',
     __DIR__ . '/../../.node_port',
+    dirname(__DIR__) . '/.node_port',
     sys_get_temp_dir() . '/bearded_node_port'
 ];
 
-$detectedPort = 4000;
+$detectedPort = null;
 foreach ($possiblePortFiles as $pFile) {
     if (file_exists($pFile)) {
         $val = trim(@file_get_contents($pFile));
@@ -51,32 +52,31 @@ foreach ($possiblePortFiles as $pFile) {
     }
 }
 
-// Targets locales a Node.js (Patrón Unu-Raymi)
-$targets = [
-    "http://127.0.0.1:{$detectedPort}",
-    'http://127.0.0.1:4000',
-    'http://127.0.0.1:3000',
-    'http://127.0.0.1:3001',
-    'http://127.0.0.1:3002'
-];
+// ── 2. Lista de targets locales prioritarios ──────────────────────────────────
+$targets = [];
 
-$gatewayEnvPort = getenv('GATEWAY_PORT') ?: ($_SERVER['GATEWAY_PORT'] ?? ($_ENV['GATEWAY_PORT'] ?? null));
-if ($gatewayEnvPort && is_numeric($gatewayEnvPort)) {
-    array_unshift($targets, "http://127.0.0.1:{$gatewayEnvPort}");
+if ($detectedPort) {
+    $targets[] = "http://127.0.0.1:{$detectedPort}";
 }
 
 $portEnv = getenv('PORT') ?: ($_SERVER['PORT'] ?? ($_ENV['PORT'] ?? null));
 if ($portEnv && is_numeric($portEnv)) {
-    array_unshift($targets, "http://127.0.0.1:{$portEnv}");
+    $targets[] = "http://127.0.0.1:{$portEnv}";
 }
+
+$gatewayEnvPort = getenv('GATEWAY_PORT') ?: ($_SERVER['GATEWAY_PORT'] ?? ($_ENV['GATEWAY_PORT'] ?? null));
+if ($gatewayEnvPort && is_numeric($gatewayEnvPort)) {
+    $targets[] = "http://127.0.0.1:{$gatewayEnvPort}";
+}
+
+$targets[] = 'http://127.0.0.1:4000';
+$targets[] = 'http://127.0.0.1:3000';
+$targets[] = 'http://127.0.0.1:3001';
+$targets[] = 'http://127.0.0.1:3002';
 
 $targets = array_values(array_unique($targets));
 
-$response = false;
-$httpCode = 0;
-$contentType = '';
-$responseHeaders = [];
-
+// ── 3. Headers a reenviar ─────────────────────────────────────────────────────
 $headers = [];
 $incomingHeaders = function_exists('getallheaders') ? getallheaders() : [];
 foreach ($incomingHeaders as $name => $value) {
@@ -117,20 +117,26 @@ if ($isMultipart) {
     $body = file_get_contents('php://input');
 }
 
-// Conexión directa TCP local hacia Node.js
+// ── 4. Conexión rápida TCP local hacia Node.js ────────────────────────────────
+$response = false;
+$httpCode = 0;
+$responseHeaders = [];
+
 foreach ($targets as $baseTarget) {
     $targetUrl = $baseTarget . $requestUri;
     $ch = curl_init($targetUrl);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $_SERVER['REQUEST_METHOD']);
     curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
-    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT_MS, 1200);
     curl_setopt($ch, CURLOPT_TIMEOUT, 30);
     
     $reqHeaders = $headers;
     $reqHeaders[] = "Host: " . ($_SERVER['HTTP_HOST'] ?? 'localhost');
     $reqHeaders[] = "X-Forwarded-For: " . ($_SERVER['REMOTE_ADDR'] ?? '127.0.0.1');
     $reqHeaders[] = "X-Forwarded-Proto: " . (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http');
+    $reqHeaders[] = "X-Forwarded-Host: " . ($_SERVER['HTTP_HOST'] ?? 'localhost');
+    $reqHeaders[] = "X-Bypass-Proxy: 1";
 
     $respHeaders = [];
     curl_setopt($ch, CURLOPT_HEADERFUNCTION, function($c, $h) use (&$respHeaders) {
@@ -158,12 +164,13 @@ foreach ($targets as $baseTarget) {
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
 
-    if ($httpCode >= 200 && $httpCode < 500 && $response !== false) {
+    if ($httpCode > 0 && $response !== false) {
         $responseHeaders = $respHeaders;
         break;
     }
 }
 
+// ── 5. Devolver respuesta ─────────────────────────────────────────────────────
 if ($httpCode > 0 && $response !== false) {
     http_response_code($httpCode);
     foreach ($responseHeaders as $h) {
@@ -180,7 +187,7 @@ header("Content-Type: application/json; charset=UTF-8");
 http_response_code(502);
 echo json_encode([
     "success" => false,
-    "error" => "El servidor Node.js de Bearded Mountaineer Lodge no está respondiendo en los puertos locales (4000/3000) ni en el gateway. Asegúrate de iniciar la aplicación Node.js en el panel de Hostinger.",
+    "error" => "El servidor Node.js de Bearded Mountaineer Lodge no está respondiendo en los puertos locales. Asegúrate de iniciar la aplicación Node.js en el panel de Hostinger.",
     "path" => $requestUri,
     "timestamp" => date("c")
 ]);

@@ -14,6 +14,9 @@ const app = express();
 app.disable('x-powered-by');
 app.set('trust proxy', true);
 
+// Prevenir que sub-apps llamen a app.listen por su cuenta
+process.env.UNIFIED_SERVER = 'true';
+
 // ── Cargar variables de entorno (Patrón Unu-Raymi) ─────────────────────────────
 function loadEnv(file) {
   if (fs.existsSync(file)) {
@@ -48,6 +51,7 @@ const frontendDir = fs.existsSync(path.resolve(__dirname, 'frontend/out'))
   ? path.resolve(__dirname, 'frontend/out')
   : path.resolve(__dirname, 'out');
 
+const adminDir = path.resolve(__dirname, 'admin/out');
 const uploadsDir = path.resolve(__dirname, 'admin/uploads');
 const adminPublicDir = path.resolve(__dirname, 'admin/public');
 
@@ -56,6 +60,7 @@ if (!fs.existsSync(uploadsDir)) {
 }
 
 console.log('> [Server] Frontend dir:', frontendDir);
+console.log('> [Server] Admin dir:', adminDir);
 
 // ── Sincronizar frontend/out a public_html en tiempo de ejecución ────────────
 try {
@@ -76,11 +81,14 @@ try {
 
 // ── 1. CARGAR BACKEND API (ASÍNCRONO CON PATH TO FILE URL) ────────────────────
 let backendApp = null;
-const resolvedBackendPath = fs.existsSync(path.resolve(__dirname, 'backend/dist/index.js'))
-  ? path.resolve(__dirname, 'backend/dist/index.js')
-  : path.resolve(__dirname, 'backend/src/index.ts');
+const resolvedBackendPath = [
+  path.resolve(__dirname, 'backend/dist/index.js'),
+  path.resolve(__dirname, 'backend/src/index.ts'),
+  path.resolve(__dirname, 'backend/dist/server.js'),
+  path.resolve(__dirname, 'backend/src/server.js')
+].find(function(p) { return fs.existsSync(p); });
 
-if (fs.existsSync(resolvedBackendPath)) {
+if (resolvedBackendPath) {
   import(pathToFileURL(resolvedBackendPath).href)
     .then(function(m) {
       backendApp = m.default || m.app || m;
@@ -93,11 +101,14 @@ if (fs.existsSync(resolvedBackendPath)) {
 
 // ── 2. CARGAR ADMIN PANEL (ASÍNCRONO CON PATH TO FILE URL) ────────────────────
 let adminApp = null;
-const resolvedAdminPath = fs.existsSync(path.resolve(__dirname, 'admin/dist/index.js'))
-  ? path.resolve(__dirname, 'admin/dist/index.js')
-  : path.resolve(__dirname, 'admin/src/index.ts');
+const resolvedAdminPath = [
+  path.resolve(__dirname, 'admin/dist/index.js'),
+  path.resolve(__dirname, 'admin/src/index.ts'),
+  path.resolve(__dirname, 'admin/dist/server.js'),
+  path.resolve(__dirname, 'admin/src/server.js')
+].find(function(p) { return fs.existsSync(p); });
 
-if (fs.existsSync(resolvedAdminPath)) {
+if (resolvedAdminPath) {
   import(pathToFileURL(resolvedAdminPath).href)
     .then(function(m) {
       adminApp = m.default || m.app || m;
@@ -108,13 +119,13 @@ if (fs.existsSync(resolvedAdminPath)) {
     });
 }
 
-// ── 3. SERVIR ARCHIVOS ESTÁTICOS DE ADMIN Y UPLOADS ───────────────────────────
+// ── Servir archivos estáticos de Admin y Uploads ──────────────────────────────
 app.use('/uploads', express.static(uploadsDir));
 app.use('/admin/uploads', express.static(uploadsDir));
 app.use('/admin/static', express.static(adminPublicDir));
 app.use('/static', express.static(adminPublicDir));
 
-// ── 4. RUTEO DE API Y CABECERAS CORS (Patrón Unu-Raymi) ──────────────────────
+// ── 3. RUTEO DE API Y CABECERAS CORS (Patrón Unu-Raymi) ──────────────────────
 app.use(function(req, res, next) {
   res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
   res.header('Access-Control-Allow-Credentials', 'true');
@@ -128,6 +139,7 @@ app.use(function(req, res, next) {
   const host = (req.headers.host || '').toLowerCase();
   if (host.startsWith('api.') || req.url.startsWith('/api') || req.url.startsWith('/uploads')) {
     if (typeof backendApp === 'function') {
+      // Si la petición viene a api.beardedmountaineerlodge.com/auth/login (sin prefijo /api y no es uploads), prefijarla para que Express la reconozca
       if (host.startsWith('api.') && !req.url.startsWith('/api') && !req.url.startsWith('/uploads')) {
         req.url = '/api' + (req.url.startsWith('/') ? req.url : '/' + req.url);
       }
@@ -138,7 +150,7 @@ app.use(function(req, res, next) {
   next();
 });
 
-// ── 5. RUTEO DE ADMIN (Patrón Unu-Raymi) ───────────────────────────────────────
+// ── 4. RUTEO DE ADMIN (Patrón Unu-Raymi) ───────────────────────────────────────
 app.use(function(req, res, next) {
   const host = (req.headers.host || '').toLowerCase();
   if (host.startsWith('admin.') || req.url.startsWith('/admin')) {
@@ -149,12 +161,22 @@ app.use(function(req, res, next) {
       }
       return adminApp(req, res, next);
     }
-    return res.status(200).send('Cargando panel de administración...');
+    if (fs.existsSync(adminDir)) {
+      return express.static(adminDir, { extensions: ['html'] })(req, res, function() {
+        const parsed = req.path.replace(/^\/+|\/+$/g, '').split('/');
+        if (parsed.length >= 3 && parsed[2] === 'editar') {
+          const editPage = path.join(adminDir, parsed[0], '1', 'editar', 'index.html');
+          if (fs.existsSync(editPage)) return res.sendFile(editPage);
+        }
+        res.sendFile(path.join(adminDir, 'index.html'));
+      });
+    }
+    return res.status(200).send('<!DOCTYPE html><html><head><title>Admin Panel</title></head><body>Iniciando panel de administración...</body></html>');
   }
   next();
 });
 
-// ── 6. RUTEO DE FRONTEND (DEFAULT - Patrón Unu-Raymi) ─────────────────────────
+// ── 5. RUTEO DE FRONTEND (DEFAULT - Patrón Unu-Raymi) ─────────────────────────
 if (fs.existsSync(frontendDir)) {
   app.use(express.static(frontendDir, { extensions: ['html'] }));
 }
@@ -174,10 +196,18 @@ app.use(function(req, res) {
   res.status(200).send('<!DOCTYPE html><html><head><title>Bearded Mountaineer Lodge</title></head><body>Bearded Mountaineer Lodge</body></html>');
 });
 
-// ── 7. ARRANQUE DEL SERVIDOR (Patrón Unu-Raymi) ──────────────────────────────
+// ── 6. EN ENTORNOS HOSTINGER LITESPEED / NODE.JS ─────────────────────────────
 const port = process.env.PORT || process.env.GATEWAY_PORT || 4000;
 const server = app.listen(port, function() {
   console.log('> [Server] Bearded Mountaineer Lodge corriendo en puerto:', port);
+  try {
+    const actualPort = server.address().port;
+    fs.writeFileSync(path.resolve(__dirname, '.node_port'), String(actualPort));
+    const pubPort = path.resolve(__dirname, 'public_html/.node_port');
+    if (fs.existsSync(path.dirname(pubPort))) {
+      fs.writeFileSync(pubPort, String(actualPort));
+    }
+  } catch (_) {}
 });
 
 server.on('error', function(err) {
