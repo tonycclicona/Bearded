@@ -47,105 +47,28 @@ function copyDirSync(src, dest) {
   }
 }
 
-// ── Búsqueda exhaustiva de carpetas webroot de Hostinger ───────────────────────
-function discoverWebroots() {
-  const discovered = {
-    mainPublicHtml: new Set(),
-    adminPublicHtml: new Set(),
-    apiPublicHtml: new Set(),
-    runtimeDirs: new Set()
-  };
-
-  const localPub = path.resolve(process.cwd(), 'public_html');
-  discovered.mainPublicHtml.add(localPub);
-  discovered.adminPublicHtml.add(path.join(localPub, 'admin'));
-  discovered.apiPublicHtml.add(path.join(localPub, 'api'));
-
-  // Si process.cwd() ya es public_html (ej. Hostinger clonó directamente dentro de public_html)
-  if (path.basename(process.cwd()).toLowerCase() === 'public_html') {
-    discovered.mainPublicHtml.add(process.cwd());
-    discovered.adminPublicHtml.add(path.join(process.cwd(), 'admin'));
-    discovered.apiPublicHtml.add(path.join(process.cwd(), 'api'));
-  }
-
-  // 1. Rutas explícitas de Hostinger (Patrón probado de Unu-Raymi para u251936581 y $HOME)
-  const homeCandidates = [
-    process.env.HOME,
-    process.platform === 'linux' ? '/home/u251936581' : null
-  ].filter(Boolean);
-
-  for (const h of homeCandidates) {
-    discovered.mainPublicHtml.add(path.join(h, 'domains/beardedmountaineerlodge.com/public_html'));
-    discovered.mainPublicHtml.add(path.join(h, 'public_html'));
-
-    discovered.adminPublicHtml.add(path.join(h, 'domains/admin.beardedmountaineerlodge.com/public_html'));
-    discovered.adminPublicHtml.add(path.join(h, 'domains/beardedmountaineerlodge.com/public_html/admin'));
-    discovered.adminPublicHtml.add(path.join(h, 'public_html/admin'));
-
-    discovered.apiPublicHtml.add(path.join(h, 'domains/api.beardedmountaineerlodge.com/public_html'));
-    discovered.apiPublicHtml.add(path.join(h, 'domains/beardedmountaineerlodge.com/public_html/api'));
-    discovered.apiPublicHtml.add(path.join(h, 'public_html/api'));
-
-    discovered.runtimeDirs.add(path.join(h, 'domains/beardedmountaineerlodge.com/hbuilds/current/nodejs'));
-  }
-
-  // 2. Búsqueda hacia arriba en el árbol de directorios (hasta 8 niveles)
+function copyToAllPublicHtml(srcDir, label) {
+  if (!fs.existsSync(srcDir)) return;
+  
   let current = process.cwd();
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < 6; i++) {
     const pubCandidate = path.join(current, 'public_html');
-    if (fs.existsSync(pubCandidate)) {
-      discovered.mainPublicHtml.add(pubCandidate);
-      discovered.adminPublicHtml.add(path.join(pubCandidate, 'admin'));
-      discovered.apiPublicHtml.add(path.join(pubCandidate, 'api'));
+    if (fs.existsSync(pubCandidate) && pubCandidate !== srcDir) {
+      try {
+        fs.cpSync(srcDir, pubCandidate, { recursive: true });
+        console.log(`[postinstall] ✅ Copied ${label} to: ${pubCandidate}`);
+      } catch (err) {
+        console.error(`Warning: Failed to copy to ${pubCandidate}:`, err.message);
+      }
     }
-
-    const runCand1 = path.resolve(current, '../current/nodejs');
-    const runCand2 = path.resolve(current, '../../current/nodejs');
-    if (fs.existsSync(path.dirname(runCand1))) discovered.runtimeDirs.add(runCand1);
-    if (fs.existsSync(path.dirname(runCand2))) discovered.runtimeDirs.add(runCand2);
-
     const parent = path.dirname(current);
     if (parent === current) break;
     current = parent;
   }
-
-  // 3. Escaneo inteligente de dominios en HOME si existe
-  for (const h of homeCandidates) {
-    const domainsDir = path.join(h, 'domains');
-    if (fs.existsSync(domainsDir)) {
-      try {
-        const doms = fs.readdirSync(domainsDir);
-        for (const d of doms) {
-          const dPath = path.join(domainsDir, d);
-          const domPub = path.join(dPath, 'public_html');
-          discovered.mainPublicHtml.add(domPub);
-          discovered.adminPublicHtml.add(path.join(domPub, 'admin'));
-          discovered.apiPublicHtml.add(path.join(domPub, 'api'));
-          discovered.runtimeDirs.add(path.join(dPath, 'hbuilds/current/nodejs'));
-
-          if (d.startsWith('admin.')) {
-            discovered.adminPublicHtml.add(domPub);
-          }
-          if (d.startsWith('api.')) {
-            discovered.apiPublicHtml.add(domPub);
-          }
-        }
-      } catch (_) {}
-    }
-  }
-
-  return {
-    mainPublicHtml: Array.from(discovered.mainPublicHtml),
-    adminPublicHtml: Array.from(discovered.adminPublicHtml),
-    apiPublicHtml: Array.from(discovered.apiPublicHtml),
-    runtimeDirs: Array.from(discovered.runtimeDirs)
-  };
 }
 
-const webroots = discoverWebroots();
-
-// ── 1. BACKEND & PRISMA SETUP ────────────────────────────────────────────────
-console.log('[postinstall] === 1/4 BACKEND & PRISMA setup ===');
+// ── 1. BUILD BACKEND & API SETUP (Patrón Unu-Raymi) ───────────────────────────
+console.log('[postinstall] === 1/3 BACKEND & API setup ===');
 try {
   const nodeModulesPath = path.join(process.cwd(), 'node_modules');
   if (process.platform === 'linux') {
@@ -161,36 +84,85 @@ try {
   console.warn('⚠️ [postinstall] Warning prisma generate:', e.message);
 }
 
-if (process.env.DATABASE_URL) {
-  try {
-    console.log('> [postinstall] Sincronizando esquema de base de datos MySQL...');
-    execSync('npx prisma db push --schema=backend/prisma/schema.prisma --accept-data-loss', { stdio: 'inherit' });
-    console.log('✅ [postinstall] Base de datos sincronizada.');
-  } catch (e) {
-    console.warn('⚠️ [postinstall] Warning prisma db push:', e.message);
-  }
-}
-
 run('npm run build', 'backend');
 
-// ── 2. FRONTEND SETUP (NEXT.JS EXPORT) ────────────────────────────────────────
-console.log('\n[postinstall] === 2/4 FRONTEND setup ===');
-run('npm run build', 'frontend');
+// Crear index.php y .htaccess dentro de public_html/api/ que actúe como proxy hacia Node.js
+try {
+  const proxyContent = fs.existsSync(path.join(process.cwd(), 'proxy-api.php'))
+    ? fs.readFileSync(path.join(process.cwd(), 'proxy-api.php'), 'utf8')
+    : '';
 
-const srcOut = path.join(process.cwd(), 'frontend', 'out');
-const destOut = path.join(process.cwd(), 'out');
-const localPublicHtml = path.join(process.cwd(), 'public_html');
+  const apiCandidates = [
+    '/home/u251936581/domains/api.beardedmountaineerlodge.com/public_html',
+    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/api',
+    '/home/u251936581/public_html/api',
+    path.join(process.cwd(), 'public_html', 'api')
+  ];
 
-if (fs.existsSync(srcOut)) {
-  fs.mkdirSync(destOut, { recursive: true });
-  copyDirSync(srcOut, destOut);
-  fs.mkdirSync(localPublicHtml, { recursive: true });
-  copyDirSync(srcOut, localPublicHtml);
-  console.log('✅ [postinstall] Copiado frontend/out a ./out y ./public_html');
+  if (path.basename(process.cwd()).toLowerCase() === 'public_html') {
+    apiCandidates.push(path.join(process.cwd(), 'api'));
+  }
+
+  let current = process.cwd();
+  for (let i = 0; i < 6; i++) {
+    apiCandidates.push(path.join(current, 'public_html', 'api'));
+    const parent = path.dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+
+  const uniqueApiCandidates = Array.from(new Set(apiCandidates));
+  for (const pubApiCandidate of uniqueApiCandidates) {
+    if (fs.existsSync(path.dirname(pubApiCandidate))) {
+      try {
+        fs.mkdirSync(pubApiCandidate, { recursive: true });
+        if (fs.existsSync(path.join(pubApiCandidate, 'default.php'))) {
+          fs.unlinkSync(path.join(pubApiCandidate, 'default.php'));
+        }
+        if (proxyContent) {
+          fs.writeFileSync(path.join(pubApiCandidate, 'index.php'), proxyContent);
+        }
+
+        const apiHtaccessContent = `<IfModule mod_rewrite.c>
+RewriteEngine On
+RewriteBase /
+RewriteRule ^index\\.php$ - [L]
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule . /index.php [L]
+</IfModule>
+`;
+        fs.writeFileSync(path.join(pubApiCandidate, '.htaccess'), apiHtaccessContent);
+        fs.writeFileSync(path.join(pubApiCandidate, '.node_port'), '4000');
+        console.log(`[postinstall] ✅ Created dynamic API proxy index.php & .htaccess in: ${pubApiCandidate}`);
+      } catch (err) {}
+    }
+  }
+} catch (e) {
+  console.error('Warning API setup:', e.message);
 }
 
-// Plantilla .htaccess principal
-const rootHtaccess = `DirectoryIndex index.html index.php
+// ── 2. BUILD FRONTEND (Patrón Unu-Raymi) ──────────────────────────────────────
+console.log('\n[postinstall] === 2/3 FRONTEND setup ===');
+run('npm run build', 'frontend');
+try {
+  const srcOut = path.join(process.cwd(), 'frontend', 'out');
+  const destOut = path.join(process.cwd(), 'out');
+  if (fs.existsSync(srcOut)) {
+    fs.cpSync(srcOut, destOut, { recursive: true });
+  }
+
+  const publicHtmlTargets = [
+    path.join(process.cwd(), 'public_html'),
+    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html',
+    '/home/u251936581/public_html'
+  ];
+
+  if (path.basename(process.cwd()).toLowerCase() === 'public_html') {
+    publicHtmlTargets.push(process.cwd());
+  }
+
+  const rootHtaccess = `DirectoryIndex index.html index.php
 Options -Indexes +FollowSymLinks
 
 <IfModule mod_mime.c>
@@ -233,138 +205,145 @@ Options -Indexes +FollowSymLinks
 </IfModule>
 `;
 
-// Desplegar frontend a todos los webroots encontrados
-for (const target of webroots.mainPublicHtml) {
-  try {
-    if (fs.existsSync(path.dirname(target))) {
-      fs.mkdirSync(target, { recursive: true });
-      if (fs.existsSync(path.join(target, 'default.php'))) {
-        fs.unlinkSync(path.join(target, 'default.php'));
-      }
-      if (fs.existsSync(srcOut) && target !== srcOut) {
-        copyDirSync(srcOut, target);
-      }
-      fs.writeFileSync(path.join(target, '.htaccess'), rootHtaccess.trim());
-      fs.writeFileSync(path.join(target, '.node_port'), '4000');
-      console.log(`✅ [postinstall] Frontend entregado en webroot: ${target}`);
-    }
-  } catch (err) {
-    console.error(`Warning: Failed to copy frontend to ${target}:`, err.message);
-  }
-}
-
-// ── 3. API SETUP (REVERSE PROXY & HTACCESS) ──────────────────────────────────
-console.log('\n[postinstall] === 3/4 API Proxy setup ===');
-const proxyFile = path.join(process.cwd(), 'proxy-api.php');
-let proxyContent = '';
-if (fs.existsSync(proxyFile)) {
-  proxyContent = fs.readFileSync(proxyFile, 'utf8');
-}
-
-const proxyHtaccess = `Options -Indexes +FollowSymLinks
-<IfModule mod_rewrite.c>
-  RewriteEngine On
-  RewriteBase /
-  RewriteCond %{REQUEST_FILENAME} !-f
-  RewriteCond %{REQUEST_FILENAME} !-d
-  RewriteRule ^(.*)$ index.php [L,QSA]
-</IfModule>
-`;
-
-for (const apiTarget of webroots.apiPublicHtml) {
-  try {
-    if (fs.existsSync(path.dirname(apiTarget))) {
-      fs.mkdirSync(apiTarget, { recursive: true });
-      if (fs.existsSync(path.join(apiTarget, 'default.php'))) {
-        fs.unlinkSync(path.join(apiTarget, 'default.php'));
-      }
-      if (proxyContent) {
-        fs.writeFileSync(path.join(apiTarget, 'index.php'), proxyContent);
-      }
-      fs.writeFileSync(path.join(apiTarget, '.htaccess'), proxyHtaccess.trim());
-      fs.writeFileSync(path.join(apiTarget, '.node_port'), '4000');
-      console.log(`✅ [postinstall] API Proxy entregado en: ${apiTarget}`);
-    }
-  } catch (err) {
-    console.error(`Warning: Failed to setup API in ${apiTarget}:`, err.message);
-  }
-}
-
-// ── 4. ADMIN SETUP (ASSETS & REVERSE PROXY) ──────────────────────────────────
-console.log('\n[postinstall] === 4/4 ADMIN setup ===');
-run('npm run build', 'admin');
-
-const adminPublicSrc = path.join(process.cwd(), 'admin', 'public');
-const adminUploadsSrc = path.join(process.cwd(), 'admin', 'uploads');
-
-const adminHtaccess = `Options -Indexes +FollowSymLinks
-<IfModule mod_rewrite.c>
-  RewriteEngine On
-  RewriteBase /
-  RewriteCond %{REQUEST_FILENAME} -f
-  RewriteRule ^ - [L]
-  RewriteCond %{REQUEST_FILENAME} !-f
-  RewriteCond %{REQUEST_FILENAME} !-d
-  RewriteRule ^(.*)$ index.php [L,QSA]
-</IfModule>
-`;
-
-for (const adminTarget of webroots.adminPublicHtml) {
-  try {
-    if (fs.existsSync(path.dirname(adminTarget))) {
-      fs.mkdirSync(adminTarget, { recursive: true });
-      if (fs.existsSync(path.join(adminTarget, 'default.php'))) {
-        fs.unlinkSync(path.join(adminTarget, 'default.php'));
-      }
-      if (proxyContent) {
-        fs.writeFileSync(path.join(adminTarget, 'index.php'), proxyContent);
-      }
-      fs.writeFileSync(path.join(adminTarget, '.htaccess'), adminHtaccess.trim());
-      fs.writeFileSync(path.join(adminTarget, '.node_port'), '4000');
-
-      // Copiar assets estáticos del panel admin
-      if (fs.existsSync(adminPublicSrc)) {
-        copyDirSync(adminPublicSrc, adminTarget);
-        copyDirSync(adminPublicSrc, path.join(adminTarget, 'static'));
-      }
-      if (fs.existsSync(adminUploadsSrc)) {
-        copyDirSync(adminUploadsSrc, path.join(adminTarget, 'uploads'));
-        copyDirSync(adminUploadsSrc, path.join(path.dirname(adminTarget), 'uploads'));
-      }
-      console.log(`✅ [postinstall] Admin Proxy y Assets entregados en: ${adminTarget}`);
-    }
-  } catch (err) {
-    console.error(`Warning: Failed to setup Admin in ${adminTarget}:`, err.message);
-  }
-}
-
-// ── 5. SINCRONIZACIÓN A DIRECTORIOS DE RUNTIME (HBUILDS / CURRENT / NODEJS) ───
-console.log('\n[postinstall] === Sincronizando con directorios de runtime de Node.js ===');
-for (const runtimeTarget of webroots.runtimeDirs) {
-  try {
-    if (fs.existsSync(path.dirname(runtimeTarget))) {
-      fs.mkdirSync(runtimeTarget, { recursive: true });
-      const itemsToSync = ['server.js', 'package.json', 'out', 'frontend', 'admin', 'backend', '.env', '.node_port'];
-      for (const item of itemsToSync) {
-        const itemSrc = path.join(process.cwd(), item);
-        const itemDest = path.join(runtimeTarget, item);
-        if (fs.existsSync(itemSrc)) {
-          if (fs.statSync(itemSrc).isDirectory()) {
-            copyDirSync(itemSrc, itemDest);
-          } else {
-            fs.copyFileSync(itemSrc, itemDest);
-          }
+  publicHtmlTargets.forEach(target => {
+    if (fs.existsSync(target) && target !== srcOut) {
+      try {
+        if (fs.existsSync(srcOut)) {
+          fs.cpSync(srcOut, target, { recursive: true });
         }
+        if (fs.existsSync(path.join(target, 'default.php'))) {
+          fs.unlinkSync(path.join(target, 'default.php'));
+        }
+        fs.writeFileSync(path.join(target, '.htaccess'), rootHtaccess.trim());
+        fs.writeFileSync(path.join(target, '.node_port'), '4000');
+        console.log(`[postinstall] ✅ Copied frontend static export directly to: ${target}`);
+      } catch (err) {
+        console.error(`Warning: Failed to copy to ${target}:`, err.message);
       }
-      console.log(`✅ [postinstall] Runtime sincronizado en: ${runtimeTarget}`);
     }
-  } catch (_) {}
+  });
+
+  if (fs.existsSync(srcOut)) {
+    copyToAllPublicHtml(srcOut, 'frontend static export');
+  }
+} catch (e) {
+  console.error('Warning: Failed to copy frontend build:', e.message);
 }
+
+// ── 3. BUILD ADMIN (Misma lógica que frontend según Unu-Raymi) ────────────────
+console.log('\n[postinstall] === 3/3 ADMIN setup ===');
+run('npm run build', 'admin');
+try {
+  let adminCurrent = process.cwd();
+  const adminTargets = [
+    '/home/u251936581/domains/admin.beardedmountaineerlodge.com/public_html',
+    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/admin',
+    '/home/u251936581/public_html/admin',
+    path.join(process.cwd(), 'public_html', 'admin')
+  ];
+
+  if (path.basename(process.cwd()).toLowerCase() === 'public_html') {
+    adminTargets.push(path.join(process.cwd(), 'admin'));
+  }
+
+  for (let i = 0; i < 6; i++) {
+    adminTargets.push(path.join(adminCurrent, 'public_html', 'admin'));
+    const parent = path.dirname(adminCurrent);
+    if (parent === adminCurrent) break;
+    adminCurrent = parent;
+  }
+
+  const proxyContent = fs.existsSync(path.join(process.cwd(), 'proxy-api.php'))
+    ? fs.readFileSync(path.join(process.cwd(), 'proxy-api.php'), 'utf8')
+    : '';
+
+  const adminPublicSrc = path.join(process.cwd(), 'admin', 'public');
+  const adminUploadsSrc = path.join(process.cwd(), 'admin', 'uploads');
+
+  const adminHtaccess = `<IfModule mod_rewrite.c>
+RewriteEngine On
+RewriteBase /
+RewriteCond %{REQUEST_FILENAME} -f
+RewriteRule ^ - [L]
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ index.php [L,QSA]
+</IfModule>
+`;
+
+  const uniqueAdminTargets = Array.from(new Set(adminTargets));
+  uniqueAdminTargets.forEach(target => {
+    try {
+      if (fs.existsSync(path.dirname(target))) {
+        fs.mkdirSync(target, { recursive: true });
+        // Eliminar default.php si existe
+        if (fs.existsSync(path.join(target, 'default.php'))) {
+          fs.unlinkSync(path.join(target, 'default.php'));
+        }
+
+        // Copiar assets físicos del admin (estáticos y uploads)
+        if (fs.existsSync(adminPublicSrc)) {
+          copyDirSync(adminPublicSrc, target);
+          copyDirSync(adminPublicSrc, path.join(target, 'static'));
+        }
+        if (fs.existsSync(adminUploadsSrc)) {
+          copyDirSync(adminUploadsSrc, path.join(target, 'uploads'));
+        }
+
+        // Colocar proxy inverso como index.php
+        if (proxyContent) {
+          fs.writeFileSync(path.join(target, 'index.php'), proxyContent);
+        }
+
+        fs.writeFileSync(path.join(target, '.htaccess'), adminHtaccess);
+        fs.writeFileSync(path.join(target, '.node_port'), '4000');
+        console.log(`[postinstall] ✅ Copied admin setup and created .htaccess in: ${target}`);
+      }
+    } catch (err) {
+      console.error(`Warning: Failed to copy admin to ${target}:`, err.message);
+    }
+  });
+} catch (e) {
+  console.error('Warning: Failed to copy admin build:', e.message);
+}
+
+// ── 4. SINCRONIZACIÓN AUTOMÁTICA A CURRENT / NODEJS Y RESTART (Unu-Raymi) ──────
+console.log('\n[postinstall] === Syncing build artifacts to runtime directories ===');
+try {
+  const currentDirs = [
+    '/home/u251936581/domains/beardedmountaineerlodge.com/hbuilds/current/nodejs',
+    path.resolve(process.cwd(), '../current/nodejs'),
+    path.resolve(process.cwd(), '../../current/nodejs')
+  ];
+
+  currentDirs.forEach(target => {
+    if (fs.existsSync(path.dirname(target))) {
+      try {
+        fs.mkdirSync(target, { recursive: true });
+        const itemsToCopy = ['server.js', 'package.json', 'out', 'frontend', 'admin', 'backend', '.env', '.node_port'];
+        itemsToCopy.forEach(item => {
+          const itemSrc = path.join(process.cwd(), item);
+          const itemDest = path.join(target, item);
+          if (fs.existsSync(itemSrc)) {
+            if (fs.statSync(itemSrc).isDirectory()) {
+              copyDirSync(itemSrc, itemDest);
+            } else {
+              fs.copyFileSync(itemSrc, itemDest);
+            }
+          }
+        });
+        console.log(`[postinstall] ✅ Automatically synced app files to: ${target}`);
+      } catch (err) {
+        console.error(`Warning: Failed to sync to ${target}:`, err.message);
+      }
+    }
+  });
+} catch (e) {}
 
 // Crear restart.txt para Passenger / LiteSpeed Node.js
 const restartPaths = [
   path.join(process.cwd(), 'tmp', 'restart.txt'),
-  path.join(localPublicHtml, 'tmp', 'restart.txt')
+  path.join(process.cwd(), 'public_html', 'tmp', 'restart.txt')
 ];
 for (const rPath of restartPaths) {
   try {
@@ -373,5 +352,5 @@ for (const rPath of restartPaths) {
   } catch (_) {}
 }
 
-console.log('\n[postinstall] ✅ Monorepo preparado y entregado exitosamente.\n');
+console.log('\n[postinstall] ✅ All subapps built and delivered successfully.\n');
 process.exit(0);

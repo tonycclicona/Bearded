@@ -1,75 +1,61 @@
 // ==============================================================================
-// server.js — Servidor Unificado Express (Backend API + Admin Panel + Frontend)
-// Arquitectura agnóstica y resiliente para desarrollo local y producción
+// server.js — Bearded Mountaineer Lodge Single Web App Engine
+// Arquitectura probada y optimizada basada en Unu-Raymi para Hostinger LiteSpeed
 // ==============================================================================
 
-import express from 'express';
-import path from 'path';
-import fs from 'fs';
-import os from 'os';
-import { fileURLToPath, pathToFileURL } from 'url';
+'use strict';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const fs = require('fs');
+const path = require('path');
+const express = require('express');
+const { pathToFileURL } = require('url');
 
 const app = express();
 app.disable('x-powered-by');
 app.set('trust proxy', true);
 
-process.env.UNIFIED_SERVER = 'true';
-
-function logDebug(msg) {
-  console.log(msg);
-}
-
-process.on('uncaughtException', (err) => {
-  logDebug(`[FATAL UNCAUGHT EXCEPTION]: ${err.stack || err.message}`);
-});
-
-process.on('unhandledRejection', (reason) => {
-  logDebug(`[UNHANDLED REJECTION]: ${reason?.stack || reason}`);
-});
-
-process.on('SIGTERM', () => {
-  logDebug('[SIGNAL RECEIVED]: SIGTERM recibido');
-});
-
-process.on('SIGINT', () => {
-  logDebug('[SIGNAL RECEIVED]: SIGINT recibido');
-});
-
-logDebug(`Iniciando server.js en Node ${process.version} (PID: ${process.pid}, CWD: ${process.cwd()})`);
-
-// ── 0. Cargar Variables de Entorno ──────────────────────────────────────────
+// ── Cargar Variables de Entorno ───────────────────────────────────────────────
 function loadEnv(file) {
   if (fs.existsSync(file)) {
     try {
       const lines = fs.readFileSync(file, 'utf8').split('\n');
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (trimmed && !trimmed.startsWith('#')) {
-          const eq = trimmed.indexOf('=');
+      lines.forEach(function(l) {
+        const t = l.trim();
+        if (t && !t.startsWith('#')) {
+          const eq = t.indexOf('=');
           if (eq !== -1) {
-            const key = trimmed.substring(0, eq).trim();
-            let val = trimmed.substring(eq + 1).trim();
-            if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
-              val = val.substring(1, val.length - 1);
+            const k = t.substring(0, eq).trim();
+            let v = t.substring(eq + 1).trim();
+            if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+              v = v.substring(1, v.length - 1);
             }
-            if (key === 'PORT') continue;
-            if (!process.env[key]) {
-              process.env[key] = val;
-            }
+            if (k === 'PORT' && process.env.PORT) return;
+            if (!process.env[k]) process.env[k] = v;
           }
         }
-      }
-    } catch (_) {}
+      });
+    } catch (e) {}
   }
 }
 
 loadEnv(path.resolve(__dirname, '.env'));
 loadEnv(path.resolve(__dirname, 'backend/.env'));
 
-// ── Sincronizar frontend/out a public_html en tiempo de ejecución (Patrón Unu-Raymi) ──
+// ── Directorios de Compilación ────────────────────────────────────────────────
+const frontendDir = fs.existsSync(path.resolve(__dirname, 'frontend/out'))
+  ? path.resolve(__dirname, 'frontend/out')
+  : path.resolve(__dirname, 'out');
+
+const uploadsDir = path.resolve(__dirname, 'admin/uploads');
+const adminPublicDir = path.resolve(__dirname, 'admin/public');
+
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+console.log('> [Server] Frontend dir:', frontendDir);
+
+// ── Sincronizar frontend a public_html en tiempo de ejecución (Patrón Unu-Raymi) ──
 try {
   const pubTargets = [
     path.resolve(__dirname, 'public_html'),
@@ -79,86 +65,71 @@ try {
     process.env.HOME ? path.join(process.env.HOME, 'public_html') : null
   ].filter(Boolean);
 
-  const fDir = fs.existsSync(path.resolve(__dirname, 'frontend/out'))
-    ? path.resolve(__dirname, 'frontend/out')
-    : (fs.existsSync(path.resolve(__dirname, 'out')) ? path.resolve(__dirname, 'out') : null);
-
-  if (fDir) {
-    pubTargets.forEach((target) => {
-      if (fs.existsSync(target) && target !== fDir) {
-        fs.cpSync(fDir, target, { recursive: true });
-        logDebug(`> [Server] Sincronizado frontend estático hacia: ${target}`);
-      }
-    });
-  }
+  pubTargets.forEach(function(target) {
+    if (fs.existsSync(target) && fs.existsSync(frontendDir) && target !== frontendDir) {
+      fs.cpSync(frontendDir, target, { recursive: true });
+      console.log('> [Server] Sincronizado frontend estático hacia:', target);
+    }
+  });
 } catch (e) {
-  logDebug(`> [Server] Advertencia sincronizando public_html: ${e.message}`);
+  console.error('> [Server] Warning sincronizando a public_html:', e.message);
 }
 
-// ── 1. Inicialización Asíncrona de Módulos (Sin bloquear el arranque HTTP) ──
+// ── 1. CARGAR BACKEND API (ASÍNCRONO CON PATH TO FILE URL) ────────────────────
 let backendApp = null;
-let adminApp = null;
+const resolvedBackendPath = fs.existsSync(path.resolve(__dirname, 'backend/dist/index.js'))
+  ? path.resolve(__dirname, 'backend/dist/index.js')
+  : path.resolve(__dirname, 'backend/src/index.ts');
 
-const backendDistPath = path.resolve(__dirname, 'backend/dist/index.js');
-const backendSrcPath = path.resolve(__dirname, 'backend/src/index.ts');
-const backendPath = fs.existsSync(backendDistPath) ? backendDistPath : (fs.existsSync(backendSrcPath) ? backendSrcPath : null);
-
-if (backendPath) {
-  import(pathToFileURL(backendPath).href)
-    .then((m) => {
+if (fs.existsSync(resolvedBackendPath)) {
+  import(pathToFileURL(resolvedBackendPath).href)
+    .then(function(m) {
       backendApp = m.default || m.app || m;
-      logDebug('> [Server] Backend API montado exitosamente.');
+      console.log('> [Server] Backend API montado exitosamente desde:', resolvedBackendPath);
     })
-    .catch((err) => {
-      logDebug(`> [Server Error Backend]: ${err.message}`);
+    .catch(function(err) {
+      console.error('> [Server] Error backend API:', err.message);
     });
 }
 
-const adminDistPath = path.resolve(__dirname, 'admin/dist/index.js');
-const adminSrcPath = path.resolve(__dirname, 'admin/src/index.ts');
-const adminPath = fs.existsSync(adminDistPath) ? adminDistPath : (fs.existsSync(adminSrcPath) ? adminSrcPath : null);
+// ── 2. CARGAR ADMIN PANEL (ASÍNCRONO CON PATH TO FILE URL) ────────────────────
+let adminApp = null;
+const resolvedAdminPath = fs.existsSync(path.resolve(__dirname, 'admin/dist/index.js'))
+  ? path.resolve(__dirname, 'admin/dist/index.js')
+  : path.resolve(__dirname, 'admin/src/index.ts');
 
-if (adminPath) {
-  import(pathToFileURL(adminPath).href)
-    .then((m) => {
+if (fs.existsSync(resolvedAdminPath)) {
+  import(pathToFileURL(resolvedAdminPath).href)
+    .then(function(m) {
       adminApp = m.default || m.app || m;
-      logDebug('> [Server] Admin Panel montado exitosamente.');
+      console.log('> [Server] Admin Panel montado exitosamente desde:', resolvedAdminPath);
     })
-    .catch((err) => {
-      logDebug(`> [Server Error Admin]: ${err.message}`);
+    .catch(function(err) {
+      console.error('> [Server] Error admin:', err.message);
     });
 }
 
-// ── 2. Servir Archivos Estáticos de Admin & Uploads ───────────────────────────
-const uploadsDir = path.resolve(__dirname, 'admin/uploads');
-const adminPublicDir = path.resolve(__dirname, 'admin/public');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
-
+// ── 3. SERVIR ARCHIVOS ESTÁTICOS DE ADMIN Y UPLOADS ───────────────────────────
 app.use('/uploads', express.static(uploadsDir));
 app.use('/admin/uploads', express.static(uploadsDir));
 app.use('/admin/static', express.static(adminPublicDir));
 app.use('/static', express.static(adminPublicDir));
 
-// ── 3. Cabeceras CORS Globales y Ruteo de API ────────────────────────────────
-app.use((req, res, next) => {
+// ── 4. RUTEO DE API Y CABECERAS CORS (Patrón Unu-Raymi) ──────────────────────
+app.use(function(req, res, next) {
   res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
   res.header('Access-Control-Allow-Credentials', 'true');
   res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS,PATCH');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cookie');
 
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
   }
 
   const host = (req.headers.host || '').toLowerCase();
-  const isApiSubdomain = host.startsWith('api.');
-  const isApiPath = req.url.startsWith('/api');
-
-  if (isApiSubdomain || isApiPath) {
+  if (host.startsWith('api.') || req.url.startsWith('/api') || req.url.startsWith('/uploads')) {
     if (typeof backendApp === 'function') {
-      if (isApiSubdomain && !req.url.startsWith('/api')) {
+      if (host.startsWith('api.') && !req.url.startsWith('/api') && !req.url.startsWith('/uploads')) {
         req.url = '/api' + (req.url.startsWith('/') ? req.url : '/' + req.url);
       }
       return backendApp(req, res, next);
@@ -168,110 +139,82 @@ app.use((req, res, next) => {
   next();
 });
 
-// ── 4. Ruteo de Admin Panel (admin.dominio o /admin) ──────────────────────────
-app.use((req, res, next) => {
+// ── 5. RUTEO DE ADMIN (Patrón Unu-Raymi) ───────────────────────────────────────
+app.use(function(req, res, next) {
   const host = (req.headers.host || '').toLowerCase();
-  const isAdminSubdomain = host.startsWith('admin.');
-  const isAdminPath = req.url.startsWith('/admin');
-
-  if (isAdminSubdomain || isAdminPath) {
+  if (host.startsWith('admin.') || req.url.startsWith('/admin')) {
     if (typeof adminApp === 'function') {
-      if (isAdminSubdomain && !req.url.startsWith('/admin')) {
+      if (host.startsWith('admin.') && !req.url.startsWith('/admin')) {
         req.url = '/admin' + (req.url.startsWith('/') ? req.url : '/' + req.url);
         req.url = req.url.replace('/admin//', '/admin/');
       }
       return adminApp(req, res, next);
     }
-    return res.status(200).json({ success: true, status: 'starting', service: 'Bearded Admin' });
+    return res.status(200).send('Cargando panel de administración...');
   }
   next();
 });
 
-// ── 5. Frontend Estático (Next.js export) ─────────────────────────────────────
-const frontendDir = fs.existsSync(path.resolve(__dirname, 'frontend/out'))
-  ? path.resolve(__dirname, 'frontend/out')
-  : (fs.existsSync(path.resolve(__dirname, 'out')) ? path.resolve(__dirname, 'out') : path.resolve(__dirname, 'public_html'));
-
+// ── 6. RUTEO DE FRONTEND (DEFAULT) ────────────────────────────────────────────
 if (fs.existsSync(frontendDir)) {
   app.use(express.static(frontendDir, { extensions: ['html'] }));
-
-  // Fallback SPA
-  app.use((req, res) => {
-    const indexPath = path.join(frontendDir, 'index.html');
-    if (fs.existsSync(indexPath)) {
-      return res.sendFile(indexPath);
-    }
-    res.status(200).send('<!DOCTYPE html><html><head><title>Bearded Mountaineer Lodge</title></head><body>Cargando...</body></html>');
-  });
-} else {
-  app.use((_req, res) => {
-    res.status(200).send('Bearded Mountaineer Lodge - Sistema iniciado.');
-  });
 }
 
-// ── 6. Iniciar Servidor TCP ──────────────────────────────────────────────────
-const PORT = process.env.PORT || process.env.GATEWAY_PORT || 4000;
-const server = app.listen(PORT, '0.0.0.0', () => {
-  logDebug(`> [Server] Servidor Express iniciado en TCP puerto: ${PORT}`);
-  
-  // Guardar archivo .node_port para que proxies PHP detecten el puerto dinámico
+// Fallback SPA Frontend
+app.use(function(req, res) {
+  const candidates = [
+    path.join(frontendDir, 'index.html'),
+    path.resolve(__dirname, 'out/index.html'),
+    path.resolve(__dirname, 'public_html/index.html')
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) {
+      return res.sendFile(c);
+    }
+  }
+  res.status(200).send('<!DOCTYPE html><html><head><title>Bearded Mountaineer Lodge</title></head><body>Bearded Mountaineer Lodge</body></html>');
+});
+
+// ── 7. ARRANQUE DEL SERVIDOR TCP ──────────────────────────────────────────────
+const port = process.env.PORT || 4000;
+const server = app.listen(port, function() {
+  console.log('> [Server] Bearded Mountaineer Lodge corriendo en puerto:', port);
+
+  // Guardar archivo .node_port
   const portDestinations = [
     path.resolve(__dirname, '.node_port'),
     path.resolve(__dirname, 'public_html/.node_port'),
     path.resolve(__dirname, 'public_html/api/.node_port'),
-    path.join(os.tmpdir(), 'bearded_node_port')
+    path.resolve(__dirname, 'public_html/admin/.node_port')
   ];
-
-  for (const pFile of portDestinations) {
+  portDestinations.forEach(function(pFile) {
     try {
       const dir = path.dirname(pFile);
       if (fs.existsSync(dir)) {
-        fs.writeFileSync(pFile, String(PORT), 'utf8');
+        fs.writeFileSync(pFile, String(port), 'utf8');
       }
     } catch (_) {}
+  });
+});
+
+server.on('error', function(err) {
+  if (err.code !== 'EADDRINUSE') {
+    console.error('> [Server Error]:', err.message);
   }
 });
 
-server.on('error', (err) => {
-  logDebug(`> [Server Error ${err.code}]: ${err.message}`);
-  if (err.code === 'EADDRINUSE') {
-    const fallbackPort = Number(PORT) === 4000 ? 3001 : 4001;
-    logDebug(`> [Server] Puerto ${PORT} en uso. Intentando en puerto alternativo ${fallbackPort}...`);
-    try {
-      app.listen(fallbackPort, '0.0.0.0', () => {
-        logDebug(`> [Server] Servidor Express iniciado en puerto alternativo: ${fallbackPort}`);
-      });
-    } catch (e) {
-      logDebug(`> [Server Fallback Error]: ${e.message}`);
-    }
-  }
-});
-
-// ── 7. Canal Socket UNIX (Conexión directa inmune a bloqueos TCP en Linux) ────
+// Canal Socket UNIX opcional para Linux
 if (process.platform !== 'win32') {
-  const unixSocketPaths = [
-    path.resolve(__dirname, 'gateway.sock'),
-    path.resolve(__dirname, 'public_html/gateway.sock'),
-    path.join(os.tmpdir(), 'bearded_gateway.sock')
-  ];
-
-  for (const sockPath of unixSocketPaths) {
-    try {
-      const sockDir = path.dirname(sockPath);
-      if (fs.existsSync(sockDir)) {
-        if (fs.existsSync(sockPath)) {
-          try { fs.unlinkSync(sockPath); } catch (_) {}
-        }
-        const sockServer = app.listen(sockPath, () => {
-          try { fs.chmodSync(sockPath, 0o777); } catch (_) {}
-          logDebug(`> [Server] Canal Socket UNIX listo en: ${sockPath}`);
-        });
-        sockServer.on('error', (e) => {
-          logDebug(`> [UNIX Sock Error ${sockPath}]: ${e.message}`);
-        });
-      }
-    } catch (_) {}
-  }
+  const sockPath = path.resolve(__dirname, 'gateway.sock');
+  try {
+    if (fs.existsSync(sockPath)) {
+      try { fs.unlinkSync(sockPath); } catch (_) {}
+    }
+    app.listen(sockPath, function() {
+      try { fs.chmodSync(sockPath, 0o777); } catch (_) {}
+      console.log('> [Server] Canal Socket UNIX listo en:', sockPath);
+    });
+  } catch (_) {}
 }
 
-export default app;
+module.exports = app;
