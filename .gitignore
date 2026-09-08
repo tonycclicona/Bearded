@@ -5,8 +5,6 @@ node_modules/
 # Build outputs
 build/
 .next/
-out/
-**/out/
 public_html/
 **/public_html/
 cookies.txt

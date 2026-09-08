@@ -96,8 +96,13 @@ run('node scripts/build.cjs', 'backend');
 run('node scripts/build.cjs', 'admin');
 
 // ── 3. Build Frontend (Next.js SSG) ───────────────────────────────────────────
-console.log('\n[deploy] [3/4] Compilando Frontend (Next.js SSG)...');
-run('node scripts/build.cjs', 'frontend');
+const frontendOutIndex = path.join(ROOT, 'frontend/out/index.html');
+if (fs.existsSync(frontendOutIndex)) {
+  console.log('\n[deploy] [3/4] frontend/out/ ya existe y está listo (omitiendo compilación pesada en servidor)...');
+} else {
+  console.log('\n[deploy] [3/4] Compilando Frontend (Next.js SSG)...');
+  run('node scripts/build.cjs', 'frontend');
+}
 
 // ── 4. Despliegue directo a Hostinger public_html ─────────────────────────────
 console.log('\n[deploy] [4/4] Desplegando en public_html...');
@@ -339,6 +344,22 @@ if (isLinux) {
 } else {
   console.log('[deploy] ℹ️  Entorno local (Windows): omitiendo copia a /home/u251936581.');
   console.log('[deploy] ℹ️  Builds listos para producción.');
+}
+
+// ── 5. Limpieza de caché residual en Hostinger ────────────────────────────────
+if (isLinux) {
+  try {
+    execSync('npm cache clean --force 2>/dev/null || true', { stdio: 'ignore' });
+    const userHome = process.env.HOME || '/home/u251936581';
+    const cacheDir = path.join(userHome, '.cache');
+    if (fs.existsSync(cacheDir)) {
+      for (const d of ['next', 'turbo', 'yarn']) {
+        const p = path.join(cacheDir, d);
+        if (fs.existsSync(p)) fs.rmSync(p, { recursive: true, force: true });
+      }
+    }
+    console.log('[deploy] ✅ Caché de Hostinger purgada.');
+  } catch (_) {}
 }
 
 console.log('[deploy] ✅ Build & Deploy finalizado.\n');

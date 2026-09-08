@@ -205,15 +205,6 @@ const server = app.listen(port, function() {
       const adminDir = path.join(hostingerPublic, 'admin');
       if (fs.existsSync(apiDir)) fs.writeFileSync(path.join(apiDir, '.node_port'), actualPort);
       if (fs.existsSync(adminDir)) fs.writeFileSync(path.join(adminDir, '.node_port'), actualPort);
-
-      // Si public_html/index.html no existe al iniciar, invocar postinstall para sincronizar
-      if (!fs.existsSync(path.join(hostingerPublic, 'index.html'))) {
-        console.log('> [Server] Sincronizando public_html en primer inicio...');
-        try {
-          const { execSync } = require('child_process');
-          execSync('node postinstall.cjs', { cwd: __dirname, stdio: 'inherit' });
-        } catch (_) {}
-      }
     }
   } catch (_) {}
 });
