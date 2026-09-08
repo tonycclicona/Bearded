@@ -264,7 +264,8 @@ server.on('error', (err) => {
 });
 
 // ── 7. Canal Socket UNIX (Conexión directa inmune a bloqueos TCP de CloudLinux) ──
-const unixSocketPaths = [
+if (process.platform !== 'win32') {
+  const unixSocketPaths = [
   '/tmp/bearded_gateway.sock',
   path.resolve(__dirname, 'gateway.sock'),
   path.resolve(__dirname, 'public_html/gateway.sock'),
@@ -294,6 +295,7 @@ for (const sockPath of unixSocketPaths) {
       });
     }
   } catch (_) {}
+}
 }
 
 export default app;
