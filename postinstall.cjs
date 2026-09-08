@@ -107,7 +107,7 @@ if (fs.existsSync(frontendOutIndex)) {
 // ── 4. Despliegue directo a Hostinger public_html ─────────────────────────────
 console.log('\n[deploy] [4/4] Desplegando en public_html...');
 
-// Generador de Proxy PHP inverso con soporte multi-puerto
+// Generador de Proxy PHP inverso con soporte multi-puerto y fallback HTTPS (Patrón Unu-Raymi)
 function generateProxyPhp(prefix) {
   return `<?php
 // Bearded Mountaineer Lodge - Reverse Proxy to Node.js Gateway
@@ -123,6 +123,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 // 1. Detectar puerto desde .node_port
 $detectedPort = null;
+$detectedSocket = null;
 $portCandidates = [
     __DIR__ . '/.node_port',
     dirname(__DIR__) . '/.node_port',
@@ -139,6 +140,22 @@ foreach ($portCandidates as $pf) {
     }
 }
 
+$socketCandidates = [
+    __DIR__ . '/.node_socket',
+    dirname(__DIR__) . '/.node_socket',
+    dirname(dirname(__DIR__)) . '/.node_socket',
+    '/home/u251936581/domains/beardedmountaineerlodge.com/.node_socket'
+];
+foreach ($socketCandidates as $sf) {
+    if (file_exists($sf)) {
+        $val = trim(@file_get_contents($sf));
+        if (!empty($val) && file_exists($val)) {
+            $detectedSocket = $val;
+            break;
+        }
+    }
+}
+
 $targets = [];
 if ($detectedPort) {
     $targets[] = "http://127.0.0.1:{$detectedPort}";
@@ -146,6 +163,8 @@ if ($detectedPort) {
 $targets[] = 'http://127.0.0.1:4000';
 $targets[] = 'http://127.0.0.1:3001';
 $targets[] = 'http://127.0.0.1:3000';
+// Fallback garantizado a Gateway principal HTTPS (patrón Unu-Raymi)
+$targets[] = 'https://beardedmountaineerlodge.com';
 $targets = array_values(array_unique($targets));
 
 $uri = $_SERVER['REQUEST_URI'];
@@ -192,12 +211,28 @@ $httpCode = 0;
 $responseHeaders = [];
 
 foreach ($targets as $base) {
-    $ch = curl_init($base . $uri);
+    $targetUrl = $base . $uri;
+    $ch = curl_init($targetUrl);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $_SERVER['REQUEST_METHOD']);
     curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
-    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 2);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
     curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+
+    if ($detectedSocket && strpos($base, '127.0.0.1') !== false) {
+        curl_setopt($ch, CURLOPT_UNIX_SOCKET_PATH, $detectedSocket);
+    }
+
+    $reqHeaders = $headers;
+    if (strpos($base, 'beardedmountaineerlodge.com') !== false) {
+        // En llamada HTTPS al gateway, apuntar Host al gateway
+        $reqHeaders = array_filter($reqHeaders, function($h) {
+            return strpos(strtolower($h), 'host:') !== 0;
+        });
+        $reqHeaders[] = "Host: beardedmountaineerlodge.com";
+    }
 
     $respHeaders = [];
     curl_setopt($ch, CURLOPT_HEADERFUNCTION, function($c, $h) use (&$respHeaders) {
@@ -208,14 +243,14 @@ foreach ($targets as $base) {
     });
 
     if ($isMultipart) {
-        $filtered = array_filter($headers, function($h) {
+        $filtered = array_filter($reqHeaders, function($h) {
             $lh = strtolower($h);
             return strpos($lh, 'content-type:') !== 0 && strpos($lh, 'content-length:') !== 0;
         });
         curl_setopt($ch, CURLOPT_HTTPHEADER, array_values($filtered));
         curl_setopt($ch, CURLOPT_POSTFIELDS, $postFields);
     } else {
-        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array_values($reqHeaders));
         if ($body !== null && $body !== false) {
             curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
         }
@@ -225,7 +260,7 @@ foreach ($targets as $base) {
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
 
-    if ($httpCode > 0 && $response !== false) {
+    if ($httpCode >= 200 && $httpCode < 500 && $response !== false) {
         $responseHeaders = $respHeaders;
         break;
     }
@@ -244,7 +279,7 @@ if ($httpCode > 0 && $response !== false) {
 }
 
 http_response_code(502);
-echo "<h1>502 Bad Gateway</h1><p>El servidor Node.js de Bearded Mountaineer Lodge no responde en los puertos locales. Verifica que la Web App este en estado <strong>Started (Iniciada)</strong> en el panel de Hostinger.</p>";
+echo "<h1>502 Bad Gateway</h1><p>El servidor Node.js de Bearded Mountaineer Lodge no responde en los puertos locales ni via Gateway. Verifica que la Web App este en estado <strong>Started (Iniciada)</strong> en el panel de Hostinger.</p>";
 `;
 }
 
@@ -398,6 +433,20 @@ if (isLinux) {
     }
     console.log('[deploy] ✅ Caché de Hostinger purgada.');
   } catch (_) {}
+// ── 6. Reinicio de aplicación Node.js en Hostinger (Phusion Passenger) ────────
+if (isLinux) {
+  const restartPaths = [
+    path.join(ROOT, 'tmp', 'restart.txt'),
+    path.join(HOSTINGER_PUBLIC_HTML, 'tmp', 'restart.txt'),
+    '/home/u251936581/domains/beardedmountaineerlodge.com/tmp/restart.txt'
+  ];
+  for (const rp of restartPaths) {
+    try {
+      fs.mkdirSync(path.dirname(rp), { recursive: true });
+      fs.writeFileSync(rp, String(Date.now()), 'utf8');
+    } catch (_) {}
+  }
+  console.log('[deploy] ✅ Señal de reinicio enviada a Passenger (tmp/restart.txt).');
 }
 
 console.log('[deploy] ✅ Build & Deploy finalizado.\n');
