@@ -62,7 +62,23 @@ if (!process.env.DATABASE_URL) {
   process.env.DATABASE_URL = 'mysql://dummy:dummy@localhost:3306/dummy';
 }
 
-// ── Helper: ejecutar comando con logs ────────────────────────────────────────
+// ── Entorno de ejecución con PATH enriquecido ────────────────────────────────
+const binPaths = [
+  path.join(ROOT, 'node_modules/.bin'),
+  path.join(ROOT, 'backend/node_modules/.bin'),
+  path.join(ROOT, 'admin/node_modules/.bin'),
+  path.join(ROOT, 'frontend/node_modules/.bin')
+].filter(fs.existsSync);
+
+const customEnv = {
+  ...process.env,
+  NODE_ENV: 'production',
+  PATH: binPaths.length > 0
+    ? binPaths.join(path.delimiter) + path.delimiter + (process.env.PATH || '')
+    : (process.env.PATH || '')
+};
+
+// ── Helper: ejecutar comando con logs y PATH enriquecido ───────────────────────
 function run(cmd, cwd) {
   const dir = cwd ? path.join(ROOT, cwd) : ROOT;
   if (!fs.existsSync(dir)) {
@@ -71,12 +87,36 @@ function run(cmd, cwd) {
   }
   console.log(`[postinstall] → ${cmd}  (in: ${cwd || '.'})`);
   try {
-    execSync(cmd, { cwd: dir, stdio: 'inherit', env: process.env });
+    execSync(cmd, { cwd: dir, stdio: 'inherit', env: customEnv });
     return true;
   } catch (e) {
     console.error(`[postinstall] ❌ Failed: ${cmd}\n   ${e.message}`);
     return false;
   }
+}
+
+// ── Helper: Resolver compilador TypeScript (tsc) directo ──────────────────────
+function getTscInvocation(projectDir) {
+  const tsconfigPath = path.join(ROOT, projectDir, 'tsconfig.json');
+  const tscJsCandidates = [
+    path.join(ROOT, 'node_modules/typescript/bin/tsc'),
+    path.join(ROOT, 'node_modules/typescript/lib/tsc.js'),
+    path.join(ROOT, projectDir, 'node_modules/typescript/bin/tsc'),
+    path.join(ROOT, projectDir, 'node_modules/typescript/lib/tsc.js')
+  ];
+
+  for (const cand of tscJsCandidates) {
+    if (fs.existsSync(cand)) {
+      return `node "${cand}" --project "${tsconfigPath}"`;
+    }
+  }
+
+  const binTsc = path.join(ROOT, 'node_modules/.bin/tsc');
+  if (fs.existsSync(binTsc)) {
+    return `"${binTsc}" --project "${tsconfigPath}"`;
+  }
+
+  return `npx tsc --project "${tsconfigPath}"`;
 }
 
 function copyDir(src, dest) {
@@ -99,6 +139,7 @@ if (isHostinger) {
   try {
     execSync(`find "${path.join(ROOT, 'node_modules')}" -name "schema-engine*" -exec chmod +x {} + 2>/dev/null || true`, { stdio: 'ignore' });
     execSync(`find "${path.join(ROOT, 'node_modules')}" -name "query-engine*" -exec chmod +x {} + 2>/dev/null || true`, { stdio: 'ignore' });
+    execSync(`chmod -R +x "${path.join(ROOT, 'node_modules/.bin')}" 2>/dev/null || true`, { stdio: 'ignore' });
   } catch (_) {}
 }
 
@@ -115,7 +156,7 @@ const prismaCommands = [
 let prismaOk = false;
 for (const cmd of prismaCommands) {
   try {
-    execSync(cmd, { stdio: 'pipe', env: process.env });
+    execSync(cmd, { stdio: 'pipe', env: customEnv });
     console.log('[postinstall] ✅ Prisma Client generado.');
     prismaOk = true;
     break;
@@ -134,11 +175,35 @@ try {
 
 // ── 2. BUILD BACKEND ─────────────────────────────────────────────────────────
 console.log('\n[postinstall] === [2/5] Build Backend ===');
-run('npm run build', 'backend');
+const backendCmd = getTscInvocation('backend');
+console.log('[postinstall] → Compilando backend con:', backendCmd);
+let backendOk = false;
+try {
+  execSync(backendCmd, { cwd: ROOT, stdio: 'inherit', env: customEnv });
+  backendOk = true;
+  console.log('[postinstall] ✅ Backend compilado correctamente.');
+} catch (e) {
+  console.warn('[postinstall] ⚠️  Compilación directa de backend falló, intentando npm run build...');
+  backendOk = run('npm run build', 'backend');
+}
 
 // ── 3. BUILD ADMIN ───────────────────────────────────────────────────────────
 console.log('\n[postinstall] === [3/5] Build Admin ===');
-run('npm run build', 'admin');
+const adminCmd = getTscInvocation('admin');
+console.log('[postinstall] → Compilando admin con:', adminCmd);
+let adminOk = false;
+try {
+  execSync(adminCmd, { cwd: ROOT, stdio: 'inherit', env: customEnv });
+  const copyAssets = path.join(ROOT, 'admin/scripts/copy-assets.mjs');
+  if (fs.existsSync(copyAssets)) {
+    execSync(`node "${copyAssets}"`, { cwd: path.join(ROOT, 'admin'), stdio: 'inherit', env: customEnv });
+  }
+  adminOk = true;
+  console.log('[postinstall] ✅ Admin compilado y assets copiados.');
+} catch (e) {
+  console.warn('[postinstall] ⚠️  Compilación directa de admin falló, intentando npm run build...');
+  adminOk = run('npm run build', 'admin');
+}
 
 // ── 4. BUILD FRONTEND ────────────────────────────────────────────────────────
 console.log('\n[postinstall] === [4/5] Build Frontend ===');

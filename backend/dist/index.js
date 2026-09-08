@@ -29,10 +29,6 @@ const allowedOrigins = process.env.CORS_ORIGIN
         'https://www.beardedmountaineerlodge.com',
         'https://admin.beardedmountaineerlodge.com',
         'https://api.beardedmountaineerlodge.com',
-        'https://beardedmountaineer.com',
-        'https://www.beardedmountaineer.com',
-        'https://admin.beardedmountaineer.com',
-        'https://api.beardedmountaineer.com',
         'http://localhost:3000',
         'http://localhost:3001',
         'http://localhost:3002'
@@ -44,11 +40,10 @@ app.use(cors({
         if (allowedOrigins.includes(origin) ||
             allowedOrigins.includes('*') ||
             origin.includes('beardedmountaineerlodge.com') ||
-            origin.includes('beardedmountaineer.com') ||
             origin.includes('localhost')) {
             return callback(null, true);
         }
-        return callback(null, true);
+        return callback(new Error('CORS: origin not allowed: ' + origin), false);
     },
     credentials: true
 }));
