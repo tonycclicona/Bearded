@@ -85,6 +85,34 @@ try {
       execSync(`npx prisma generate --schema="${schema}"`, { stdio: 'inherit' });
     }
     console.log('[deploy] ✅ Prisma Client generado.');
+
+    // Sincronizar Prisma Client generado a backend, admin y rutas runtime
+    const prismaSrc = path.join(ROOT, 'node_modules/.prisma');
+    if (fs.existsSync(prismaSrc)) {
+      const pTargets = [
+        path.join(ROOT, 'backend/node_modules/.prisma'),
+        path.join(ROOT, 'admin/node_modules/.prisma'),
+        '/home/u251936581/domains/beardedmountaineerlodge.com/node_modules/.prisma',
+        '/home/u251936581/domains/beardedmountaineerlodge.com/hbuilds/current/nodejs/node_modules/.prisma'
+      ];
+      pTargets.forEach(function(pt) {
+        try {
+          copyDir(prismaSrc, pt);
+        } catch (_) {}
+      });
+      console.log('[deploy] ✅ Prisma Client sincronizado a entornos de ejecución.');
+    }
+
+    const prismaClientPkg = path.join(ROOT, 'node_modules/@prisma/client');
+    if (fs.existsSync(prismaClientPkg)) {
+      const pkgTargets = [
+        path.join(ROOT, 'backend/node_modules/@prisma/client'),
+        path.join(ROOT, 'admin/node_modules/@prisma/client')
+      ];
+      pkgTargets.forEach(function(pt) {
+        try { copyDir(prismaClientPkg, pt); } catch (_) {}
+      });
+    }
   }
 } catch (e) {
   console.warn('[deploy] ⚠️  Aviso Prisma generate:', e.message);
@@ -218,8 +246,9 @@ foreach ($targets as $base) {
     curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
     curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
-    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+    $isLocal = strpos($base, '127.0.0.1') !== false;
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT_MS, $isLocal ? 800 : 4000);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 25);
 
     if ($detectedSocket && strpos($base, '127.0.0.1') !== false) {
         curl_setopt($ch, CURLOPT_UNIX_SOCKET_PATH, $detectedSocket);
@@ -260,7 +289,7 @@ foreach ($targets as $base) {
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
 
-    if ($httpCode >= 200 && $httpCode < 500 && $response !== false) {
+    if ($httpCode > 0 && $response !== false) {
         $responseHeaders = $respHeaders;
         break;
     }
