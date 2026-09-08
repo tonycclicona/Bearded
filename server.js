@@ -5,6 +5,8 @@
 
 'use strict';
 
+process.env.UNIFIED_SERVER = 'true';
+
 const fs = require('fs');
 const path = require('path');
 const express = require('express');
@@ -77,36 +79,52 @@ try {
 
 // ── 1. CARGAR BACKEND API (ASÍNCRONO CON PATH TO FILE URL) ────────────────────
 let backendApp = null;
+let backendError = null;
+let backendPromise = null;
+
 const resolvedBackendPath = fs.existsSync(path.resolve(__dirname, 'backend/dist/index.js'))
   ? path.resolve(__dirname, 'backend/dist/index.js')
   : path.resolve(__dirname, 'backend/src/index.ts');
 
 if (fs.existsSync(resolvedBackendPath)) {
-  import(pathToFileURL(resolvedBackendPath).href)
+  backendPromise = import(pathToFileURL(resolvedBackendPath).href)
     .then(function(m) {
       backendApp = m.default || m.app || m;
       console.log('> [Server] Backend API montado exitosamente desde:', resolvedBackendPath);
+      return backendApp;
     })
     .catch(function(err) {
-      console.error('> [Server] Error backend API:', err.message);
+      backendError = err.stack || err.message || String(err);
+      console.error('> [Server] Error backend API:', err);
+      return null;
     });
+} else {
+  backendError = 'Backend build not found at ' + resolvedBackendPath;
 }
 
 // ── 2. CARGAR ADMIN PANEL (ASÍNCRONO CON PATH TO FILE URL) ────────────────────
 let adminApp = null;
+let adminError = null;
+let adminPromise = null;
+
 const resolvedAdminPath = fs.existsSync(path.resolve(__dirname, 'admin/dist/index.js'))
   ? path.resolve(__dirname, 'admin/dist/index.js')
   : path.resolve(__dirname, 'admin/src/index.ts');
 
 if (fs.existsSync(resolvedAdminPath)) {
-  import(pathToFileURL(resolvedAdminPath).href)
+  adminPromise = import(pathToFileURL(resolvedAdminPath).href)
     .then(function(m) {
       adminApp = m.default || m.app || m;
       console.log('> [Server] Admin Panel montado exitosamente desde:', resolvedAdminPath);
+      return adminApp;
     })
     .catch(function(err) {
-      console.error('> [Server] Error admin:', err.message);
+      adminError = err.stack || err.message || String(err);
+      console.error('> [Server] Error admin:', err);
+      return null;
     });
+} else {
+  adminError = 'Admin build not found at ' + resolvedAdminPath;
 }
 
 // ── 3. SERVIR ARCHIVOS ESTÁTICOS DE ADMIN Y UPLOADS ───────────────────────────
@@ -116,7 +134,7 @@ app.use('/admin/static', express.static(adminPublicDir));
 app.use('/static', express.static(adminPublicDir));
 
 // ── 4. RUTEO DE API Y CABECERAS CORS (Patrón Unu-Raymi) ──────────────────────
-app.use(function(req, res, next) {
+app.use(async function(req, res, next) {
   res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
   res.header('Access-Control-Allow-Credentials', 'true');
   res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS,PATCH');
@@ -128,21 +146,35 @@ app.use(function(req, res, next) {
 
   const host = (req.headers.host || '').toLowerCase();
   if (host.startsWith('api.') || req.url.startsWith('/api') || req.url.startsWith('/uploads')) {
+    if (!backendApp && backendPromise) {
+      try { await backendPromise; } catch (_) {}
+    }
+
     if (typeof backendApp === 'function') {
       if (host.startsWith('api.') && !req.url.startsWith('/api') && !req.url.startsWith('/uploads')) {
         req.url = '/api' + (req.url.startsWith('/') ? req.url : '/' + req.url);
       }
       return backendApp(req, res, next);
     }
-    return res.status(200).json({ success: true, status: 'starting', service: 'Bearded API' });
+
+    return res.status(500).json({
+      success: false,
+      status: 'error',
+      service: 'Bearded API',
+      error: backendError || 'Backend app could not be initialized'
+    });
   }
   next();
 });
 
 // ── 5. RUTEO DE ADMIN (Patrón Unu-Raymi) ───────────────────────────────────────
-app.use(function(req, res, next) {
+app.use(async function(req, res, next) {
   const host = (req.headers.host || '').toLowerCase();
   if (host.startsWith('admin.') || req.url.startsWith('/admin')) {
+    if (!adminApp && adminPromise) {
+      try { await adminPromise; } catch (_) {}
+    }
+
     if (typeof adminApp === 'function') {
       if (host.startsWith('admin.') && !req.url.startsWith('/admin')) {
         req.url = '/admin' + (req.url.startsWith('/') ? req.url : '/' + req.url);
@@ -150,7 +182,8 @@ app.use(function(req, res, next) {
       }
       return adminApp(req, res, next);
     }
-    return res.status(200).send('Cargando panel de administración...');
+
+    return res.status(500).send(`Error al iniciar el panel de administración: ${adminError || 'Admin no disponible'}`);
   }
   next();
 });

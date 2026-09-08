@@ -125,11 +125,11 @@ try {
 
         const apiHtaccessContent = `<IfModule mod_rewrite.c>
 RewriteEngine On
-RewriteBase /
-RewriteRule ^index\\.php$ - [L]
+RewriteCond %{REQUEST_FILENAME} -f
+RewriteRule ^ - [L]
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule . /index.php [L]
+RewriteRule ^(.*)$ index.php [L,QSA]
 </IfModule>
 `;
         fs.writeFileSync(path.join(pubApiCandidate, '.htaccess'), apiHtaccessContent);
@@ -185,20 +185,31 @@ Options -Indexes +FollowSymLinks
   RewriteEngine On
   RewriteBase /
 
-  # 1. Enviar peticiones API a api/index.php
+  # 1. Enviar peticiones del subdominio API (ej: api.beardedmountaineerlodge.com)
+  RewriteCond %{HTTP_HOST} ^api\\. [NC]
+  RewriteRule ^(.*)$ api/index.php [L,QSA]
+
+  # 2. Enviar peticiones del subdominio Admin (ej: admin.beardedmountaineerlodge.com)
+  RewriteCond %{HTTP_HOST} ^admin\\. [NC]
+  RewriteCond %{REQUEST_URI} !^/static/ [NC]
+  RewriteCond %{REQUEST_URI} !^/uploads/ [NC]
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteRule ^(.*)$ admin/index.php [L,QSA]
+
+  # 3. Enviar peticiones API con prefijo /api/ del dominio principal
   RewriteRule ^api(/.*)?$ api/index.php [L,QSA]
 
-  # 2. Enviar peticiones Admin a admin/index.php
+  # 4. Enviar peticiones Admin con prefijo /admin/ del dominio principal
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
   RewriteRule ^admin(/.*)?$ admin/index.php [L,QSA]
 
-  # 3. Servir archivos físicos existentes
+  # 5. Servir archivos físicos existentes (HTML, CSS, JS, imágenes, fonts)
   RewriteCond %{REQUEST_FILENAME} -f [OR]
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
 
-  # 4. Fallback SPA Next.js
+  # 6. Fallback SPA Next.js para el frontend
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
   RewriteRule ^ /index.html [L]
@@ -262,7 +273,6 @@ try {
 
   const adminHtaccess = `<IfModule mod_rewrite.c>
 RewriteEngine On
-RewriteBase /
 RewriteCond %{REQUEST_FILENAME} -f
 RewriteRule ^ - [L]
 RewriteCond %{REQUEST_FILENAME} !-f

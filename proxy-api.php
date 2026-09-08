@@ -25,10 +25,11 @@ if ($isApi && strpos($requestUri, '/api') !== 0 && strpos($requestUri, '/uploads
     $requestUri = '/api' . (strpos($requestUri, '/') === 0 ? $requestUri : '/' . $requestUri);
 }
 
-// Si es contexto Admin y la URL no empieza con /admin, prefijarla
+// Si es contexto Admin y la URL no empieza con /admin ni es estático/uploads, prefijarla
 $isAdmin = (strpos($host, 'admin.') === 0) || (strpos($requestUri, '/admin') === 0) || (strpos($scriptName, '/admin/') !== false);
-if ($isAdmin && strpos($host, 'admin.') !== 0 && strpos($requestUri, '/admin') !== 0) {
+if ($isAdmin && strpos($requestUri, '/admin') !== 0 && strpos($requestUri, '/static') !== 0 && strpos($requestUri, '/uploads') !== 0) {
     $requestUri = '/admin' . (strpos($requestUri, '/') === 0 ? $requestUri : '/' . $requestUri);
+    $requestUri = str_replace('/admin//', '/admin/', $requestUri);
 }
 
 // Buscar puerto activo desde archivos de señal
@@ -50,13 +51,13 @@ foreach ($possiblePortFiles as $pFile) {
     }
 }
 
-// Targets idénticos a Unu-Raymi (puertos locales + fallback HTTPS al dominio principal)
+// Targets idénticos a Unu-Raymi (puertos locales directos a Node.js)
 $targets = [
     "http://127.0.0.1:{$detectedPort}",
     'http://127.0.0.1:4000',
     'http://127.0.0.1:3000',
     'http://127.0.0.1:3001',
-    'https://beardedmountaineerlodge.com'
+    'http://127.0.0.1:3002'
 ];
 $targets = array_values(array_unique($targets));
 
