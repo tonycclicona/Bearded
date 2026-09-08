@@ -40,6 +40,27 @@ process.on('unhandledRejection', (reason) => {
   logDebug(`[UNHANDLED REJECTION]: ${reason?.stack || reason}`);
 });
 
+process.on('exit', (code) => {
+  logDebug(`[PROCESS EXIT]: Node.js finalizando con código ${code}`);
+});
+
+process.on('SIGTERM', () => {
+  logDebug('[SIGNAL RECEIVED]: SIGTERM recibido');
+});
+
+process.on('SIGINT', () => {
+  logDebug('[SIGNAL RECEIVED]: SIGINT recibido');
+});
+
+process.on('warning', (warning) => {
+  logDebug(`[PROCESS WARNING]: ${warning.name}: ${warning.message}`);
+});
+
+// Mantener event loop activo
+setInterval(() => {
+  // Heartbeat cada 30 segundos
+}, 30000);
+
 logDebug(`Iniciando server.js en Node ${process.version} (PID: ${process.pid}, CWD: ${process.cwd()})`);
 
 // ── 0. Cargar Variables de Entorno ──────────────────────────────────────────
@@ -222,8 +243,28 @@ const server = app.listen(PORT, '0.0.0.0', () => {
 });
 
 server.on('error', (err) => {
-  if (err.code !== 'EADDRINUSE') {
-    logDebug(`> [Server Error]: ${err.message}`);
+  logDebug(`> [Server Error ${err.code}]: ${err.message}`);
+  if (err.code === 'EADDRINUSE') {
+    const fallbackPort = Number(PORT) === 4000 ? 3001 : 4001;
+    logDebug(`> [Server] Puerto ${PORT} en uso. Intentando en puerto alternativo ${fallbackPort}...`);
+    try {
+      const altServer = app.listen(fallbackPort, '0.0.0.0', () => {
+        logDebug(`> [Server] Servidor Express iniciado en puerto alternativo: ${fallbackPort}`);
+        for (const pFile of portDestinations) {
+          try {
+            const dir = path.dirname(pFile);
+            if (fs.existsSync(dir)) {
+              fs.writeFileSync(pFile, String(fallbackPort), 'utf8');
+            }
+          } catch (_) {}
+        }
+      });
+      altServer.on('error', (altErr) => {
+        logDebug(`> [Server Alt Error ${altErr.code}]: ${altErr.message}`);
+      });
+    } catch (e) {
+      logDebug(`> [Server Fallback Error]: ${e.message}`);
+    }
   }
 });
 

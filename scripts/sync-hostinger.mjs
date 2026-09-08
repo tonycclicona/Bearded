@@ -152,6 +152,7 @@ if ($isMultipart) {
 }
 
 $lastError = '';
+$targetResults = [];
 
 foreach ($targets as $baseTarget) {
     $targetUrl = $baseTarget . $requestUri;
@@ -187,8 +188,13 @@ foreach ($targets as $baseTarget) {
     $res = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+    $cErr = curl_error($ch);
+    $targetResults[$baseTarget] = [
+        "http_code" => $httpCode,
+        "error" => $cErr ?: null
+    ];
     if ($res === false) {
-        $lastError = curl_error($ch);
+        $lastError = $cErr;
     }
     curl_close($ch);
 
@@ -205,6 +211,29 @@ if ($httpCode > 0 && $response !== false) {
     http_response_code($httpCode);
     echo $response;
     exit(0);
+}
+
+$sockCheck = [];
+$fp = @fsockopen('127.0.0.1', $detectedPort, $errno, $errstr, 1);
+if ($fp) {
+    $sockCheck["127.0.0.1:{$detectedPort}"] = "Conexión TCP exitosa";
+    fclose($fp);
+} else {
+    $sockCheck["127.0.0.1:{$detectedPort}"] = "[$errno] $errstr";
+}
+
+$procList = [];
+$pids = @glob('/proc/[0-9]*');
+if ($pids) {
+    foreach ($pids as $p) {
+        $cmd = @file_get_contents($p . '/cmdline');
+        if ($cmd && (strpos($cmd, 'node') !== false || strpos($cmd, 'server.js') !== false)) {
+            $procList[] = [
+                'pid' => basename($p),
+                'cmd' => str_replace("\0", " ", substr($cmd, 0, 150))
+            ];
+        }
+    }
 }
 
 $debugLog = '';
@@ -254,13 +283,12 @@ echo json_encode([
     "success" => false,
     "error" => "El servidor Node.js de Bearded Mountaineer Lodge no responde. Asegúrese de reiniciar la aplicación en Hostinger.",
     "path" => $requestUri,
-    "tried_targets" => $targets,
-    "curl_error" => $lastError,
+    "target_results" => $targetResults,
+    "socket_check" => $sockCheck,
+    "running_node_processes" => $procList ?: "No se detectaron procesos activos en /proc",
     "detected_port" => $detectedPort,
     "port_files_found" => $portFilesFound,
     "node_debug_log" => $debugLog ?: "Sin registros de node_debug.log",
-    "ps_output" => $psOutput ?: "No se detectaron procesos Node o shell_exec desactivado",
-    "listen_ports" => $netstatOutput ?: "netstat no disponible",
     "current_dir" => __DIR__,
     "timestamp" => date("c")
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
