@@ -151,9 +151,66 @@ if ($isMultipart) {
     $body = file_get_contents('php://input');
 }
 
+// 1. Detección y conexión prioritaria por Socket UNIX (inmune a cortafuegos y problemas TCP)
+$unixSockets = [
+    __DIR__ . '/gateway.sock',
+    __DIR__ . '/../gateway.sock',
+    dirname(__DIR__) . '/gateway.sock',
+    '/home/u251936581/public_html/api/gateway.sock',
+    '/home/u251936581/public_html/admin/gateway.sock',
+    '/home/u251936581/public_html/gateway.sock',
+    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/api/gateway.sock',
+    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/admin/gateway.sock',
+    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/gateway.sock',
+    '/tmp/bearded_gateway.sock'
+];
+
+$activeUnixSocket = null;
+foreach ($unixSockets as $sock) {
+    if (file_exists($sock)) {
+        $activeUnixSocket = $sock;
+        break;
+    }
+}
+
 $lastError = '';
 $targetResults = [];
 
+if ($activeUnixSocket) {
+    $ch = curl_init('http://localhost' . $requestUri);
+    curl_setopt($ch, CURLOPT_UNIX_SOCKET_PATH, $activeUnixSocket);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $_SERVER['REQUEST_METHOD']);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 1);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+    $reqHeaders = $headers;
+    $reqHeaders[] = "Host: " . ($_SERVER['HTTP_HOST'] ?? 'localhost');
+    $reqHeaders[] = "X-Forwarded-For: " . ($_SERVER['REMOTE_ADDR'] ?? '127.0.0.1');
+    $reqHeaders[] = "X-Forwarded-Proto: " . (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http');
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $reqHeaders);
+    if ($body !== null) {
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
+    }
+    $res = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+    $cErr = curl_error($ch);
+    $targetResults["unix://{$activeUnixSocket}"] = [
+        "http_code" => $httpCode,
+        "error" => $cErr ?: null
+    ];
+    curl_close($ch);
+    if ($httpCode > 0 && $res !== false) {
+        if ($contentType) {
+            header("Content-Type: $contentType");
+        }
+        http_response_code($httpCode);
+        echo $res;
+        exit(0);
+    }
+}
+
+// 2. Conexión TCP de respaldo
 foreach ($targets as $baseTarget) {
     $targetUrl = $baseTarget . $requestUri;
     $ch = curl_init($targetUrl);

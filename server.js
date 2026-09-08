@@ -208,10 +208,13 @@ if (fs.existsSync(frontendDir)) {
   });
 }
 
-// ── 6. Iniciar Servidor (Sincrónico Inmediato para LiteSpeed / Passenger) ────
+// ── 6. Iniciar Servidor TCP ──────────────────────────────────────────────────
 const PORT = process.env.PORT || process.env.GATEWAY_PORT || 4000;
 const server = app.listen(PORT, '0.0.0.0', () => {
-  logDebug(`> [Server] Servidor Express iniciado inmediatamente en puerto: ${PORT}`);
+  logDebug(`> [Server] Servidor Express iniciado en TCP puerto: ${PORT}`);
+  try {
+    logDebug(`> [Server Address]: ${JSON.stringify(server.address())}`);
+  } catch (_) {}
   
   // Guardar archivo .node_port para que los proxies PHP detecten el puerto
   const portDestinations = [
@@ -250,14 +253,6 @@ server.on('error', (err) => {
     try {
       const altServer = app.listen(fallbackPort, '0.0.0.0', () => {
         logDebug(`> [Server] Servidor Express iniciado en puerto alternativo: ${fallbackPort}`);
-        for (const pFile of portDestinations) {
-          try {
-            const dir = path.dirname(pFile);
-            if (fs.existsSync(dir)) {
-              fs.writeFileSync(pFile, String(fallbackPort), 'utf8');
-            }
-          } catch (_) {}
-        }
       });
       altServer.on('error', (altErr) => {
         logDebug(`> [Server Alt Error ${altErr.code}]: ${altErr.message}`);
@@ -267,5 +262,38 @@ server.on('error', (err) => {
     }
   }
 });
+
+// ── 7. Canal Socket UNIX (Conexión directa inmune a bloqueos TCP de CloudLinux) ──
+const unixSocketPaths = [
+  '/tmp/bearded_gateway.sock',
+  path.resolve(__dirname, 'gateway.sock'),
+  path.resolve(__dirname, 'public_html/gateway.sock'),
+  path.resolve(__dirname, 'public_html/api/gateway.sock'),
+  path.resolve(__dirname, 'public_html/admin/gateway.sock'),
+  '/home/u251936581/public_html/gateway.sock',
+  '/home/u251936581/public_html/api/gateway.sock',
+  '/home/u251936581/public_html/admin/gateway.sock',
+  '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/gateway.sock',
+  '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/api/gateway.sock',
+  '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/admin/gateway.sock'
+];
+
+for (const sockPath of unixSocketPaths) {
+  try {
+    const sockDir = path.dirname(sockPath);
+    if (fs.existsSync(sockDir)) {
+      if (fs.existsSync(sockPath)) {
+        try { fs.unlinkSync(sockPath); } catch (_) {}
+      }
+      const sockServer = app.listen(sockPath, () => {
+        try { fs.chmodSync(sockPath, 0o777); } catch (_) {}
+        logDebug(`> [Server] Canal Socket UNIX listo en: ${sockPath}`);
+      });
+      sockServer.on('error', (e) => {
+        logDebug(`> [UNIX Sock Error ${sockPath}]: ${e.message}`);
+      });
+    }
+  } catch (_) {}
+}
 
 export default app;
