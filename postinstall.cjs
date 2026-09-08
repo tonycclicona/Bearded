@@ -174,28 +174,60 @@ if (fs.existsSync(proxySrc)) {
   fs.copyFileSync(proxySrc, path.join(localApiDir, 'index.php'));
 }
 
-// ── 3. SINCRONIZACIÓN WEBROOT (PORTABLE) ───────────────────────────────────────
+// ── 3. SINCRONIZACIÓN WEBROOT (PATRÓN UNU-RAYMI) ───────────────────────────────
 console.log('[postinstall] === 3/3 Sincronización portable de webroot ===');
 
-// Buscar directorio public_html adyacente o superior si existe en el entorno
-const potentialWebroots = [
-  path.resolve(rootDir, '../public_html'),
-  path.resolve(rootDir, '../../public_html')
-];
-
-for (const pWebroot of potentialWebroots) {
-  if (fs.existsSync(pWebroot) && pWebroot !== localPublicHtml) {
-    try {
-      console.log(`📡 [Postinstall] Sincronizando hacia webroot: ${pWebroot}`);
-      copyDirSync(localPublicHtml, pWebroot);
-      if (fs.existsSync(frontendOut)) {
-        copyDirSync(frontendOut, pWebroot);
-      }
-      console.log(`✅ [Postinstall] Webroot sincronizado en: ${pWebroot}`);
-    } catch (err) {
-      console.warn(`⚠️ [Postinstall] Error sincronizando a ${pWebroot}:`, err.message);
+function syncToWebroot(targetDir) {
+  if (!fs.existsSync(targetDir) || path.resolve(targetDir) === path.resolve(localPublicHtml)) return;
+  console.log(`📡 [Postinstall] Sincronizando hacia webroot: ${targetDir}`);
+  try {
+    copyDirSync(localPublicHtml, targetDir);
+    if (fs.existsSync(frontendOut)) {
+      copyDirSync(frontendOut, targetDir);
     }
+    
+    // Eliminar default.php de Hostinger si existe
+    const defaultFiles = [
+      path.join(targetDir, 'default.php'),
+      path.join(targetDir, 'admin', 'default.php'),
+      path.join(targetDir, 'api', 'default.php')
+    ];
+    for (const df of defaultFiles) {
+      if (fs.existsSync(df)) {
+        try { fs.unlinkSync(df); console.log(`[Postinstall] Removido ${df}`); } catch (_) {}
+      }
+    }
+    console.log(`✅ [Postinstall] Webroot sincronizado en: ${targetDir}`);
+  } catch (err) {
+    console.warn(`⚠️ [Postinstall] Error sincronizando en ${targetDir}:`, err.message);
   }
+}
+
+// A. Búsqueda ascendente de public_html hacia arriba (árbol de directorios)
+let currentDir = process.cwd();
+for (let i = 0; i < 6; i++) {
+  const candidate = path.join(currentDir, 'public_html');
+  syncToWebroot(candidate);
+  const parent = path.dirname(currentDir);
+  if (parent === currentDir) break;
+  currentDir = parent;
+}
+
+// B. Búsqueda en HOME de Hostinger si está definido
+if (process.env.HOME) {
+  syncToWebroot(path.join(process.env.HOME, 'public_html'));
+}
+
+// C. Crear/actualizar restart.txt para Passenger/LiteSpeed
+const restartDirs = [
+  path.join(rootDir, 'tmp'),
+  path.join(localPublicHtml, 'tmp')
+];
+for (const rDir of restartDirs) {
+  try {
+    fs.mkdirSync(rDir, { recursive: true });
+    fs.writeFileSync(path.join(rDir, 'restart.txt'), String(Date.now()), 'utf8');
+  } catch (_) {}
 }
 
 console.log('\n[postinstall] ✅ Monorepo listo para ejecución y despliegue.\n');
