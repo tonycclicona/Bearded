@@ -53,7 +53,6 @@ const frontendDir = fs.existsSync(path.resolve(__dirname, 'frontend/out'))
   : path.resolve(__dirname, 'out');
 
 const uploadsDir = path.resolve(__dirname, 'admin/uploads');
-const adminPublicDir = path.resolve(__dirname, 'admin/public');
 
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });

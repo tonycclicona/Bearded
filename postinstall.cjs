@@ -86,12 +86,11 @@ try {
     }
     console.log('[deploy] ✅ Prisma Client generado.');
 
-    // Sincronizar Prisma Client generado a backend, admin y rutas runtime
+    // Sincronizar Prisma Client generado a backend y rutas runtime
     const prismaSrc = path.join(ROOT, 'node_modules/.prisma');
     if (fs.existsSync(prismaSrc)) {
       const pTargets = [
         path.join(ROOT, 'backend/node_modules/.prisma'),
-        path.join(ROOT, 'admin/node_modules/.prisma'),
         '/home/u251936581/domains/beardedmountaineerlodge.com/node_modules/.prisma',
         '/home/u251936581/domains/beardedmountaineerlodge.com/hbuilds/current/nodejs/node_modules/.prisma'
       ];
@@ -106,8 +105,7 @@ try {
     const prismaClientPkg = path.join(ROOT, 'node_modules/@prisma/client');
     if (fs.existsSync(prismaClientPkg)) {
       const pkgTargets = [
-        path.join(ROOT, 'backend/node_modules/@prisma/client'),
-        path.join(ROOT, 'admin/node_modules/@prisma/client')
+        path.join(ROOT, 'backend/node_modules/@prisma/client')
       ];
       pkgTargets.forEach(function(pt) {
         try { copyDir(prismaClientPkg, pt); } catch (_) {}

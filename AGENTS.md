@@ -2,23 +2,21 @@
 
 ## 🏗️ Stack Tecnológico
 - **Backend:** Node.js 22 + Express 5 + TypeScript 5.7 (strict mode)
-- **Admin:** Express 5 + EJS views + TypeScript
-- **Frontend:** React 19 + Next.js 16 (App Router) + TypeScript
-- **DB:** PostgreSQL 16 + Prisma 6 (latest stable)
+- **Admin:** React 19 + Next.js 16 (App Router) + TypeScript + Tailwind CSS 4 (SSG Static Export)
+- **Frontend:** React 19 + Next.js 16 (App Router) + TypeScript + Tailwind CSS 4 (SSG Static Export)
+- **DB:** MySQL / PostgreSQL + Prisma 6 (latest stable)
 - **State:** Zustand 5 (client), TanStack Query 5 (server)
 - **Styles:** Tailwind CSS 4
 
-## 📁 Estructura del Monorepo
+## 📁 Estructura del Proyecto
 ```
 Antigravity/
-├── apps/
-│   ├── frontend/          # Next.js 16 (App Router)
-│   ├── backend/           # Express 5 REST API + Prisma
-│   └── admin/             # Express 5 + EJS views
-├── packages/
-│   └── shared/            # @antigravity/shared (types, utils)
-├── .agent/rules/          # Reglas de desarrollo
-└── .github/workflows/     # CI/CD
+├── admin/             # Next.js 16 (App Router) SSG -> admin/out
+├── backend/           # Express 5 REST API + Prisma -> backend/dist
+├── frontend/          # Next.js 16 (App Router) SSG -> frontend/out
+├── server.js          # Unified Node.js Gateway & Server
+├── postinstall.cjs    # Build & Hostinger LiteSpeed Deployment Engine
+└── .agent/rules/      # Reglas de desarrollo
 ```
 
 ## 🔒 Servicios Canónicos
