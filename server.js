@@ -1,6 +1,7 @@
 // ==============================================================================
-// server.js — Bearded Mountaineer Lodge Single Web App Engine
-// Replicación exacta de la arquitectura probada de Unu-Raymi
+// server.js — Bearded Mountaineer Lodge Unified Node.js Gateway
+// Orquestador principal: sirve API (/api/*), Admin (/admin/*) y Frontend (static)
+// Puerto: process.env.GATEWAY_PORT || 4000
 // ==============================================================================
 
 'use strict';
@@ -61,23 +62,8 @@ if (!fs.existsSync(uploadsDir)) {
 
 console.log('> [Server] Frontend dir:', frontendDir);
 console.log('> [Server] Admin dir:', adminDir);
-
-// ── Sincronizar frontend/out a public_html en tiempo de ejecución ────────────
-try {
-  const pubTargets = [
-    path.resolve(__dirname, 'public_html'),
-    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html',
-    '/home/u251936581/public_html'
-  ];
-  pubTargets.forEach(function(target) {
-    if (fs.existsSync(target) && fs.existsSync(frontendDir) && target !== frontendDir) {
-      fs.cpSync(frontendDir, target, { recursive: true });
-      console.log('> [Server] Synchronized frontend files to:', target);
-    }
-  });
-} catch (e) {
-  console.error('> [Server] Warning syncing to public_html:', e.message);
-}
+// Nota: la copia a public_html se realiza en build/deploy, no en runtime.
+// Ver: deployment/deploy.sh
 
 // ── 1. CARGAR BACKEND API (ASÍNCRONO CON PATH TO FILE URL) ────────────────────
 let backendApp = null;
@@ -125,12 +111,32 @@ app.use('/admin/uploads', express.static(uploadsDir));
 app.use('/admin/static', express.static(adminPublicDir));
 app.use('/static', express.static(adminPublicDir));
 
-// ── 3. RUTEO DE API Y CABECERAS CORS (Patrón Unu-Raymi) ──────────────────────
+// ── 3. CORS + RUTEO DE API ────────────────────────────────────────────────────
+const CORS_ALLOWED = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(',').map(function(o) { return o.trim(); })
+  : [
+      'https://beardedmountaineerlodge.com',
+      'https://www.beardedmountaineerlodge.com',
+      'https://admin.beardedmountaineerlodge.com',
+      'https://api.beardedmountaineerlodge.com',
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'http://localhost:3002'
+    ];
+
 app.use(function(req, res, next) {
-  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS,PATCH');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cookie');
+  const origin = req.headers.origin || '';
+  const allowed =
+    CORS_ALLOWED.includes(origin) ||
+    origin.includes('beardedmountaineerlodge.com') ||
+    origin.includes('localhost');
+
+  if (allowed && origin) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS,PATCH');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cookie');
+  }
 
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
@@ -139,7 +145,7 @@ app.use(function(req, res, next) {
   const host = (req.headers.host || '').toLowerCase();
   if (host.startsWith('api.') || req.url.startsWith('/api') || req.url.startsWith('/uploads')) {
     if (typeof backendApp === 'function') {
-      // Si la petición viene a api.beardedmountaineerlodge.com/auth/login (sin prefijo /api y no es uploads), prefijarla para que Express la reconozca
+      // Subdominio api. sin prefijo /api → agregar prefijo para que Express lo reconozca
       if (host.startsWith('api.') && !req.url.startsWith('/api') && !req.url.startsWith('/uploads')) {
         req.url = '/api' + (req.url.startsWith('/') ? req.url : '/' + req.url);
       }
