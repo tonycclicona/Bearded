@@ -240,6 +240,44 @@ function deployTo(targetDir) {
     fs.writeFileSync(path.join(targetDir, '.htaccess'), rootHtaccess.trim());
     console.log('  ✅ .htaccess limpio instalado en public_html');
 
+    // 6. Configurar redirección para subdominios admin. y api.
+    const subAdminHtaccess = `<IfModule mod_rewrite.c>
+RewriteEngine On
+RewriteBase /
+RewriteCond %{REQUEST_FILENAME} -f
+RewriteRule ^ - [L]
+RewriteCond %{HTTP_HOST} ^admin\\. [NC]
+RewriteRule ^(.*)$ https://beardedmountaineerlodge.com/admin/$1 [R=301,L]
+</IfModule>
+`;
+    const subApiHtaccess = `<IfModule mod_rewrite.c>
+RewriteEngine On
+RewriteBase /
+RewriteCond %{REQUEST_FILENAME} -f
+RewriteRule ^ - [L]
+RewriteCond %{HTTP_HOST} ^api\\. [NC]
+RewriteRule ^(.*)$ https://beardedmountaineerlodge.com/api/$1 [R=301,L]
+</IfModule>
+`;
+
+    const adminFolder = path.join(targetDir, 'admin');
+    if (fs.existsSync(adminFolder)) {
+      fs.writeFileSync(path.join(adminFolder, '.htaccess'), subAdminHtaccess.trim());
+    }
+    const apiFolder = path.join(targetDir, 'api');
+    if (fs.existsSync(apiFolder)) {
+      fs.writeFileSync(path.join(apiFolder, '.htaccess'), subApiHtaccess.trim());
+    }
+
+    const dedicatedAdmin = '/home/u251936581/domains/admin.beardedmountaineerlodge.com/public_html';
+    if (fs.existsSync(dedicatedAdmin)) {
+      fs.writeFileSync(path.join(dedicatedAdmin, '.htaccess'), subAdminHtaccess.trim());
+    }
+    const dedicatedApi = '/home/u251936581/domains/api.beardedmountaineerlodge.com/public_html';
+    if (fs.existsSync(dedicatedApi)) {
+      fs.writeFileSync(path.join(dedicatedApi, '.htaccess'), subApiHtaccess.trim());
+    }
+
     console.log(`[deploy] ✅ Despliegue completado con éxito en: ${targetDir}\n`);
     return true;
   } catch (err) {
