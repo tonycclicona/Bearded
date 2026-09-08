@@ -1,4 +1,4 @@
-name: CI / Build Monorepo
+name: CI / Build & Validate Monorepo
 
 on:
   push:
@@ -29,17 +29,33 @@ jobs:
 
       - name: 🗄️ Generate Prisma Client
         run: npm run prisma:generate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL || 'mysql://dummy:dummy@localhost:3306/dummy' }}
 
-      - name: 🛠️ Build Backend & Admin
-        run: |
-          npm run build:backend
-          npm run build:admin
+      - name: 🛠️ Build Backend
+        run: npm run build:backend
+
+      - name: 🖥️ Build Admin Panel
+        run: npm run build:admin
 
       - name: 🌐 Build Frontend (Static Export)
         run: npm run build:frontend
         env:
-          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL || '/api' }}
-          NEXT_PUBLIC_ADMIN_URL: ${{ secrets.NEXT_PUBLIC_ADMIN_URL || '/admin' }}
+          # NEXT_PUBLIC_API_URL debe estar configurada en GitHub Secrets
+          # Settings → Secrets and variables → Actions → New repository secret
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+          NEXT_PUBLIC_ADMIN_URL: ${{ secrets.NEXT_PUBLIC_ADMIN_URL }}
 
-      - name: 📦 Prepare public_html Webroot
-        run: node postinstall.cjs
+      - name: ✅ Verify build artifacts
+        run: |
+          echo "Checking build outputs..."
+          test -f backend/dist/index.js && echo "✅ backend/dist/index.js" || (echo "❌ backend/dist/index.js MISSING" && exit 1)
+          test -f admin/dist/index.js   && echo "✅ admin/dist/index.js"   || (echo "❌ admin/dist/index.js MISSING" && exit 1)
+          test -f frontend/out/index.html && echo "✅ frontend/out/index.html" || (echo "❌ frontend/out/index.html MISSING" && exit 1)
+          echo ""
+          echo "Checking NEXT_PUBLIC_API_URL is not localhost in bundle..."
+          if grep -r "localhost" frontend/out/_next/static/chunks/ --include="*.js" -l 2>/dev/null | head -1 | grep -q .; then
+            echo "⚠️  Warning: localhost found in frontend bundle. Check NEXT_PUBLIC_API_URL secret."
+          else
+            echo "✅ No localhost references in frontend bundle"
+          fi
