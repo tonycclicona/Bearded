@@ -1,12 +1,12 @@
 <?php
 // ==============================================================================
-// Bearded Mountaineer Lodge API Dynamic Reverse Proxy (LiteSpeed / PHP -> Node.js)
+// Bearded Mountaineer Lodge Admin Dynamic Reverse Proxy (LiteSpeed / PHP -> Node.js)
 // ==============================================================================
 
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Credentials: true");
 header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS, PATCH");
-header("Access-Control-Allow-Headers: Origin, X-Requested-With, Content-Type, Accept, Authorization");
+header("Access-Control-Allow-Headers: Origin, X-Requested-With, Content-Type, Accept, Authorization, Cookie");
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
@@ -14,8 +14,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 $requestUri = $_SERVER['REQUEST_URI'];
-if (strpos($requestUri, '/api') !== 0) {
-    $requestUri = '/api' . $requestUri;
+if (strpos($requestUri, '/admin') !== 0 && strpos($requestUri, '/static') !== 0 && strpos($requestUri, '/uploads') !== 0) {
+    $requestUri = '/admin' . (strpos($requestUri, '/') === 0 ? $requestUri : '/' . $requestUri);
 }
 
 // 1. Detectar puerto dinámico desde .node_port si existe
@@ -39,13 +39,13 @@ if ($detectedPort) {
     $targets[] = "http://127.0.0.1:{$detectedPort}";
 }
 $targets[] = 'http://127.0.0.1:4000';
-$targets[] = 'http://127.0.0.1:3001';
+$targets[] = 'http://127.0.0.1:3002';
 $targets[] = 'http://127.0.0.1:3000';
 $targets = array_values(array_unique($targets));
 
 $response = false;
 $httpCode = 0;
-$contentType = '';
+$responseHeaders = [];
 
 $headers = [];
 $incoming = function_exists('getallheaders') ? getallheaders() : [];
@@ -92,18 +92,25 @@ foreach ($targets as $baseTarget) {
     $ch = curl_init($targetUrl);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $_SERVER['REQUEST_METHOD']);
-    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
     curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
-    curl_setopt($ch, CURLOPT_ENCODING, '');
     curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
     curl_setopt($ch, CURLOPT_TIMEOUT, 30);
     
     $reqHeaders = $headers;
-    $reqHeaders[] = "Host: api.beardedmountaineerlodge.com";
+    $reqHeaders[] = "Host: admin.beardedmountaineerlodge.com";
     $reqHeaders[] = "X-Forwarded-For: " . ($_SERVER['REMOTE_ADDR'] ?? '127.0.0.1');
     $reqHeaders[] = "X-Forwarded-Proto: " . (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http');
     $reqHeaders[] = "X-Bypass-Proxy: 1";
+
+    $respHeaders = [];
+    curl_setopt($ch, CURLOPT_HEADERFUNCTION, function($c, $h) use (&$respHeaders) {
+        $len = strlen($h);
+        $t = trim($h);
+        if ($t !== '') $respHeaders[] = $t;
+        return $len;
+    });
 
     if ($isMultipart) {
         $filteredHeaders = array_filter($reqHeaders, function($h) {
@@ -121,29 +128,27 @@ foreach ($targets as $baseTarget) {
 
     $response = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
     curl_close($ch);
 
-    if ($httpCode >= 200 && $httpCode < 500 && $response !== false) {
+    if ($httpCode > 0 && $response !== false) {
+        $responseHeaders = $respHeaders;
         break;
     }
 }
 
 if ($httpCode > 0 && $response !== false) {
-    if ($contentType) {
-        header("Content-Type: $contentType");
-    }
     http_response_code($httpCode);
+    foreach ($responseHeaders as $h) {
+        $lh = strtolower($h);
+        if (strpos($lh, 'set-cookie:') === 0 || strpos($lh, 'location:') === 0 || strpos($lh, 'content-type:') === 0 || strpos($lh, 'access-control-') === 0) {
+            header($h, false);
+        }
+    }
     echo $response;
     exit(0);
 }
 
-header("Content-Type: application/json; charset=UTF-8");
+header("Content-Type: text/html; charset=UTF-8");
 http_response_code(502);
-echo json_encode([
-    "success" => false,
-    "error" => "El servidor Node.js de Bearded Mountaineer Lodge no está respondiendo en los puertos locales (4000/3001). Asegúrate de iniciar la aplicación Node.js en el panel de Hostinger.",
-    "path" => $requestUri,
-    "timestamp" => date("c")
-]);
+echo "<h1>502 Bad Gateway</h1><p>El servidor Node.js de Bearded Mountaineer Lodge (Admin) no responde en los puertos locales. Verifica que la Web App este iniciada en Hostinger.</p>";
 exit(0);

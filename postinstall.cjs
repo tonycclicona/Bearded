@@ -220,66 +220,35 @@ if (!apiUrl) {
 run('npm run build', 'frontend');
 
 // ── 5. DEPLOY A PUBLIC_HTML ───────────────────────────────────────────────────
-console.log('\n[postinstall] === [5/5] Deploy a public_html ===');
+console.log('\n[postinstall] === [5/6] Deploy a public_html ===');
 
-const frontendOut = path.join(ROOT, 'frontend/out');
-const proxySrc    = fs.existsSync(path.join(ROOT, 'deployment/proxy-api.php'))
-  ? path.join(ROOT, 'deployment/proxy-api.php')
-  : path.join(ROOT, 'proxy-api.php');
-const nodePort    = String(process.env.GATEWAY_PORT || process.env.PORT || '4000');
+const frontendOut   = path.join(ROOT, 'frontend/out');
+const proxyApiSrc   = path.join(ROOT, 'deployment/proxy-api.php');
+const proxyAdminSrc = path.join(ROOT, 'deployment/proxy-admin.php');
+const nodePort      = String(process.env.GATEWAY_PORT || process.env.PORT || '4000');
 
-// ── DIRECCIONES OFICIALES DE HOSTINGER ────────────────────────────────────────
-// 1. Dominio principal: /home/u251936581/domains/beardedmountaineerlodge.com/public_html
-// 2. Admin subcarpeta: /home/u251936581/domains/beardedmountaineerlodge.com/public_html/admin
-// 3. API subcarpeta:   /home/u251936581/domains/beardedmountaineerlodge.com/public_html/api
-const HOSTINGER_OFFICIAL_PUBLIC_HTML = '/home/u251936581/domains/beardedmountaineerlodge.com/public_html';
+// Destinos oficiales de Hostinger para Bearded Mountaineer Lodge
+const HOSTINGER_PRIMARY_PATH = '/home/u251936581/domains/beardedmountaineerlodge.com/public_html';
 
-const targetCandidates = [
-  path.join(ROOT, 'public_html'),
-  HOSTINGER_OFFICIAL_PUBLIC_HTML,
-  process.env.PUBLIC_HTML_PATH
-].filter(Boolean);
+const targetDirs = [
+  HOSTINGER_PRIMARY_PATH,
+  path.join(ROOT, 'public_html')
+];
 
-// Filtrar targets únicos normalizados
-const targetDirs = [];
-const seenTargets = new Set();
-for (const cand of targetCandidates) {
-  const norm = path.normalize(cand);
-  if (!seenTargets.has(norm.toLowerCase())) {
-    seenTargets.add(norm.toLowerCase());
-    targetDirs.push(norm);
-  }
-}
-
-// ── SAFETY SANDBOX GUARD ──────────────────────────────────────────────────────
-function isAllowedSandboxPath(targetPath) {
-  const lower = path.normalize(targetPath).toLowerCase();
-  // 1. Prohibir estrictamente cualquier referencia a mycoandes
-  if (lower.includes('mycoandes')) return false;
-  // 2. Prohibir la raíz genérica de la cuenta de hosting
-  if (lower === '/home/u251936581' || lower === '/home/u251936581/public_html' || lower === 'c:\\home\\u251936581') return false;
-  // 3. Si es una ruta bajo /home/u251936581, DEBE pertenecer a beardedmountaineerlodge.com
-  if (lower.startsWith('/home/u251936581') && !lower.includes('beardedmountaineerlodge.com')) return false;
-  return true;
-}
-
-if (!fs.existsSync(frontendOut)) {
-  console.warn('[postinstall] ⚠️  frontend/out/ no existe, omitiendo deploy a public_html.');
-} else {
-  // Asegurar persistencia del directorio de uploads del admin
-  fs.mkdirSync(path.join(ROOT, 'admin/uploads'), { recursive: true });
-
-  const htaccessRoot = `DirectoryIndex index.html index.php
-Options -Indexes +FollowSymLinks
-
-<IfModule mod_mime.c>
-  AddType application/javascript .js .mjs
-  AddType text/css .css
-  AddType image/svg+xml .svg
-  AddType font/woff2 .woff2
-  AddType font/woff .woff
-  AddType image/webp .webp
+// .htaccess para subcarpetas /api y /admin (estándar oficial proporcionado por el usuario)
+const subHtaccess = `<IfModule mod_rewrite.c>
+RewriteEngine On
+RewriteBase /
+RewriteRule ^index\\.php$ - [L]
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule . /index.php [L]
 </IfModule>
+`;
+
+// .htaccess raíz optimizado para carga estática instantánea y redirección a proxies
+const rootHtaccess = `DirectoryIndex index.html index.php
+Options -Indexes +FollowSymLinks
 
 <IfModule mod_headers.c>
   <FilesMatch "\\.(js|mjs|css|woff2|woff|ttf|svg|webp|png|jpg|jpeg|ico)$">
@@ -294,102 +263,96 @@ Options -Indexes +FollowSymLinks
   RewriteEngine On
   RewriteBase /
 
-  RewriteCond %{HTTP:X-Bypass-Proxy} 1
-  RewriteRule ^ - [L]
-
-  RewriteCond %{HTTP_HOST} ^api\\. [NC]
-  RewriteRule ^(.*)$ api/index.php [L,QSA]
-
-  RewriteCond %{HTTP_HOST} ^admin\\. [NC]
-  RewriteCond %{REQUEST_URI} !^/static/ [NC]
-  RewriteCond %{REQUEST_URI} !^/uploads/ [NC]
-  RewriteCond %{REQUEST_FILENAME} !-f
-  RewriteRule ^(.*)$ admin/index.php [L,QSA]
-
+  # 1. Rutas de API (/api o subdominio api.)
+  RewriteCond %{HTTP_HOST} ^api\\. [NC,OR]
   RewriteRule ^api(/.*)?$ api/index.php [L,QSA]
 
-  RewriteCond %{REQUEST_FILENAME} !-f
-  RewriteCond %{REQUEST_FILENAME} !-d
+  # 2. Rutas de Admin (/admin o subdominio admin.)
+  RewriteCond %{HTTP_HOST} ^admin\\. [NC,OR]
   RewriteRule ^admin(/.*)?$ admin/index.php [L,QSA]
 
+  # 3. Servir archivos físicos existentes directamente (máxima velocidad, sin Node ni PHP)
   RewriteCond %{REQUEST_FILENAME} -f [OR]
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
 
-  RewriteCond %{REQUEST_FILENAME} !-f
-  RewriteCond %{REQUEST_FILENAME} !-d
+  # 4. Fallback SPA para Next.js (sirve index.html)
   RewriteRule ^ /index.html [L]
-</IfModule>`;
+</IfModule>
+`;
 
-  const subHtaccess = `<IfModule mod_rewrite.c>
-RewriteEngine On
-RewriteCond %{REQUEST_FILENAME} -f
-RewriteRule ^ - [L]
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule ^(.*)$ index.php [L,QSA]
-</IfModule>`;
-
+if (!fs.existsSync(frontendOut)) {
+  console.warn('[postinstall] ⚠️  frontend/out/ no existe, omitiendo deploy a public_html.');
+} else {
+  fs.mkdirSync(path.join(ROOT, 'admin/uploads'), { recursive: true });
   let deployedCount = 0;
 
   for (const pubDir of targetDirs) {
-    if (!isAllowedSandboxPath(pubDir)) {
+    // Sandbox Guard
+    if (pubDir.includes('mycoandes') || pubDir === '/home/u251936581' || pubDir === '/home/u251936581/public_html') {
       console.error(`[postinstall] 🛑 BLOQUEO DE SEGURIDAD: Destino rechazado: "${pubDir}"`);
       continue;
     }
 
-    // Si es una ruta absoluta en Hostinger, verificar que el padre exista antes de escribir
+    const isLocal = pubDir.startsWith(ROOT);
     const parentDir = path.dirname(pubDir);
-    const isLocalDir = pubDir.startsWith(ROOT);
-    if (!isLocalDir && !fs.existsSync(parentDir)) {
-      console.log(`[postinstall] ℹ️  Omitiendo ruta de producción (${parentDir} no existe en este entorno).`);
+    if (!isLocal && !fs.existsSync(parentDir)) {
+      console.log(`[postinstall] ℹ️  Omitiendo ${pubDir} (entorno local).`);
       continue;
     }
 
     console.log(`[postinstall] → Desplegando en destino: ${pubDir}`);
 
     try {
-      // 1. Crear directorios principales y subdominios correspondientes
+      // 1. Crear carpetas principales
       fs.mkdirSync(pubDir, { recursive: true });
       fs.mkdirSync(path.join(pubDir, 'api'), { recursive: true });
       fs.mkdirSync(path.join(pubDir, 'admin'), { recursive: true });
 
-      // 2. Limpiar _next viejo
+      // 2. Limpiar _next anterior
       const nextDir = path.join(pubDir, '_next');
       if (fs.existsSync(nextDir)) fs.rmSync(nextDir, { recursive: true, force: true });
 
       // 3. Copiar frontend estático
       fs.cpSync(frontendOut, pubDir, { recursive: true });
-      console.log(`[postinstall]   ✅ Frontend copiado en: ${pubDir}`);
 
-      // 4. Eliminar default.php de Hostinger si existe
+      // 4. Limpiar archivos .txt residuales
+      for (const f of fs.readdirSync(pubDir)) {
+        if (f.startsWith('__next.') || (f.endsWith('.txt') && f !== 'robots.txt')) {
+          try { fs.unlinkSync(path.join(pubDir, f)); } catch (_) {}
+        }
+      }
+
+      // 5. Eliminar default.php de Hostinger si existe
       const defaultPhp = path.join(pubDir, 'default.php');
       if (fs.existsSync(defaultPhp)) {
         try { fs.unlinkSync(defaultPhp); } catch (_) {}
       }
 
-      // 5. Configurar .htaccess y .node_port raíz
-      fs.writeFileSync(path.join(pubDir, '.htaccess'), htaccessRoot);
+      // 6. Escribir .htaccess y .node_port raíz
+      fs.writeFileSync(path.join(pubDir, '.htaccess'), rootHtaccess.trim());
       fs.writeFileSync(path.join(pubDir, '.node_port'), nodePort);
+      console.log(`[postinstall]   ✅ Frontend desplegado en: ${pubDir}`);
 
-      // 6. Configurar proxies PHP en /api/ y /admin/
-      if (fs.existsSync(proxySrc)) {
-        const proxyContent = fs.readFileSync(proxySrc, 'utf8');
-
-        // /api
-        const apiDir = path.join(pubDir, 'api');
-        fs.writeFileSync(path.join(apiDir, 'index.php'), proxyContent);
-        fs.writeFileSync(path.join(apiDir, '.htaccess'), subHtaccess);
-        fs.writeFileSync(path.join(apiDir, '.node_port'), nodePort);
-
-        // /admin
-        const adminDir = path.join(pubDir, 'admin');
-        fs.writeFileSync(path.join(adminDir, 'index.php'), proxyContent);
-        fs.writeFileSync(path.join(adminDir, '.htaccess'), subHtaccess);
-        fs.writeFileSync(path.join(adminDir, '.node_port'), nodePort);
-
-        console.log(`[postinstall]   ✅ Proxies PHP configurados en: ${pubDir}/api y ${pubDir}/admin`);
+      // 7. Configurar subcarpeta /api
+      const apiDir = path.join(pubDir, 'api');
+      if (fs.existsSync(proxyApiSrc)) {
+        fs.copyFileSync(proxyApiSrc, path.join(apiDir, 'index.php'));
       }
+      fs.writeFileSync(path.join(apiDir, '.htaccess'), subHtaccess.trim());
+      fs.writeFileSync(path.join(apiDir, '.node_port'), nodePort);
+      console.log(`[postinstall]   ✅ API proxy configurado en: ${apiDir}`);
+
+      // 8. Configurar subcarpeta /admin
+      const adminDir = path.join(pubDir, 'admin');
+      if (fs.existsSync(proxyAdminSrc)) {
+        fs.copyFileSync(proxyAdminSrc, path.join(adminDir, 'index.php'));
+      } else if (fs.existsSync(proxyApiSrc)) {
+        fs.copyFileSync(proxyApiSrc, path.join(adminDir, 'index.php'));
+      }
+      fs.writeFileSync(path.join(adminDir, '.htaccess'), subHtaccess.trim());
+      fs.writeFileSync(path.join(adminDir, '.node_port'), nodePort);
+      console.log(`[postinstall]   ✅ Admin proxy configurado en: ${adminDir}`);
 
       deployedCount++;
     } catch (err) {
@@ -397,7 +360,7 @@ RewriteRule ^(.*)$ index.php [L,QSA]
     }
   }
 
-  console.log(`[postinstall] Despliegues a public_html completados: ${deployedCount}`);
+  console.log(`[postinstall] Despliegues completados: ${deployedCount}`);
 
   // restart.txt para Passenger/LiteSpeed
   try {
