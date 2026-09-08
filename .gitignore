@@ -16,8 +16,6 @@ cookies.txt
 .env.*
 !.env.example
 !.env.production.example
-!deployment/.env.example
-!deployment/.env.production.example
 
 # IDEs and editors
 .idea/
@@ -62,4 +60,3 @@ admin/uploads/*
 *.tar.bz2
 *.tar.xz
 tmp/
-public_html/tmp/

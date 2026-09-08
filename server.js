@@ -197,20 +197,23 @@ const server = app.listen(port, function() {
     const actualPort = String(server.address().port);
     fs.writeFileSync(path.resolve(__dirname, '.node_port'), actualPort);
 
-    // Escribir en public_html local
-    const pubPort = path.resolve(__dirname, 'public_html/.node_port');
-    if (fs.existsSync(path.dirname(pubPort))) {
-      fs.writeFileSync(pubPort, actualPort);
-    }
-
-    // Escribir en rutas oficiales de Hostinger si existen
+    // Escribir en ruta oficial de Hostinger si existe
     const hostingerPublic = '/home/u251936581/domains/beardedmountaineerlodge.com/public_html';
     if (fs.existsSync(hostingerPublic)) {
       fs.writeFileSync(path.join(hostingerPublic, '.node_port'), actualPort);
-      const apiPort = path.join(hostingerPublic, 'api/.node_port');
-      if (fs.existsSync(path.dirname(apiPort))) fs.writeFileSync(apiPort, actualPort);
-      const adminPort = path.join(hostingerPublic, 'admin/.node_port');
-      if (fs.existsSync(path.dirname(adminPort))) fs.writeFileSync(adminPort, actualPort);
+      const apiDir = path.join(hostingerPublic, 'api');
+      const adminDir = path.join(hostingerPublic, 'admin');
+      if (fs.existsSync(apiDir)) fs.writeFileSync(path.join(apiDir, '.node_port'), actualPort);
+      if (fs.existsSync(adminDir)) fs.writeFileSync(path.join(adminDir, '.node_port'), actualPort);
+
+      // Si public_html/index.html no existe al iniciar, invocar postinstall para sincronizar
+      if (!fs.existsSync(path.join(hostingerPublic, 'index.html'))) {
+        console.log('> [Server] Sincronizando public_html en primer inicio...');
+        try {
+          const { execSync } = require('child_process');
+          execSync('node postinstall.cjs', { cwd: __dirname, stdio: 'inherit' });
+        } catch (_) {}
+      }
     }
   } catch (_) {}
 });
