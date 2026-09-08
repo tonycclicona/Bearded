@@ -1,55 +1,45 @@
-name: Deploy to Hostinger
+name: CI / Build Monorepo
 
 on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
-  build-and-deploy:
-    name: Build & Deploy to Hostinger
+  build:
+    name: Build & Validate Monorepo
     runs-on: ubuntu-latest
 
     steps:
-      - name: 🔍 Obtener código fuente
+      - name: 🔍 Checkout
         uses: actions/checkout@v4
 
-      - name: 🟢 Configurar Node.js 22
+      - name: 🟢 Setup Node.js 22
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: 'npm'
 
-      - name: 📦 Instalar dependencias
+      - name: 📦 Install Dependencies
         run: npm ci
 
-      - name: 🗄️ Generar cliente Prisma ORM
+      - name: 🗄️ Generate Prisma Client
         run: npm run prisma:generate
 
-      - name: 🛠️ Compilar Monorrepo Completo & Generar public_html
-        run: npm run build
-        env:
-          NODE_ENV: production
-          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL || 'https://api.beardedmountaineerlodge.com/api' }}
-          NEXT_PUBLIC_ADMIN_URL: ${{ secrets.NEXT_PUBLIC_ADMIN_URL || 'https://admin.beardedmountaineerlodge.com' }}
+      - name: 🛠️ Build Backend & Admin
+        run: |
+          npm run build:backend
+          npm run build:admin
 
-      - name: 🚀 Sincronizar archivos con Hostinger vía FTP / FTPS
-        if: ${{ env.FTP_SERVER != '' }}
-        uses: SamKirkland/FTP-Deploy-Action@v4.4.0
+      - name: 🌐 Build Frontend (Static Export)
+        run: npm run build:frontend
         env:
-          FTP_SERVER: ${{ secrets.FTP_SERVER }}
-        with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          port: ${{ secrets.FTP_PORT || 21 }}
-          local-dir: ./
-          server-dir: ${{ secrets.FTP_SERVER_DIR || 'public_html/' }}
-          protocol: ${{ secrets.FTP_PROTOCOL || 'ftps' }}
-          exclude: |
-            **/.git*
-            **/.git*/**
-            **/node_modules/**
-            .agent/**
-            frontend/src/**
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL || '/api' }}
+          NEXT_PUBLIC_ADMIN_URL: ${{ secrets.NEXT_PUBLIC_ADMIN_URL || '/admin' }}
+
+      - name: 📦 Prepare public_html Webroot
+        run: node postinstall.cjs

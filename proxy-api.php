@@ -1,7 +1,6 @@
 <?php
 // ==============================================================================
-// proxy-api.php — Bearded Mountaineer Lodge Reverse Proxy (PHP/LiteSpeed -> Node)
-// Patrón de alta disponibilidad probado en Unu-Raymi
+// proxy-api.php — Reverse Proxy Portable (PHP/LiteSpeed -> Node.js Gateway)
 // ==============================================================================
 
 header("Access-Control-Allow-Origin: *");
@@ -21,13 +20,10 @@ $requestUri = preg_replace('#/+#', '/', $requestUri);
 $possiblePortFiles = [
     __DIR__ . '/.node_port',
     __DIR__ . '/../.node_port',
+    __DIR__ . '/../../.node_port',
     __DIR__ . '/public_html/.node_port',
     __DIR__ . '/public_html/api/.node_port',
-    '/home/u251936581/public_html/.node_port',
-    '/home/u251936581/public_html/api/.node_port',
-    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/.node_port',
-    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/api/.node_port',
-    '/tmp/bearded_node_port'
+    sys_get_temp_dir() . '/bearded_node_port'
 ];
 
 $detectedPort = 4000;
@@ -47,7 +43,6 @@ $targets = [
     'http://127.0.0.1:3001',
     'http://127.0.0.1:8080',
     'http://127.0.0.1:3002',
-    'http://127.0.0.1:3000',
     "http://localhost:{$detectedPort}",
     'http://localhost:4000'
 ];
@@ -96,12 +91,9 @@ if ($isMultipart) {
 // 1. Conexión prioritaria por Socket UNIX
 $unixSockets = [
     __DIR__ . '/gateway.sock',
+    __DIR__ . '/../gateway.sock',
     __DIR__ . '/public_html/gateway.sock',
-    __DIR__ . '/public_html/api/gateway.sock',
-    '/home/u251936581/public_html/gateway.sock',
-    '/home/u251936581/public_html/api/gateway.sock',
-    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/gateway.sock',
-    '/tmp/bearded_gateway.sock'
+    sys_get_temp_dir() . '/bearded_gateway.sock'
 ];
 
 $activeUnixSocket = null;
@@ -188,12 +180,12 @@ foreach ($targets as $baseTarget) {
     }
 }
 
-// 3. Fallback de contingencia
+// 3. Respuesta de contingencia si el servidor Node.js está apagado
 http_response_code(502);
 header("Content-Type: application/json; charset=UTF-8");
 echo json_encode([
     "success" => false,
-    "error" => "El servidor Node.js de Bearded Mountaineer Lodge no responde. Reinicie la aplicación Node en cPanel/Hostinger.",
+    "error" => "El servidor Node.js no responde. Verifique el estado de la aplicación en el panel de control.",
     "timestamp" => date("c")
 ]);
 exit(0);

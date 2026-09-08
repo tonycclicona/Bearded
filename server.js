@@ -1,11 +1,12 @@
 // ==============================================================================
 // server.js — Servidor Unificado Express (Backend API + Admin Panel + Frontend)
-// Basado en el motor de arranque inmediato probado en Unu-Raymi
+// Arquitectura agnóstica y resiliente para desarrollo local y producción
 // ==============================================================================
 
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 import { fileURLToPath, pathToFileURL } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -17,19 +18,8 @@ app.set('trust proxy', true);
 
 process.env.UNIFIED_SERVER = 'true';
 
-// Log de diagnóstico
 function logDebug(msg) {
-  const line = `[${new Date().toISOString()}] ${msg}\n`;
   console.log(msg);
-  const logTargets = [
-    path.resolve(__dirname, 'node_debug.log'),
-    path.resolve(__dirname, 'public_html/node_debug.log'),
-    '/home/u251936581/public_html/node_debug.log',
-    '/tmp/bearded_node_debug.log'
-  ];
-  for (const lt of logTargets) {
-    try { fs.appendFileSync(lt, line); } catch (_) {}
-  }
 }
 
 process.on('uncaughtException', (err) => {
@@ -40,10 +30,6 @@ process.on('unhandledRejection', (reason) => {
   logDebug(`[UNHANDLED REJECTION]: ${reason?.stack || reason}`);
 });
 
-process.on('exit', (code) => {
-  logDebug(`[PROCESS EXIT]: Node.js finalizando con código ${code}`);
-});
-
 process.on('SIGTERM', () => {
   logDebug('[SIGNAL RECEIVED]: SIGTERM recibido');
 });
@@ -51,15 +37,6 @@ process.on('SIGTERM', () => {
 process.on('SIGINT', () => {
   logDebug('[SIGNAL RECEIVED]: SIGINT recibido');
 });
-
-process.on('warning', (warning) => {
-  logDebug(`[PROCESS WARNING]: ${warning.name}: ${warning.message}`);
-});
-
-// Mantener event loop activo
-setInterval(() => {
-  // Heartbeat cada 30 segundos
-}, 30000);
 
 logDebug(`Iniciando server.js en Node ${process.version} (PID: ${process.pid}, CWD: ${process.cwd()})`);
 
@@ -89,9 +66,7 @@ function loadEnv(file) {
   }
 }
 
-loadEnv(path.resolve(__dirname, '.env.production'));
 loadEnv(path.resolve(__dirname, '.env'));
-loadEnv(path.resolve(__dirname, 'backend/.env.production'));
 loadEnv(path.resolve(__dirname, 'backend/.env'));
 
 // ── 1. Inicialización Asíncrona de Módulos (Sin bloquear el arranque HTTP) ──
@@ -140,7 +115,7 @@ app.use('/admin/uploads', express.static(uploadsDir));
 app.use('/admin/static', express.static(adminPublicDir));
 app.use('/static', express.static(adminPublicDir));
 
-// ── 3. Cabeceras CORS Globales y Ruteo de API (Patrón Unu-Raymi) ─────────────
+// ── 3. Cabeceras CORS Globales y Ruteo de API ────────────────────────────────
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
   res.header('Access-Control-Allow-Credentials', 'true');
@@ -212,27 +187,13 @@ if (fs.existsSync(frontendDir)) {
 const PORT = process.env.PORT || process.env.GATEWAY_PORT || 4000;
 const server = app.listen(PORT, '0.0.0.0', () => {
   logDebug(`> [Server] Servidor Express iniciado en TCP puerto: ${PORT}`);
-  try {
-    logDebug(`> [Server Address]: ${JSON.stringify(server.address())}`);
-  } catch (_) {}
   
-  // Guardar archivo .node_port para que los proxies PHP detecten el puerto
+  // Guardar archivo .node_port para que proxies PHP detecten el puerto dinámico
   const portDestinations = [
     path.resolve(__dirname, '.node_port'),
     path.resolve(__dirname, 'public_html/.node_port'),
     path.resolve(__dirname, 'public_html/api/.node_port'),
-    path.resolve(__dirname, 'public_html/admin/.node_port'),
-    path.resolve(__dirname, '../../../public_html/.node_port'),
-    path.resolve(__dirname, '../../../public_html/api/.node_port'),
-    path.resolve(__dirname, '../../../public_html/admin/.node_port'),
-    path.resolve(__dirname, '../../public_html/.node_port'),
-    '/home/u251936581/public_html/.node_port',
-    '/home/u251936581/public_html/api/.node_port',
-    '/home/u251936581/public_html/admin/.node_port',
-    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/.node_port',
-    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/api/.node_port',
-    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/admin/.node_port',
-    '/tmp/bearded_node_port'
+    path.join(os.tmpdir(), 'bearded_node_port')
   ];
 
   for (const pFile of portDestinations) {
@@ -251,11 +212,8 @@ server.on('error', (err) => {
     const fallbackPort = Number(PORT) === 4000 ? 3001 : 4001;
     logDebug(`> [Server] Puerto ${PORT} en uso. Intentando en puerto alternativo ${fallbackPort}...`);
     try {
-      const altServer = app.listen(fallbackPort, '0.0.0.0', () => {
+      app.listen(fallbackPort, '0.0.0.0', () => {
         logDebug(`> [Server] Servidor Express iniciado en puerto alternativo: ${fallbackPort}`);
-      });
-      altServer.on('error', (altErr) => {
-        logDebug(`> [Server Alt Error ${altErr.code}]: ${altErr.message}`);
       });
     } catch (e) {
       logDebug(`> [Server Fallback Error]: ${e.message}`);
@@ -263,39 +221,31 @@ server.on('error', (err) => {
   }
 });
 
-// ── 7. Canal Socket UNIX (Conexión directa inmune a bloqueos TCP de CloudLinux) ──
+// ── 7. Canal Socket UNIX (Conexión directa inmune a bloqueos TCP en Linux) ────
 if (process.platform !== 'win32') {
   const unixSocketPaths = [
-  '/tmp/bearded_gateway.sock',
-  path.resolve(__dirname, 'gateway.sock'),
-  path.resolve(__dirname, 'public_html/gateway.sock'),
-  path.resolve(__dirname, 'public_html/api/gateway.sock'),
-  path.resolve(__dirname, 'public_html/admin/gateway.sock'),
-  '/home/u251936581/public_html/gateway.sock',
-  '/home/u251936581/public_html/api/gateway.sock',
-  '/home/u251936581/public_html/admin/gateway.sock',
-  '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/gateway.sock',
-  '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/api/gateway.sock',
-  '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/admin/gateway.sock'
-];
+    path.resolve(__dirname, 'gateway.sock'),
+    path.resolve(__dirname, 'public_html/gateway.sock'),
+    path.join(os.tmpdir(), 'bearded_gateway.sock')
+  ];
 
-for (const sockPath of unixSocketPaths) {
-  try {
-    const sockDir = path.dirname(sockPath);
-    if (fs.existsSync(sockDir)) {
-      if (fs.existsSync(sockPath)) {
-        try { fs.unlinkSync(sockPath); } catch (_) {}
+  for (const sockPath of unixSocketPaths) {
+    try {
+      const sockDir = path.dirname(sockPath);
+      if (fs.existsSync(sockDir)) {
+        if (fs.existsSync(sockPath)) {
+          try { fs.unlinkSync(sockPath); } catch (_) {}
+        }
+        const sockServer = app.listen(sockPath, () => {
+          try { fs.chmodSync(sockPath, 0o777); } catch (_) {}
+          logDebug(`> [Server] Canal Socket UNIX listo en: ${sockPath}`);
+        });
+        sockServer.on('error', (e) => {
+          logDebug(`> [UNIX Sock Error ${sockPath}]: ${e.message}`);
+        });
       }
-      const sockServer = app.listen(sockPath, () => {
-        try { fs.chmodSync(sockPath, 0o777); } catch (_) {}
-        logDebug(`> [Server] Canal Socket UNIX listo en: ${sockPath}`);
-      });
-      sockServer.on('error', (e) => {
-        logDebug(`> [UNIX Sock Error ${sockPath}]: ${e.message}`);
-      });
-    }
-  } catch (_) {}
-}
+    } catch (_) {}
+  }
 }
 
 export default app;
