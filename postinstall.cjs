@@ -158,9 +158,27 @@ run('npm run build', 'frontend');
 console.log('\n[postinstall] === [5/5] Deploy a public_html ===');
 
 const frontendOut = path.join(ROOT, 'frontend/out');
-const publicHtml  = path.join(ROOT, 'public_html');
+const publicHtml  = process.env.PUBLIC_HTML_PATH || path.join(ROOT, 'public_html');
 const proxySrc    = path.join(ROOT, 'deployment/proxy-api.php');
 const nodePort    = process.env.GATEWAY_PORT || '4000';
+
+// ── SAFETY SANDBOX GUARD ──────────────────────────────────────────────────────
+// Proteger estrictamente contra contaminación de otros dominios (ej. mycoandes)
+// o sobreescritura de la raíz compartida de la cuenta de hosting.
+const forbiddenPaths = [
+  '/home/u251936581',
+  '/home/u251936581/public_html',
+  'mycoandes'
+];
+
+const normalizedTarget = path.normalize(publicHtml).toLowerCase();
+for (const forbidden of forbiddenPaths) {
+  if (normalizedTarget === path.normalize(forbidden).toLowerCase() || (forbidden === 'mycoandes' && normalizedTarget.includes('mycoandes'))) {
+    console.error(`\n[postinstall] 🛑 BLOQUEO DE SEGURIDAD: Intento de escribir en ruta protegida o ajena: "${publicHtml}"`);
+    console.error('[postinstall] El despliegue de Bearded debe permanecer 100% aislado dentro de su propio dominio.\n');
+    process.exit(1);
+  }
+}
 
 if (!fs.existsSync(frontendOut)) {
   console.warn('[postinstall] ⚠️  frontend/out/ no existe, omitiendo deploy a public_html.');
