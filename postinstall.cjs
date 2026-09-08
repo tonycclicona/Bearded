@@ -433,6 +433,8 @@ if (isLinux) {
     }
     console.log('[deploy] ✅ Caché de Hostinger purgada.');
   } catch (_) {}
+}
+
 // ── 6. Reinicio de aplicación Node.js en Hostinger (Phusion Passenger) ────────
 if (isLinux) {
   const restartPaths = [
