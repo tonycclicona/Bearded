@@ -268,9 +268,13 @@ try {
     if (fs.existsSync(path.dirname(pubApiCandidate))) {
       try {
         fs.mkdirSync(pubApiCandidate, { recursive: true });
-        if (fs.existsSync(path.join(pubApiCandidate, 'default.php'))) {
-          fs.unlinkSync(path.join(pubApiCandidate, 'default.php'));
-        }
+        const legacyFiles = ['.node_port', '.node_socket', 'bearded_node_port.txt', 'default.php'];
+        legacyFiles.forEach(function(legacy) {
+          const p = path.join(pubApiCandidate, legacy);
+          if (fs.existsSync(p)) {
+            try { fs.unlinkSync(p); } catch (_) {}
+          }
+        });
         fs.writeFileSync(path.join(pubApiCandidate, 'index.php'), apiIndexContent);
         fs.writeFileSync(path.join(pubApiCandidate, '.htaccess'), apiHtaccessContent);
         console.log(`[postinstall] ✅ Created dynamic API proxy index.php & .htaccess in: ${pubApiCandidate}`);
