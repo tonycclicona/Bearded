@@ -143,6 +143,7 @@ const apiProxyPhp = `<?php
 // Bearded Mountaineer Lodge API Dynamic Reverse Proxy (LiteSpeed / PHP -> Node.js)
 // ==============================================================================
 
+ob_start();
 @error_reporting(0);
 @ini_set('display_errors', '0');
 
@@ -547,10 +548,9 @@ exit(0);
 
 const apiProxyHtaccess = `<IfModule mod_rewrite.c>
 RewriteEngine On
-RewriteRule ^index\\.php$ - [L]
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule . index.php [L]
+RewriteRule ^ index.php [L]
 </IfModule>
 `;
 
