@@ -74,7 +74,7 @@ foreach ($targets as $baseTarget) {
     $ch = curl_init($targetUrl);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $_SERVER['REQUEST_METHOD']);
-    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
     curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
     curl_setopt($ch, CURLOPT_ENCODING, ''); // Decodifica gzip/deflate/br automáticamente
@@ -107,12 +107,15 @@ foreach ($targets as $baseTarget) {
     $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
     curl_close($ch);
 
-    if ($httpCode >= 200 && $httpCode < 500 && $response !== false) {
+    $isHtmlFallback = ($contentType && strpos(strtolower($contentType), 'text/html') !== false) && 
+                      ($response && (strpos($response, '<!DOCTYPE html') !== false || strpos($response, '404: This page could not be found') !== false));
+
+    if ($httpCode >= 200 && $httpCode < 500 && $response !== false && !$isHtmlFallback) {
         break;
     }
 }
 
-if ($httpCode > 0 && $response !== false) {
+if ($httpCode > 0 && $response !== false && !$isHtmlFallback) {
     if ($contentType) {
         header("Content-Type: $contentType");
     }
@@ -125,7 +128,9 @@ header("Content-Type: application/json; charset=UTF-8");
 http_response_code(502);
 echo json_encode([
     "success" => false,
-    "error" => "El servidor Node.js de Bearded Mountaineer Lodge no está respondiendo en los puertos locales ni en el gateway.",
+    "status" => "starting",
+    "message" => "Bearded Mountaineer Lodge API Gateway iniciando...",
+    "error" => "El servidor Node.js de Bearded Mountaineer Lodge no está respondiendo en los puertos locales (4000/3000/3001). Asegúrate de que la aplicación Node.js esté activa en el panel de Hostinger.",
     "path" => $requestUri,
     "timestamp" => date("c")
 ]);

@@ -303,7 +303,7 @@ if ($httpCode === 0) {
         $ch = curl_init($targetUrl);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $_SERVER['REQUEST_METHOD']);
-        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
         curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
         curl_setopt($ch, CURLOPT_ENCODING, '');
@@ -336,7 +336,10 @@ if ($httpCode === 0) {
         $cType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
         curl_close($ch);
 
-        if ($code >= 200 && $code < 500 && $res !== false) {
+        $isHtmlFallback = ($cType && strpos(strtolower($cType), 'text/html') !== false) && 
+                          ($res && (strpos($res, '<!DOCTYPE html') !== false || strpos($res, '404: This page could not be found') !== false));
+
+        if ($code >= 200 && $code < 500 && $res !== false && !$isHtmlFallback) {
             $response = $res;
             $httpCode = $code;
             $contentType = $cType;
@@ -345,7 +348,7 @@ if ($httpCode === 0) {
     }
 }
 
-if ($httpCode > 0) {
+if ($httpCode > 0 && !$isHtmlFallback) {
     if ($contentType) {
         header("Content-Type: $contentType");
     }
@@ -355,12 +358,12 @@ if ($httpCode > 0) {
 }
 
 header("Content-Type: application/json; charset=UTF-8");
-http_response_code(503);
+http_response_code(502);
 echo json_encode([
     "success" => false,
     "status" => "starting",
     "message" => "Bearded Mountaineer Lodge API Gateway iniciando...",
-    "error" => "El servidor API de Node.js está iniciando o requiere reiniciarse en el panel de Hostinger.",
+    "error" => "El servidor Node.js de Bearded Mountaineer Lodge no está respondiendo en los puertos locales (4000/3000/3001). Asegúrate de que la aplicación Node.js esté activa en el panel de Hostinger.",
     "path" => $requestUri,
     "timestamp" => date("c")
 ]);
@@ -396,18 +399,12 @@ const rootHtaccess = `DirectoryIndex index.html
   RewriteEngine On
   RewriteBase /
 
-  # 1. Redirigir /api al subdominio dedicado de API (preserva metodos POST/PUT con 307)
-  RewriteRule ^api(/.*)?$ https://api.beardedmountaineerlodge.com/api$1 [R=307,L]
-
-  # 2. Redirigir /admin al subdominio dedicado de Admin (Next.js SSG)
-  RewriteRule ^admin(/.*)?$ https://admin.beardedmountaineerlodge.com$1 [R=301,L]
-
-  # 3. Archivos y carpetas físicas del frontend (_next, uploads, favicon, etc.)
+  # 1. Archivos y carpetas físicas del frontend, API y Admin
   RewriteCond %{REQUEST_FILENAME} -f [OR]
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
 
-  # 4. Fallback SPA Next.js para rutas del frontend
+  # 2. Fallback SPA Next.js para rutas del frontend
   RewriteRule ^ index.html [L]
 </IfModule>
 `;
@@ -481,9 +478,14 @@ function deployTo(targetDir) {
       }
     }
 
-    // 6. Escribir .htaccess raíz limpio (SIN Options)
-    fs.writeFileSync(path.join(targetDir, '.htaccess'), rootHtaccess.trim());
-    console.log('  ✅ .htaccess limpio instalado en public_html');
+    // 6. Escribir .htaccess raíz limpio SOLO si no existe ninguno
+    const rootHtPath = path.join(targetDir, '.htaccess');
+    if (!fs.existsSync(rootHtPath)) {
+      fs.writeFileSync(rootHtPath, rootHtaccess.trim());
+      console.log('  ✅ .htaccess base creado en public_html');
+    } else {
+      console.log('  ℹ️  .htaccess existente en public_html preservado (para respetar configuración de Hostinger Node.js)');
+    }
 
     return true;
   } catch (err) {

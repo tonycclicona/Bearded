@@ -37,6 +37,7 @@ yarn-error.log*
 pnpm-debug.log*
 .node_port
 .node_socket
+bearded_node_port.txt
 
 # Testing
 coverage/
