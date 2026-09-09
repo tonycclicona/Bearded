@@ -1,6 +1,6 @@
 // ==============================================================================
 // postinstall.cjs — Bearded Mountaineer Lodge Build & Hostinger Deployment Engine
-// Homologado al 100% con la dinámica probada de Unu-Raymi
+// Homologado al 100% con la arquitectura probada de Unu-Raymi
 // ==============================================================================
 
 'use strict';
@@ -12,51 +12,24 @@ const { execSync } = require('child_process');
 const ROOT = process.cwd();
 const isLinux = process.platform === 'linux';
 
-console.log('\n[deploy] ==========================================');
-console.log('[deploy] Bearded Mountaineer Lodge: Build & Deploy');
-console.log('[deploy] CWD:', ROOT);
-console.log('[deploy] Platform:', process.platform);
-console.log('[deploy] ==========================================\n');
+console.log('\n[postinstall] ==========================================');
+console.log('[postinstall] Starting Full Monorepo Build & Setup');
+console.log('[postinstall] CWD:', ROOT);
+console.log('[postinstall] Platform:', process.platform);
+console.log('[postinstall] ==========================================\n');
 
-// ── Cargar variables de entorno ───────────────────────────────────────────────
-function loadEnv(file) {
-  if (!fs.existsSync(file)) return;
+function run(cmd, subdir) {
+  const cwd = subdir ? path.join(ROOT, subdir) : ROOT;
+  if (!fs.existsSync(cwd)) {
+    console.log(`[postinstall] Skipping ${subdir} (directory does not exist)`);
+    return;
+  }
+  console.log(`[postinstall] Running: "${cmd}" in: ${cwd}`);
   try {
-    const lines = fs.readFileSync(file, 'utf8').split('\n');
-    for (const l of lines) {
-      const t = l.trim();
-      if (!t || t.startsWith('#')) continue;
-      const eq = t.indexOf('=');
-      if (eq === -1) continue;
-      const k = t.substring(0, eq).trim();
-      let v = t.substring(eq + 1).trim();
-      if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
-        v = v.substring(1, v.length - 1);
-      }
-      if (!process.env[k]) process.env[k] = v;
-    }
-  } catch (_) {}
-}
-
-loadEnv(path.join(ROOT, '.env.production'));
-loadEnv(path.join(ROOT, '.env'));
-
-if (!process.env.DATABASE_URL) {
-  process.env.DATABASE_URL = 'mysql://dummy:dummy@localhost:3306/dummy';
-}
-if (!process.env.NEXT_PUBLIC_API_URL) {
-  process.env.NEXT_PUBLIC_API_URL = '/api';
-}
-
-function run(cmd, cwd) {
-  const dir = cwd ? path.join(ROOT, cwd) : ROOT;
-  console.log(`[deploy] → ${cmd} (${cwd || '.'})`);
-  try {
-    execSync(cmd, { cwd: dir, stdio: 'inherit', env: { ...process.env, NODE_ENV: 'production' } });
-    return true;
-  } catch (e) {
-    console.error(`[deploy] ❌ Error en "${cmd}":`, e.message);
-    return false;
+    execSync(cmd, { cwd, stdio: 'inherit', env: process.env });
+    console.log(`[postinstall] ✅ Finished: "${cmd}" in: ${subdir}`);
+  } catch (err) {
+    console.error(`[postinstall] ❌ ERROR running "${cmd}" in ${subdir}:`, err.message);
   }
 }
 
@@ -74,73 +47,45 @@ function copyDir(src, dest) {
   }
 }
 
-// ── 1. Prisma Generate ────────────────────────────────────────────────────────
-console.log('\n[deploy] [1/5] Prisma Generate...');
+function copyToAllPublicHtml(srcDir, label) {
+  if (!fs.existsSync(srcDir)) return;
+  let current = ROOT;
+  for (let i = 0; i < 6; i++) {
+    const pubCandidate = path.join(current, 'public_html');
+    if (fs.existsSync(pubCandidate) && pubCandidate !== srcDir) {
+      try {
+        fs.cpSync(srcDir, pubCandidate, { recursive: true });
+        console.log(`[postinstall] ✅ Copied ${label} to: ${pubCandidate}`);
+      } catch (err) {
+        console.error(`Warning: Failed to copy to ${pubCandidate}:`, err.message);
+      }
+    }
+    const parent = path.dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+}
+
+// ── 1. BUILD BACKEND ──────────────────────────────────────────────────────────
+console.log('[postinstall] === 1/3 BACKEND setup ===');
 try {
   const schema = path.join(ROOT, 'backend/prisma/schema.prisma');
   if (fs.existsSync(schema)) {
-    const localPrisma = path.join(ROOT, 'node_modules/prisma/build/index.js');
-    if (fs.existsSync(localPrisma)) {
-      execSync(`node "${localPrisma}" generate --schema="${schema}"`, { stdio: 'inherit' });
-    } else {
+    try {
       execSync(`npx prisma generate --schema="${schema}"`, { stdio: 'inherit' });
-    }
-    console.log('[deploy] ✅ Prisma Client generado.');
-
-    // Sincronizar Prisma Client generado a backend y rutas runtime
-    const prismaSrc = path.join(ROOT, 'node_modules/.prisma');
-    if (fs.existsSync(prismaSrc)) {
-      const pTargets = [
-        path.join(ROOT, 'backend/node_modules/.prisma'),
-        '/home/u251936581/domains/beardedmountaineerlodge.com/node_modules/.prisma',
-        '/home/u251936581/domains/beardedmountaineerlodge.com/hbuilds/current/nodejs/node_modules/.prisma'
-      ];
-      pTargets.forEach(function(pt) {
-        try { copyDir(prismaSrc, pt); } catch (_) {}
-      });
-      console.log('[deploy] ✅ Prisma Client sincronizado a entornos de ejecución.');
-    }
-
-    const prismaClientPkg = path.join(ROOT, 'node_modules/@prisma/client');
-    if (fs.existsSync(prismaClientPkg)) {
-      const pkgTargets = [
-        path.join(ROOT, 'backend/node_modules/@prisma/client')
-      ];
-      pkgTargets.forEach(function(pt) {
-        try { copyDir(prismaClientPkg, pt); } catch (_) {}
-      });
+      console.log('[postinstall] ✅ Prisma Client generado.');
+    } catch (e) {
+      console.warn('[postinstall] ⚠️  Prisma generate aviso:', e.message);
     }
   }
-} catch (e) {
-  console.warn('[deploy] ⚠️  Aviso Prisma generate:', e.message);
-}
+} catch (_) {}
 
-// ── 2. Build Backend ──────────────────────────────────────────────────────────
-console.log('\n[deploy] [2/5] Compilando Backend...');
 run('node scripts/build.cjs', 'backend');
 
-// ── 3. Build Admin y Frontend (Next.js SSG) ───────────────────────────────────
-const adminOutIndex = path.join(ROOT, 'admin/out/index.html');
-if (fs.existsSync(adminOutIndex)) {
-  console.log('\n[deploy] [3/5] admin/out/ ya existe y está listo (omitiendo compilación pesada)...');
-} else {
-  console.log('\n[deploy] [3/5] Compilando Admin (Next.js SSG)...');
-  run('node scripts/build.cjs', 'admin');
-}
-
-const frontendOutIndex = path.join(ROOT, 'frontend/out/index.html');
-if (fs.existsSync(frontendOutIndex)) {
-  console.log('[deploy] [3/5] frontend/out/ ya existe y está listo (omitiendo compilación pesada)...');
-} else {
-  console.log('[deploy] [3/5] Compilando Frontend (Next.js SSG)...');
-  run('node scripts/build.cjs', 'frontend');
-}
-
-// ── 4. Generar Proxy Dinámico de API para Hostinger LiteSpeed (Patrón Unu-Raymi) ──
-console.log('\n[deploy] [4/5] Configurando Proxy Dinámico para API...');
-const apiProxyPhp = `<?php
+// Proxy Dinámico de API para Hostinger LiteSpeed (Código Unu-Raymi)
+const apiIndexContent = `<?php
 // ==============================================================================
-// Bearded Mountaineer Lodge API Dynamic Reverse Proxy (LiteSpeed / PHP -> Node.js)
+// Bearded Mountaineer Lodge API Dynamic Reverse Proxy (LiteSpeed / PHP -> Node.js Gateway)
 // ==============================================================================
 
 header("Access-Control-Allow-Origin: *");
@@ -154,72 +99,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 $requestUri = $_SERVER['REQUEST_URI'];
-if (strpos($requestUri, '/api') !== 0 && strpos($requestUri, '/uploads') !== 0) {
+if (strpos($requestUri, '/api') !== 0) {
     $requestUri = '/api' . $requestUri;
 }
 
-// Descubrir socket o puerto dinámico escrito por server.js
-$socket = null;
-$socketCandidates = [
-    __DIR__ . '/.node_socket',
-    dirname(__DIR__) . '/.node_socket',
-    dirname(dirname(__DIR__)) . '/.node_socket',
-    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/.node_socket',
-    '/home/u251936581/domains/beardedmountaineerlodge.com/hbuilds/current/nodejs/.node_socket',
-    '/home/u251936581/domains/beardedmountaineerlodge.com/hbuilds/source/repository/.node_socket',
-    '/home/u251936581/public_html/.node_socket',
-    '/tmp/.node_socket'
+$targets = [
+    'http://127.0.0.1:4000',
+    'http://127.0.0.1:3000',
+    'https://beardedmountaineerlodge.com'
 ];
-foreach ($socketCandidates as $sc) {
-    if (file_exists($sc)) {
-        $s = trim(file_get_contents($sc));
-        if (!empty($s) && file_exists($s)) {
-            $socket = $s;
-            break;
-        }
-    }
-}
-
-$port = null;
-$portCandidates = [
-    __DIR__ . '/.node_port',
-    __DIR__ . '/bearded_node_port.txt',
-    dirname(__DIR__) . '/.node_port',
-    dirname(__DIR__) . '/bearded_node_port.txt',
-    dirname(dirname(__DIR__)) . '/.node_port',
-    dirname(dirname(__DIR__)) . '/bearded_node_port.txt',
-    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/.node_port',
-    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/bearded_node_port.txt',
-    '/home/u251936581/domains/api.beardedmountaineerlodge.com/public_html/.node_port',
-    '/home/u251936581/domains/api.beardedmountaineerlodge.com/.node_port',
-    '/home/u251936581/domains/beardedmountaineerlodge.com/hbuilds/current/nodejs/.node_port',
-    '/home/u251936581/domains/beardedmountaineerlodge.com/hbuilds/source/repository/.node_port',
-    '/home/u251936581/domains/beardedmountaineerlodge.com/.node_port',
-    '/home/u251936581/domains/beardedmountaineerlodge.com/subdomains/api/.node_port',
-    '/home/u251936581/public_html/.node_port',
-    '/tmp/.node_port',
-    '/tmp/bearded_node_port.txt'
-];
-foreach ($portCandidates as $pc) {
-    if (file_exists($pc)) {
-        $p = trim(file_get_contents($pc));
-        if (!empty($p) && is_numeric($p)) {
-            $port = $p;
-            break;
-        }
-    }
-}
-
-$targets = [];
-if ($port) {
-    $targets[] = "http://127.0.0.1:" . $port;
-}
-$targets[] = 'http://127.0.0.1:4000';
-$targets[] = 'http://127.0.0.1:3000';
-$targets[] = 'http://127.0.0.1:3001';
-$targets[] = 'http://127.0.0.1:4001';
-$targets[] = 'https://beardedmountaineerlodge.com';
-
 $response = false;
 $httpCode = 0;
 $contentType = '';
@@ -263,17 +151,25 @@ if ($isMultipart) {
     $body = file_get_contents('php://input');
 }
 
-// 1. Probar socket Unix si está disponible
-if ($socket) {
-    $ch = curl_init('http://localhost' . $requestUri);
-    curl_setopt($ch, CURLOPT_UNIX_SOCKET_PATH, $socket);
+foreach ($targets as $baseTarget) {
+    $targetUrl = $baseTarget . $requestUri;
+    $ch = curl_init($targetUrl);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $_SERVER['REQUEST_METHOD']);
     curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 1);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+    curl_setopt($ch, CURLOPT_ENCODING, ''); // Decodifica gzip/deflate/br automáticamente
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
     curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+    
     $reqHeaders = $headers;
-    $reqHeaders[] = "Host: api.beardedmountaineerlodge.com";
+    if (strpos($baseTarget, 'beardedmountaineerlodge.com') !== false) {
+        $reqHeaders[] = "Host: beardedmountaineerlodge.com";
+    } else {
+        $reqHeaders[] = "Host: api.beardedmountaineerlodge.com";
+    }
+
     if ($isMultipart) {
         $filteredHeaders = array_filter($reqHeaders, function($h) {
             $lh = strtolower($h);
@@ -283,72 +179,22 @@ if ($socket) {
         curl_setopt($ch, CURLOPT_POSTFIELDS, $postFields);
     } else {
         curl_setopt($ch, CURLOPT_HTTPHEADER, $reqHeaders);
-        if ($body !== null) curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
+        if ($body !== null) {
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
+        }
     }
-    $res = curl_exec($ch);
-    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $cType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
     curl_close($ch);
-    if ($code > 0) {
-        $response = $res;
-        $httpCode = $code;
-        $contentType = $cType;
+
+    if ($httpCode >= 200 && $httpCode < 500 && $response !== false) {
+        break;
     }
 }
 
-// 2. Probar puertos TCP si el socket no conectó
-if ($httpCode === 0) {
-    foreach ($targets as $baseTarget) {
-        $targetUrl = $baseTarget . $requestUri;
-        $ch = curl_init($targetUrl);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $_SERVER['REQUEST_METHOD']);
-        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
-        curl_setopt($ch, CURLOPT_ENCODING, '');
-        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-
-        $reqHeaders = $headers;
-        if (strpos($baseTarget, 'beardedmountaineerlodge.com') !== false) {
-            $reqHeaders[] = "Host: beardedmountaineerlodge.com";
-        } else {
-            $reqHeaders[] = "Host: api.beardedmountaineerlodge.com";
-        }
-
-        if ($isMultipart) {
-            $filteredHeaders = array_filter($reqHeaders, function($h) {
-                $lh = strtolower($h);
-                return strpos($lh, 'content-type:') !== 0 && strpos($lh, 'content-length:') !== 0;
-            });
-            curl_setopt($ch, CURLOPT_HTTPHEADER, array_values($filteredHeaders));
-            curl_setopt($ch, CURLOPT_POSTFIELDS, $postFields);
-        } else {
-            curl_setopt($ch, CURLOPT_HTTPHEADER, $reqHeaders);
-            if ($body !== null) {
-                curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
-            }
-        }
-
-        $res = curl_exec($ch);
-        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $cType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
-        curl_close($ch);
-
-        $isHtmlFallback = ($cType && strpos(strtolower($cType), 'text/html') !== false) && 
-                          ($res && (strpos($res, '<!DOCTYPE html') !== false || strpos($res, '404: This page could not be found') !== false));
-
-        if ($code >= 200 && $code < 500 && $res !== false && !$isHtmlFallback) {
-            $response = $res;
-            $httpCode = $code;
-            $contentType = $cType;
-            break;
-        }
-    }
-}
-
-if ($httpCode > 0 && !$isHtmlFallback) {
+if ($httpCode > 0 && $response !== false) {
     if ($contentType) {
         header("Content-Type: $contentType");
     }
@@ -361,274 +207,189 @@ header("Content-Type: application/json; charset=UTF-8");
 http_response_code(502);
 echo json_encode([
     "success" => false,
-    "status" => "starting",
-    "message" => "Bearded Mountaineer Lodge API Gateway iniciando...",
-    "error" => "El servidor Node.js de Bearded Mountaineer Lodge no está respondiendo en los puertos locales (4000/3000/3001). Asegúrate de que la aplicación Node.js esté activa en el panel de Hostinger.",
+    "error" => "El servidor Node.js de Bearded Mountaineer Lodge no está respondiendo en los puertos locales (4000/3000). Asegúrate de iniciar la aplicación Node.js en el panel de Hostinger.",
     "path" => $requestUri,
     "timestamp" => date("c")
 ]);
 exit(0);
 `;
 
-const apiProxyHtaccess = `<IfModule mod_rewrite.c>
+const apiHtaccessContent = `<IfModule mod_rewrite.c>
 RewriteEngine On
+RewriteBase /
 RewriteRule ^index\\.php$ - [L]
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule . index.php [L]
+RewriteRule . /index.php [L]
 </IfModule>
 `;
 
-// ── 5. Despliegue directo a Hostinger public_html ─────────────────────────────
-console.log('\n[deploy] [5/5] Desplegando en directorios públicos...');
+try {
+  let current = ROOT;
+  const apiCandidates = [
+    '/home/u251936581/domains/api.beardedmountaineerlodge.com/public_html',
+    '/home/u251936581/domains/beardedmountaineerlodge.com/subdomains/api',
+    path.join(ROOT, 'public_html', 'api')
+  ];
 
-// .htaccess raíz limpio SIN directiva "Options" (evita 403 Forbidden en LiteSpeed)
-const rootHtaccess = `DirectoryIndex index.html
+  for (let i = 0; i < 6; i++) {
+    apiCandidates.push(path.join(current, 'public_html', 'api'));
+    const parent = path.dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
 
-<IfModule mod_headers.c>
-  <FilesMatch "\\.(js|mjs|css|woff2|woff|ttf|svg|webp|png|jpg|jpeg|ico)$">
-    Header set Cache-Control "public, max-age=31536000, immutable"
-  </FilesMatch>
-  <FilesMatch "\\.(html)$">
-    Header set Cache-Control "no-cache, no-store, must-revalidate"
-  </FilesMatch>
-</IfModule>
+  for (const pubApiCandidate of apiCandidates) {
+    if (fs.existsSync(path.dirname(pubApiCandidate))) {
+      try {
+        fs.mkdirSync(pubApiCandidate, { recursive: true });
+        if (fs.existsSync(path.join(pubApiCandidate, 'default.php'))) {
+          fs.unlinkSync(path.join(pubApiCandidate, 'default.php'));
+        }
+        fs.writeFileSync(path.join(pubApiCandidate, 'index.php'), apiIndexContent);
+        fs.writeFileSync(path.join(pubApiCandidate, '.htaccess'), apiHtaccessContent);
+        console.log(`[postinstall] ✅ Created dynamic API proxy index.php & .htaccess in: ${pubApiCandidate}`);
+      } catch (err) {}
+    }
+  }
+} catch (e) {}
 
-<IfModule mod_rewrite.c>
-  RewriteEngine On
-  RewriteBase /
+// ── 2. BUILD FRONTEND ─────────────────────────────────────────────────────────
+console.log('[postinstall] === 2/3 FRONTEND setup ===');
+const frontendOutIndex = path.join(ROOT, 'frontend/out/index.html');
+if (fs.existsSync(frontendOutIndex)) {
+  console.log('[postinstall] frontend/out/ ya existe (omitiendo build pesada)');
+} else {
+  run('node scripts/build.cjs', 'frontend');
+}
 
-  # 1. Dejar pasar SIEMPRE peticiones /api y /admin a Node.js / Passenger sin interceptarlas con fallback SPA
-  RewriteCond %{REQUEST_URI} ^/api [NC,OR]
-  RewriteCond %{REQUEST_URI} ^/admin [NC]
-  RewriteRule ^ - [L]
+try {
+  const srcOut = path.join(ROOT, 'frontend', 'out');
+  const destOut = path.join(ROOT, 'out');
+  if (fs.existsSync(srcOut)) {
+    fs.cpSync(srcOut, destOut, { recursive: true });
+  }
 
-  # 2. Archivos y carpetas físicas del frontend (_next, uploads, favicon, etc.)
-  RewriteCond %{REQUEST_FILENAME} -f [OR]
-  RewriteCond %{REQUEST_FILENAME} -d
-  RewriteRule ^ - [L]
+  const publicHtmlTargets = [
+    path.join(ROOT, 'public_html'),
+    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html',
+    '/home/u251936581/public_html'
+  ];
 
-  # 3. Fallback SPA Next.js únicamente para navegación del frontend
-  RewriteRule ^ index.html [L]
-</IfModule>
-`;
+  publicHtmlTargets.forEach(target => {
+    if (fs.existsSync(target) && target !== srcOut) {
+      try {
+        fs.cpSync(srcOut, target, { recursive: true });
+        console.log(`[postinstall] ✅ Copied frontend static export directly to: ${target}`);
+      } catch (err) {
+        console.error(`Warning: Failed to copy to ${target}:`, err.message);
+      }
+    }
+  });
 
-// .htaccess universal para Admin (funciona en subcarpeta /admin y en subdominio admin.)
-const universalAdminHtaccess = `DirectoryIndex index.html
-<IfModule mod_rewrite.c>
+  copyToAllPublicHtml(srcOut, 'frontend static export');
+} catch (e) {
+  console.error('Warning: Failed to copy frontend build:', e.message);
+}
+
+// ── 3. BUILD ADMIN ────────────────────────────────────────────────────────────
+console.log('[postinstall] === 3/3 ADMIN setup ===');
+const adminOutIndex = path.join(ROOT, 'admin/out/index.html');
+if (fs.existsSync(adminOutIndex)) {
+  console.log('[postinstall] admin/out/ ya existe (omitiendo build pesada)');
+} else {
+  run('node scripts/build.cjs', 'admin');
+}
+
+try {
+  const srcOut = path.join(ROOT, 'admin', 'out');
+  let adminCurrent = ROOT;
+  const adminTargets = [
+    '/home/u251936581/domains/admin.beardedmountaineerlodge.com/public_html',
+    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/admin',
+    '/home/u251936581/public_html/admin'
+  ];
+
+  for (let i = 0; i < 6; i++) {
+    adminTargets.push(path.join(adminCurrent, 'public_html', 'admin'));
+    const parent = path.dirname(adminCurrent);
+    if (parent === adminCurrent) break;
+    adminCurrent = parent;
+  }
+
+  adminTargets.forEach(target => {
+    try {
+      if (fs.existsSync(path.dirname(target))) {
+        fs.mkdirSync(target, { recursive: true });
+        if (fs.existsSync(path.join(target, 'default.php'))) {
+          fs.unlinkSync(path.join(target, 'default.php'));
+        }
+        fs.cpSync(srcOut, target, { recursive: true });
+
+        const adminHtaccess = `<IfModule mod_rewrite.c>
 RewriteEngine On
-RewriteCond %{REQUEST_FILENAME} -f
-RewriteRule ^ - [L]
-RewriteCond %{REQUEST_FILENAME} -d
+RewriteBase /
+RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME}/index.html -f
 RewriteRule ^(.*)$ $1/index.html [L]
-RewriteCond %{REQUEST_FILENAME}.html -f
-RewriteRule ^(.*)$ $1.html [L]
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule ^ index.html [L]
+RewriteRule ^(.*)$ /index.html [L]
 </IfModule>
 `;
-
-function deployTo(targetDir) {
-  if (targetDir.includes('mycoandes') || targetDir === '/home/u251936581') {
-    return false;
-  }
-
-  console.log(`[deploy] → Desplegando en: ${targetDir}`);
-  try {
-    fs.mkdirSync(targetDir, { recursive: true });
-
-    // 1. Copiar frontend estático (out)
-    const frontendOut = path.join(ROOT, 'frontend/out');
-    if (fs.existsSync(frontendOut)) {
-      const nextDir = path.join(targetDir, '_next');
-      if (fs.existsSync(nextDir)) fs.rmSync(nextDir, { recursive: true, force: true });
-      copyDir(frontendOut, targetDir);
-      console.log('  ✅ Frontend exportado copiado a public_html');
-    }
-
-    // 2. Copiar frontend public assets
-    const frontendPub = path.join(ROOT, 'frontend/public');
-    if (fs.existsSync(frontendPub)) {
-      copyDir(frontendPub, targetDir);
-      console.log('  ✅ Frontend public assets copiados a public_html');
-    }
-
-    // 3. Copiar Admin estático (Next.js out) a public_html/admin
-    const adminOut = path.join(ROOT, 'admin/out');
-    if (fs.existsSync(adminOut)) {
-      const pubAdmin = path.join(targetDir, 'admin');
-      if (fs.existsSync(pubAdmin)) {
-        fs.rmSync(pubAdmin, { recursive: true, force: true });
+        fs.writeFileSync(path.join(target, '.htaccess'), adminHtaccess);
+        console.log(`[postinstall] ✅ Copied admin static export and created .htaccess in: ${target}`);
       }
-      fs.mkdirSync(pubAdmin, { recursive: true });
-      copyDir(adminOut, pubAdmin);
-      fs.writeFileSync(path.join(pubAdmin, '.htaccess'), universalAdminHtaccess.trim());
-      console.log('  ✅ Admin estático (Next.js) copiado a public_html/admin con .htaccess SPA');
-    }
-
-    // 4. Instalar Proxy Dinámico de API en public_html/api
-    const pubApi = path.join(targetDir, 'api');
-    fs.mkdirSync(pubApi, { recursive: true });
-    fs.writeFileSync(path.join(pubApi, 'index.php'), apiProxyPhp.trim());
-    fs.writeFileSync(path.join(pubApi, '.htaccess'), apiProxyHtaccess.trim());
-    console.log('  ✅ API Proxy dinámico instalado en public_html/api');
-
-    // 5. Limpiar .txt residuales de Next.js
-    for (const f of fs.readdirSync(targetDir)) {
-      if (f.startsWith('__next.') || (f.endsWith('.txt') && f !== 'robots.txt')) {
-        try { fs.unlinkSync(path.join(targetDir, f)); } catch (_) {}
-      }
-    }
-
-    // 6. Configurar .htaccess raíz para permitir que /api y /admin pasen a Node.js sin ser interceptados por el fallback SPA
-    const rootHtPath = path.join(targetDir, '.htaccess');
-    let existingContent = '';
-    if (fs.existsSync(rootHtPath)) {
-      try { existingContent = fs.readFileSync(rootHtPath, 'utf8'); } catch (_) {}
-    }
-
-    // Si tiene directivas de Passenger de Hostinger, preservarlas arriba
-    const passengerLines = existingContent.split('\n').filter(function(l) {
-      return l.includes('Passenger') || l.includes('CLOUDLINUX') || l.includes('passenger');
-    });
-    const passengerBlock = passengerLines.length > 0 ? passengerLines.join('\n') + '\n\n' : '';
-
-    fs.writeFileSync(rootHtPath, (passengerBlock + rootHtaccess.trim()).trim() + '\n');
-    console.log('  ✅ .htaccess de public_html configurado (preservando Passenger y excluyendo /api y /admin del fallback SPA)');
-
-    return true;
-  } catch (err) {
-    console.error(`[deploy] ❌ Error en despliegue a ${targetDir}:`, err.message);
-    return false;
-  }
+    } catch (err) {}
+  });
+} catch (e) {
+  console.error('Warning: Failed to copy admin build:', e.message);
 }
 
-// Descubrimiento amplio de carpetas public_html hacia arriba y rutas oficiales
-const candidatePublicHtmlDirs = [
-  '/home/u251936581/domains/beardedmountaineerlodge.com/public_html',
-  '/home/u251936581/public_html',
-  path.resolve(ROOT, 'public_html')
-];
-
-let currentDir = ROOT;
-for (let i = 0; i < 6; i++) {
-  candidatePublicHtmlDirs.push(path.join(currentDir, 'public_html'));
-  const parent = path.dirname(currentDir);
-  if (parent === currentDir) break;
-  currentDir = parent;
-}
-
-if (isLinux) {
-  const uniqueTargets = Array.from(new Set(candidatePublicHtmlDirs));
-  uniqueTargets.forEach(function(target) {
-    if (fs.existsSync(target) || fs.existsSync(path.dirname(target))) {
-      deployTo(target);
-    }
-  });
-
-  // Subdominios dedicados en Hostinger
-  const subAdminTargets = [
-    '/home/u251936581/domains/admin.beardedmountaineerlodge.com/public_html',
-    '/home/u251936581/domains/admin.beardedmountaineerlodge.com',
-    '/home/u251936581/domains/beardedmountaineerlodge.com/subdomains/admin',
-    '/home/u251936581/subdomains/admin'
-  ];
-  subAdminTargets.forEach(function(p) {
-    if (fs.existsSync(p) || fs.existsSync(path.dirname(p))) {
-      try {
-        fs.mkdirSync(p, { recursive: true });
-        const adminOut = path.join(ROOT, 'admin/out');
-        if (fs.existsSync(adminOut)) {
-          copyDir(adminOut, p);
-          fs.writeFileSync(path.join(p, '.htaccess'), universalAdminHtaccess.trim());
-
-          // También desplegar proxy de API en subdominio admin como respaldo
-          const adminApi = path.join(p, 'api');
-          fs.mkdirSync(adminApi, { recursive: true });
-          fs.writeFileSync(path.join(adminApi, 'index.php'), apiProxyPhp.trim());
-          fs.writeFileSync(path.join(adminApi, '.htaccess'), apiProxyHtaccess.trim());
-
-          console.log('  ✅ Subdominio admin. poblado con Next.js SSG y proxy /api:', p);
-        }
-      } catch (_) {}
-    }
-  });
-
-  const subApiTargets = [
-    '/home/u251936581/domains/api.beardedmountaineerlodge.com/public_html',
-    '/home/u251936581/domains/api.beardedmountaineerlodge.com',
-    '/home/u251936581/domains/beardedmountaineerlodge.com/subdomains/api',
-    '/home/u251936581/subdomains/api'
-  ];
-  subApiTargets.forEach(function(p) {
-    if (fs.existsSync(p) || fs.existsSync(path.dirname(p))) {
-      try {
-        fs.mkdirSync(p, { recursive: true });
-        fs.writeFileSync(path.join(p, 'index.php'), apiProxyPhp.trim());
-        fs.writeFileSync(path.join(p, '.htaccess'), apiProxyHtaccess.trim());
-        console.log('  ✅ Subdominio api. configurado con proxy dinámico:', p);
-      } catch (_) {}
-    }
-  });
-
-  // ── Sincronización a current/nodejs (Patrón Unu-Raymi sección 4) ──
+// ── 4. SINCRONIZACIÓN AUTOMÁTICA A CURRENT / NODEJS Y PUBLIC_HTML ───────────
+console.log('\n[postinstall] === Syncing build artifacts to runtime directories ===');
+try {
   const currentDirs = [
     '/home/u251936581/domains/beardedmountaineerlodge.com/hbuilds/current/nodejs',
     path.resolve(ROOT, '../current/nodejs'),
     path.resolve(ROOT, '../../current/nodejs')
   ];
-  currentDirs.forEach(function(target) {
+
+  currentDirs.forEach(target => {
     if (fs.existsSync(path.dirname(target))) {
       try {
         fs.mkdirSync(target, { recursive: true });
-        const itemsToCopy = ['server.js', 'package.json', 'frontend', 'admin', 'backend', '.env', '.env.production'];
-        itemsToCopy.forEach(function(item) {
+        const itemsToCopy = ['server.js', 'package.json', 'out', 'frontend', 'admin', 'backend', '.env', '.env.production'];
+        itemsToCopy.forEach(item => {
           const itemSrc = path.join(ROOT, item);
           const itemDest = path.join(target, item);
           if (fs.existsSync(itemSrc)) {
-            copyDir(itemSrc, itemDest);
+            fs.cpSync(itemSrc, itemDest, { recursive: true });
           }
         });
-        console.log('[deploy] ✅ Archivos de la aplicación sincronizados a runtime:', target);
-      } catch (_) {}
-    }
-  });
-
-  // ── Limpieza de caché residual en Hostinger ──
-  try {
-    execSync('npm cache clean --force 2>/dev/null || true', { stdio: 'ignore' });
-    const userHome = process.env.HOME || '/home/u251936581';
-    const cacheDir = path.join(userHome, '.cache');
-    if (fs.existsSync(cacheDir)) {
-      for (const d of ['next', 'turbo', 'yarn']) {
-        const p = path.join(cacheDir, d);
-        if (fs.existsSync(p)) fs.rmSync(p, { recursive: true, force: true });
+        console.log(`[postinstall] ✅ Automatically synced app files to: ${target}`);
+      } catch (err) {
+        console.error(`Warning: Failed to sync to ${target}:`, err.message);
       }
     }
-    console.log('[deploy] ✅ Caché de Hostinger purgada.');
-  } catch (_) {}
+  });
+} catch (e) {}
 
-  // ── Reinicio de aplicación Node.js en Hostinger (Phusion Passenger) ──
+// Señal de reinicio a Phusion Passenger en Hostinger
+try {
   const restartPaths = [
     path.join(ROOT, 'tmp', 'restart.txt'),
     path.resolve(ROOT, '../tmp/restart.txt'),
-    path.resolve(ROOT, '../../tmp/restart.txt'),
     '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/tmp/restart.txt',
-    '/home/u251936581/domains/beardedmountaineerlodge.com/tmp/restart.txt',
-    '/home/u251936581/domains/beardedmountaineerlodge.com/hbuilds/current/nodejs/tmp/restart.txt',
-    '/home/u251936581/domains/beardedmountaineerlodge.com/hbuilds/source/repository/tmp/restart.txt'
+    '/home/u251936581/domains/beardedmountaineerlodge.com/tmp/restart.txt'
   ];
-  for (const rp of restartPaths) {
+  restartPaths.forEach(rp => {
     try {
       fs.mkdirSync(path.dirname(rp), { recursive: true });
       fs.writeFileSync(rp, String(Date.now()), 'utf8');
     } catch (_) {}
-  }
-  console.log('[deploy] ✅ Señal de reinicio enviada a Passenger (tmp/restart.txt).');
-} else {
-  console.log('[deploy] ℹ️  Entorno local (Windows): omitiendo despliegue en /home/u251936581.');
-}
+  });
+  console.log('[postinstall] ✅ Sent restart signal to Passenger (tmp/restart.txt)');
+} catch (_) {}
 
-console.log('[deploy] ✅ Build & Deploy finalizado exitosamente.\n');
+console.log('\n[postinstall] ✅ All subapps built and delivered successfully.\n');

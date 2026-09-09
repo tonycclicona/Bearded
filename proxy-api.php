@@ -1,7 +1,7 @@
 <?php
 // ==============================================================================
 // Bearded Mountaineer Lodge API Dynamic Reverse Proxy (LiteSpeed / PHP -> Node.js Gateway)
-// Homologado con arquitectura probada de Unu-Raymi
+// Homologado 100% con Unu-Raymi
 // ==============================================================================
 
 header("Access-Control-Allow-Origin: *");
@@ -9,21 +9,19 @@ header("Access-Control-Allow-Credentials: true");
 header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS, PATCH");
 header("Access-Control-Allow-Headers: Origin, X-Requested-With, Content-Type, Accept, Authorization");
 
-// Responder inmediatamente a peticiones OPTIONS preflight de CORS
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit(0);
 }
 
 $requestUri = $_SERVER['REQUEST_URI'];
-if (strpos($requestUri, '/api') !== 0 && strpos($requestUri, '/uploads') !== 0) {
+if (strpos($requestUri, '/api') !== 0) {
     $requestUri = '/api' . $requestUri;
 }
 
 $targets = [
     'http://127.0.0.1:4000',
     'http://127.0.0.1:3000',
-    'http://127.0.0.1:3001',
     'https://beardedmountaineerlodge.com'
 ];
 $response = false;
@@ -74,7 +72,7 @@ foreach ($targets as $baseTarget) {
     $ch = curl_init($targetUrl);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $_SERVER['REQUEST_METHOD']);
-    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
     curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
     curl_setopt($ch, CURLOPT_ENCODING, ''); // Decodifica gzip/deflate/br automáticamente
@@ -107,15 +105,12 @@ foreach ($targets as $baseTarget) {
     $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
     curl_close($ch);
 
-    $isHtmlFallback = ($contentType && strpos(strtolower($contentType), 'text/html') !== false) && 
-                      ($response && (strpos($response, '<!DOCTYPE html') !== false || strpos($response, '404: This page could not be found') !== false));
-
-    if ($httpCode >= 200 && $httpCode < 500 && $response !== false && !$isHtmlFallback) {
+    if ($httpCode >= 200 && $httpCode < 500 && $response !== false) {
         break;
     }
 }
 
-if ($httpCode > 0 && $response !== false && !$isHtmlFallback) {
+if ($httpCode > 0 && $response !== false) {
     if ($contentType) {
         header("Content-Type: $contentType");
     }
@@ -128,9 +123,7 @@ header("Content-Type: application/json; charset=UTF-8");
 http_response_code(502);
 echo json_encode([
     "success" => false,
-    "status" => "starting",
-    "message" => "Bearded Mountaineer Lodge API Gateway iniciando...",
-    "error" => "El servidor Node.js de Bearded Mountaineer Lodge no está respondiendo en los puertos locales (4000/3000/3001). Asegúrate de que la aplicación Node.js esté activa en el panel de Hostinger.",
+    "error" => "El servidor Node.js de Bearded Mountaineer Lodge no está respondiendo en los puertos locales (4000/3000). Asegúrate de iniciar la aplicación Node.js en el panel de Hostinger.",
     "path" => $requestUri,
     "timestamp" => date("c")
 ]);

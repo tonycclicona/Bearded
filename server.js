@@ -1,7 +1,6 @@
 // ==============================================================================
-// server.js — Bearded Mountaineer Lodge Unified Node.js Gateway
-// Orquestador principal: sirve API (/api/*), Admin (/admin/*) y Frontend (static)
-// Puerto: process.env.GATEWAY_PORT || 4000
+// server.js — Bearded Mountaineer Lodge Single Web App Engine
+// Homologado 100% con la arquitectura probada de Unu-Raymi
 // ==============================================================================
 
 'use strict';
@@ -9,16 +8,11 @@
 const fs = require('fs');
 const path = require('path');
 const express = require('express');
-const { pathToFileURL } = require('url');
 
 const app = express();
 app.disable('x-powered-by');
-app.set('trust proxy', true);
 
-// Prevenir que sub-apps llamen a app.listen por su cuenta
-process.env.UNIFIED_SERVER = 'true';
-
-// ── Cargar variables de entorno (Patrón Unu-Raymi) ─────────────────────────────
+// Cargar variables de entorno
 function loadEnv(file) {
   if (fs.existsSync(file)) {
     try {
@@ -47,24 +41,17 @@ loadEnv(path.resolve(__dirname, '.env'));
 loadEnv(path.resolve(__dirname, 'backend/.env.production'));
 loadEnv(path.resolve(__dirname, 'backend/.env'));
 
-// ── Directorios de contenido ────────────────────────────────────────────────
+// Directorios de compilación
 const frontendDir = fs.existsSync(path.resolve(__dirname, 'frontend/out'))
   ? path.resolve(__dirname, 'frontend/out')
   : path.resolve(__dirname, 'out');
-
-const uploadsDir = path.resolve(__dirname, 'admin/uploads');
-
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
 
 const adminDir = path.resolve(__dirname, 'admin/out');
 
 console.log('> [Server] Frontend dir:', frontendDir);
 console.log('> [Server] Admin dir:', adminDir);
-console.log('> [Server] Uploads dir:', uploadsDir);
 
-// ── Sincronizar frontend/out y admin/out a public_html en tiempo de ejecución (Patrón Unu-Raymi) ──
+// ── Sincronizar frontend/out a public_html en tiempo de ejecución ────────────
 try {
   const pubTargets = [
     path.resolve(__dirname, 'public_html'),
@@ -72,129 +59,75 @@ try {
   ];
   pubTargets.forEach(function(target) {
     if (fs.existsSync(target) && fs.existsSync(frontendDir) && target !== frontendDir) {
-      if (!fs.existsSync(path.join(target, 'index.html')) || !fs.existsSync(path.join(target, '_next'))) {
-        fs.cpSync(frontendDir, target, { recursive: true });
-        console.log('> [Server] Sincronizados archivos de frontend a:', target);
-      }
-      const pubAdmin = path.join(target, 'admin');
-      if (fs.existsSync(adminDir) && (!fs.existsSync(pubAdmin) || !fs.existsSync(path.join(pubAdmin, 'index.html')))) {
-        fs.mkdirSync(pubAdmin, { recursive: true });
-        fs.cpSync(adminDir, pubAdmin, { recursive: true });
-        console.log('> [Server] Sincronizados archivos de admin a:', pubAdmin);
-      }
+      fs.cpSync(frontendDir, target, { recursive: true });
+      console.log('> [Server] Synchronized frontend files to:', target);
     }
   });
 } catch (e) {
-  console.error('> [Server] Aviso sincronizando a public_html:', e.message);
+  console.error('> [Server] Warning syncing to public_html:', e.message);
 }
 
 // ── 1. CARGAR BACKEND API (ASÍNCRONO CON PATH TO FILE URL) ────────────────────
+const { pathToFileURL } = require('url');
 let backendApp = null;
-let backendError = null;
 const candidateBackendPaths = [
-  path.resolve(__dirname, 'backend/dist/index.js'),
-  path.resolve(__dirname, '../backend/dist/index.js'),
-  '/home/u251936581/domains/beardedmountaineerlodge.com/backend/dist/index.js',
-  path.resolve(__dirname, 'backend/dist/server.js'),
-  path.resolve(__dirname, '../backend/dist/server.js'),
-  path.resolve(__dirname, 'backend/src/index.ts'),
-  path.resolve(__dirname, '../backend/src/index.ts'),
   path.resolve(__dirname, 'backend/src/server.js'),
-  path.resolve(__dirname, '../backend/src/server.js')
+  path.resolve(__dirname, 'backend/dist/server.js'),
+  path.resolve(__dirname, 'backend/dist/index.js'),
+  path.resolve(__dirname, 'backend/src/index.ts'),
+  '/home/u251936581/domains/beardedmountaineerlodge.com/backend/dist/index.js'
 ];
 const resolvedBackendPath = candidateBackendPaths.find(function(p) { return fs.existsSync(p); });
 
-const backendPromise = resolvedBackendPath
-  ? import(pathToFileURL(resolvedBackendPath).href)
-      .then(function(m) {
-        backendApp = m.default || m.app || m;
-        console.log('> [Server] Backend API montado exitosamente desde:', resolvedBackendPath);
-      })
-      .catch(function(err) {
-        backendError = err;
-        console.error('> [Server] Error cargando backend API:', err);
-      })
-  : Promise.resolve().then(function() {
-      backendError = new Error('No se encontró backend/dist/index.js');
+if (resolvedBackendPath) {
+  import(pathToFileURL(resolvedBackendPath).href)
+    .then(function(m) {
+      backendApp = m.default || m.app || m;
+      console.log('> [Server] Backend API montado exitosamente desde:', resolvedBackendPath);
+    })
+    .catch(function(err) {
+      console.error('> [Server] Error backend API:', err.message);
     });
+} else {
+  console.error('> [Server] No se encontró punto de entrada de backend');
+}
 
-// ── Servir archivos estáticos de Uploads ──────────────────────────────────────
-app.use('/uploads', express.static(uploadsDir));
-app.use('/admin/uploads', express.static(uploadsDir));
-
-// ── 3. CORS + RUTEO DE API ────────────────────────────────────────────────────
-const CORS_ALLOWED = process.env.CORS_ORIGIN
-  ? process.env.CORS_ORIGIN.split(',').map(function(o) { return o.trim(); })
-  : [
-      'https://beardedmountaineerlodge.com',
-      'https://www.beardedmountaineerlodge.com',
-      'https://admin.beardedmountaineerlodge.com',
-      'https://api.beardedmountaineerlodge.com',
-      'http://localhost:3000',
-      'http://localhost:3001',
-      'http://localhost:3002'
-    ];
-
+// ── 2. RUTEO DE API Y CABECERAS CORS ─────────────────────────────────────────
 app.use(function(req, res, next) {
-  const origin = req.headers.origin || '';
-  const allowed =
-    CORS_ALLOWED.includes(origin) ||
-    origin.includes('beardedmountaineerlodge.com') ||
-    origin.includes('localhost');
-
-  if (allowed && origin) {
-    res.header('Access-Control-Allow-Origin', origin);
-    res.header('Access-Control-Allow-Credentials', 'true');
-    res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS,PATCH');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cookie');
-  }
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS,PATCH');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
 
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
   }
 
   const host = (req.headers.host || '').toLowerCase();
-  if (host.startsWith('api.') || req.url.startsWith('/api') || req.url.startsWith('/uploads') || req.url.startsWith('/upload')) {
-    const handleApi = function() {
-      if (typeof backendApp === 'function') {
-        if (host.startsWith('api.') && !req.url.startsWith('/api') && !req.url.startsWith('/uploads') && !req.url.startsWith('/upload')) {
-          req.url = '/api' + (req.url.startsWith('/') ? req.url : '/' + req.url);
-        }
-        return backendApp(req, res, next);
+  if (host.startsWith('api.') || req.url.startsWith('/api') || req.url.startsWith('/uploads')) {
+    if (typeof backendApp === 'function') {
+      // Si la petición viene a api.beardedmountaineerlodge.com/rooms (sin prefijo /api y no es uploads), prefijarla para que Express la reconozca
+      if (host.startsWith('api.') && !req.url.startsWith('/api') && !req.url.startsWith('/uploads')) {
+        req.url = '/api' + req.url;
       }
-      if (backendError) {
-        return res.status(500).json({
-          success: false,
-          error: 'Backend API Error: ' + backendError.message,
-          stack: process.env.NODE_ENV === 'production' ? undefined : backendError.stack
-        });
-      }
-      return res.status(200).json({ success: true, status: 'starting', service: 'Bearded API' });
-    };
-
-    if (backendApp) {
-      return handleApi();
+      return backendApp(req, res, next);
     }
-    return backendPromise.then(handleApi).catch(next);
+    return res.status(200).json({ success: true, status: 'starting', service: 'Bearded API' });
   }
   next();
 });
 
-// ── 4. RUTEO DE ADMIN (Patrón Unu-Raymi — Static Next.js App Router) ─────────
+// ── 3. RUTEO DE ADMIN ────────────────────────────────────────────────────────
 app.use(function(req, res, next) {
   const host = (req.headers.host || '').toLowerCase();
   if (host.startsWith('admin.') || req.url.startsWith('/admin')) {
     if (fs.existsSync(adminDir)) {
-      if (req.url.startsWith('/admin')) {
-        const originalUrl = req.url;
-        const subPath = req.url.substring(6) || '/';
-        req.url = subPath;
-        return express.static(adminDir, { extensions: ['html'] })(req, res, function() {
-          req.url = originalUrl;
-          res.sendFile(path.join(adminDir, 'index.html'));
-        });
-      }
       return express.static(adminDir, { extensions: ['html'] })(req, res, function() {
+        const parsed = req.path.replace(/^\/+|\/+$/g, '').split('/');
+        if (parsed.length >= 3 && parsed[2] === 'editar') {
+          const editPage = path.join(adminDir, parsed[0], '1', 'editar', 'index.html');
+          if (fs.existsSync(editPage)) return res.sendFile(editPage);
+        }
         res.sendFile(path.join(adminDir, 'index.html'));
       });
     }
@@ -202,7 +135,7 @@ app.use(function(req, res, next) {
   next();
 });
 
-// ── 5. RUTEO DE FRONTEND (DEFAULT) ───────────────────────────────────────────
+// ── 4. RUTEO DE FRONTEND (DEFAULT) ───────────────────────────────────────────
 if (fs.existsSync(frontendDir)) {
   app.use(express.static(frontendDir, { extensions: ['html'] }));
 }
@@ -222,76 +155,16 @@ app.use(function(req, res) {
   res.status(200).send('<!DOCTYPE html><html><head><title>Bearded Mountaineer Lodge</title></head><body>Bearded Mountaineer Lodge</body></html>');
 });
 
-// ── 6. EN ENTORNOS HOSTINGER LITESPEED / NODE.JS ─────────────────────────────
-function writePortFiles(actualPort, actualSocket) {
-  const targetDirs = [
-    path.resolve(__dirname),
-    path.resolve(__dirname, 'public_html'),
-    path.resolve(__dirname, 'public_html/api'),
-    path.resolve(__dirname, '../public_html'),
-    path.resolve(__dirname, '../public_html/api'),
-    path.resolve(__dirname, '../../public_html'),
-    path.resolve(__dirname, '../../public_html/api'),
-    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html',
-    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/api',
-    '/home/u251936581/domains/api.beardedmountaineerlodge.com/public_html',
-    '/home/u251936581/domains/api.beardedmountaineerlodge.com',
-    '/home/u251936581/domains/admin.beardedmountaineerlodge.com/public_html',
-    '/home/u251936581/domains/admin.beardedmountaineerlodge.com',
-    '/home/u251936581/domains/beardedmountaineerlodge.com/hbuilds/current/nodejs',
-    '/home/u251936581/domains/beardedmountaineerlodge.com/hbuilds/source/repository',
-    '/home/u251936581/domains/beardedmountaineerlodge.com',
-    '/home/u251936581/domains/beardedmountaineerlodge.com/subdomains/api',
-    '/home/u251936581/domains/beardedmountaineerlodge.com/subdomains/admin',
-    '/home/u251936581/public_html',
-    '/home/u251936581/public_html/api',
-    '/tmp'
-  ];
-  targetDirs.forEach(function(dir) {
-    try {
-      if (fs.existsSync(dir)) {
-        if (actualPort) {
-          fs.writeFileSync(path.join(dir, '.node_port'), String(actualPort));
-          fs.writeFileSync(path.join(dir, 'bearded_node_port.txt'), String(actualPort));
-        }
-        if (actualSocket) {
-          fs.writeFileSync(path.join(dir, '.node_socket'), String(actualSocket));
-        }
-      }
-    } catch (_) {}
-  });
-}
+// En entornos Hostinger LiteSpeed / Node.js
+const port = process.env.PORT || 4000;
+const server = app.listen(port, function() {
+  console.log('> [Server] Bearded Mountaineer Lodge corriendo en puerto:', port);
+});
 
-function startServer(targetPort) {
-  const srv = app.listen(targetPort, function() {
-    console.log('> [Server] Bearded Mountaineer Lodge corriendo en puerto:', targetPort);
-    const addr = srv.address();
-    const p = (typeof addr === 'object' && addr && addr.port) ? addr.port : targetPort;
-    const s = typeof addr === 'string' ? addr : null;
-    writePortFiles(p, s);
-
-    // Mantener sincronizados los archivos de puerto periódicamente
-    setInterval(function() {
-      writePortFiles(p, s);
-    }, 15000);
-  });
-
-  srv.on('error', function(err) {
-    if (err.code === 'EADDRINUSE') {
-      console.warn(`> [Server] Puerto ${targetPort} en uso, intentando ${Number(targetPort) + 1}...`);
-      if (Number(targetPort) < 4020) {
-        startServer(Number(targetPort) + 1);
-      }
-    } else {
-      console.error('> [Server Error]:', err.message);
-    }
-  });
-
-  return srv;
-}
-
-const initialPort = process.env.PORT || process.env.GATEWAY_PORT || 4000;
-startServer(initialPort);
+server.on('error', function(err) {
+  if (err.code !== 'EADDRINUSE') {
+    console.error('> [Server Error]:', err.message);
+  }
+});
 
 module.exports = app;
-
