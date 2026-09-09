@@ -143,6 +143,9 @@ const apiProxyPhp = `<?php
 // Bearded Mountaineer Lodge API Dynamic Reverse Proxy (LiteSpeed / PHP -> Node.js)
 // ==============================================================================
 
+@error_reporting(0);
+@ini_set('display_errors', '0');
+
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Credentials: true");
 header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS, PATCH");
@@ -338,64 +341,24 @@ if ($httpCode === 0) {
     }
 }
 
-// 3. Si aún no responde, intentar levantar Node.js en background y reintentar
+// 3. Si aún no responde, verificar si existe puerto directo en /tmp/bearded_node_port.txt
 if ($httpCode === 0) {
-    $serverCandidates = [
-        dirname(__DIR__) . '/server.js',
-        '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/server.js',
-        '/home/u251936581/domains/beardedmountaineerlodge.com/hbuilds/current/nodejs/server.js',
-        '/home/u251936581/domains/beardedmountaineerlodge.com/hbuilds/source/repository/server.js',
-        '/home/u251936581/public_html/server.js'
-    ];
-    $serverScript = null;
-    foreach ($serverCandidates as $sc) {
-        if (file_exists($sc)) {
-            $serverScript = $sc;
-            break;
-        }
-    }
-    if ($serverScript) {
-        $serverDir = dirname($serverScript);
-        $logPath = '/tmp/bml_node.log';
-        exec("pgrep -f 'node.*server.js' 2>/dev/null", $pids);
-        if (empty($pids)) {
-            exec("cd " . escapeshellarg($serverDir) . " && nohup node server.js > " . escapeshellarg($logPath) . " 2>&1 &");
-            usleep(900000);
-        }
-        foreach ($targets as $baseTarget) {
-            $targetUrl = $baseTarget . $requestUri;
-            $ch = curl_init($targetUrl);
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $_SERVER['REQUEST_METHOD']);
-            curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
-            curl_setopt($ch, CURLOPT_ENCODING, '');
-            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 1);
-            curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-            $reqHeaders = $headers;
-            $reqHeaders[] = "Host: api.beardedmountaineerlodge.com";
-            if ($isMultipart) {
-                $filteredHeaders = array_filter($reqHeaders, function($h) {
-                    $lh = strtolower($h);
-                    return strpos($lh, 'content-type:') !== 0 && strpos($lh, 'content-length:') !== 0;
-                });
-                curl_setopt($ch, CURLOPT_HTTPHEADER, array_values($filteredHeaders));
-                curl_setopt($ch, CURLOPT_POSTFIELDS, $postFields);
-            } else {
-                curl_setopt($ch, CURLOPT_HTTPHEADER, $reqHeaders);
-                if ($body !== null) curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
-            }
-            $res = curl_exec($ch);
-            $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            $cType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
-            curl_close($ch);
-            if ($code > 0) {
-                $response = $res;
-                $httpCode = $code;
-                $contentType = $cType;
-                break;
-            }
+    $altPort = @file_get_contents('/tmp/bearded_node_port.txt');
+    if ($altPort && is_numeric(trim($altPort))) {
+        $altTarget = "http://127.0.0.1:" . trim($altPort) . $requestUri;
+        $ch = curl_init($altTarget);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $_SERVER['REQUEST_METHOD']);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 1);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+        $res = curl_exec($ch);
+        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $cType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+        curl_close($ch);
+        if ($code > 0) {
+            $response = $res;
+            $httpCode = $code;
+            $contentType = $cType;
         }
     }
 }
