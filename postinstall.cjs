@@ -420,15 +420,37 @@ const rootHtaccess = `DirectoryIndex index.html
 </IfModule>
 `;
 
-const adminHtaccess = `<IfModule mod_rewrite.c>
+// .htaccess para la subcarpeta /admin dentro de public_html
+const pubAdminHtaccess = `DirectoryIndex index.html
+<IfModule mod_rewrite.c>
 RewriteEngine On
 RewriteBase /admin/
-RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} -f
+RewriteRule ^ - [L]
 RewriteCond %{REQUEST_FILENAME}/index.html -f
 RewriteRule ^(.*)$ $1/index.html [L]
+RewriteCond %{REQUEST_FILENAME}.html -f
+RewriteRule ^(.*)$ $1.html [L]
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule ^(.*)$ index.html [L]
+RewriteRule ^ index.html [L]
+</IfModule>
+`;
+
+// .htaccess para el subdominio admin.beardedmountaineerlodge.com (RewriteBase /)
+const subAdminHtaccess = `DirectoryIndex index.html
+<IfModule mod_rewrite.c>
+RewriteEngine On
+RewriteBase /
+RewriteCond %{REQUEST_FILENAME} -f
+RewriteRule ^ - [L]
+RewriteCond %{REQUEST_FILENAME}/index.html -f
+RewriteRule ^(.*)$ $1/index.html [L]
+RewriteCond %{REQUEST_FILENAME}.html -f
+RewriteRule ^(.*)$ $1.html [L]
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^ index.html [L]
 </IfModule>
 `;
 
@@ -466,7 +488,7 @@ function deployTo(targetDir) {
       }
       fs.mkdirSync(pubAdmin, { recursive: true });
       copyDir(adminOut, pubAdmin);
-      fs.writeFileSync(path.join(pubAdmin, '.htaccess'), adminHtaccess.trim());
+      fs.writeFileSync(path.join(pubAdmin, '.htaccess'), pubAdminHtaccess.trim());
       console.log('  ✅ Admin estático (Next.js) copiado a public_html/admin con .htaccess SPA');
     }
 
@@ -532,7 +554,7 @@ if (isLinux) {
         const adminOut = path.join(ROOT, 'admin/out');
         if (fs.existsSync(adminOut)) {
           copyDir(adminOut, p);
-          fs.writeFileSync(path.join(p, '.htaccess'), adminHtaccess.trim());
+          fs.writeFileSync(path.join(p, '.htaccess'), subAdminHtaccess.trim());
           console.log('  ✅ Subdominio admin. poblado con Next.js SSG:', p);
         }
       } catch (_) {}
