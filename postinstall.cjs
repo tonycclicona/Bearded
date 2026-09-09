@@ -143,10 +143,6 @@ const apiProxyPhp = `<?php
 // Bearded Mountaineer Lodge API Dynamic Reverse Proxy (LiteSpeed / PHP -> Node.js)
 // ==============================================================================
 
-ob_start();
-@error_reporting(0);
-@ini_set('display_errors', '0');
-
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Credentials: true");
 header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS, PATCH");
@@ -226,28 +222,10 @@ $httpCode = 0;
 $contentType = '';
 
 $headers = [];
-if (function_exists('getallheaders')) {
-    $rawHeaders = getallheaders();
-    if (is_array($rawHeaders)) {
-        foreach ($rawHeaders as $name => $value) {
-            $lower = strtolower($name);
-            if ($lower !== 'host' && $lower !== 'accept-encoding' && $lower !== 'content-length') {
-                $headers[] = "$name: $value";
-            }
-        }
-    }
-}
-if (empty($headers)) {
-    foreach ($_SERVER as $name => $value) {
-        if (substr($name, 0, 5) === 'HTTP_') {
-            $headerName = str_replace(' ', '-', ucwords(strtolower(str_replace('_', ' ', substr($name, 5)))));
-            $lower = strtolower($headerName);
-            if ($lower !== 'host' && $lower !== 'accept-encoding' && $lower !== 'content-length') {
-                $headers[] = "$headerName: $value";
-            }
-        } else if ($name === 'CONTENT_TYPE' && !empty($value)) {
-            $headers[] = "Content-Type: $value";
-        }
+foreach (getallheaders() as $name => $value) {
+    $lower = strtolower($name);
+    if ($lower !== 'host' && $lower !== 'accept-encoding' && $lower !== 'content-length') {
+        $headers[] = "$name: $value";
     }
 }
 
@@ -255,7 +233,7 @@ $isMultipart = !empty($_FILES) || (isset($_SERVER['CONTENT_TYPE']) && strpos(str
 $postFields = null;
 $body = null;
 
-if ($isMultipart && class_exists('CURLFile')) {
+if ($isMultipart) {
     $postFields = $_POST;
     foreach ($_FILES as $field => $fileData) {
         if (is_array($fileData['tmp_name'])) {
@@ -283,7 +261,7 @@ if ($isMultipart && class_exists('CURLFile')) {
 }
 
 // 1. Probar socket Unix si está disponible
-if ($socket && function_exists('curl_init')) {
+if ($socket) {
     $ch = curl_init('http://localhost' . $requestUri);
     curl_setopt($ch, CURLOPT_UNIX_SOCKET_PATH, $socket);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -316,7 +294,7 @@ if ($socket && function_exists('curl_init')) {
 }
 
 // 2. Probar puertos TCP si el socket no conectó
-if ($httpCode === 0 && function_exists('curl_init')) {
+if ($httpCode === 0) {
     foreach ($targets as $baseTarget) {
         $targetUrl = $baseTarget . $requestUri;
         $ch = curl_init($targetUrl);
@@ -360,177 +338,12 @@ if ($httpCode === 0 && function_exists('curl_init')) {
     }
 }
 
-// 3. Si aún no responde, verificar si existe puerto directo en /tmp/bearded_node_port.txt
-if ($httpCode === 0) {
-    $altPort = @file_get_contents('/tmp/bearded_node_port.txt');
-    if ($altPort && is_numeric(trim($altPort)) && function_exists('curl_init')) {
-        $altTarget = "http://127.0.0.1:" . trim($altPort) . $requestUri;
-        $ch = curl_init($altTarget);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $_SERVER['REQUEST_METHOD']);
-        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 1);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-        $res = curl_exec($ch);
-        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $cType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
-        curl_close($ch);
-        if ($code > 0) {
-            $response = $res;
-            $httpCode = $code;
-            $contentType = $cType;
-        }
-    }
-}
-
 if ($httpCode > 0) {
     if ($contentType) {
         header("Content-Type: $contentType");
     }
     http_response_code($httpCode);
     echo $response;
-    exit(0);
-}
-
-// ── 4. Fallback de Autenticación con Variables de Entorno de Hostinger ──
-if (!function_exists('b64UrlEnc')) {
-    function b64UrlEnc($data) {
-        return rtrim(strtr(base64_encode($data), '+/', '-_'), '=');
-    }
-}
-
-if (!function_exists('getAppConfig')) {
-    function getAppConfig($key, $default = '') {
-        $val = getenv($key);
-        if ($val !== false && $val !== '') return trim($val);
-        if (!empty($_ENV[$key])) return trim($_ENV[$key]);
-        if (!empty($_SERVER[$key])) return trim($_SERVER[$key]);
-        static $envMap = null;
-        if ($envMap === null) {
-            $envMap = [];
-            $files = [
-                __DIR__ . '/.env',
-                dirname(__DIR__) . '/.env',
-                dirname(__DIR__) . '/.env.production',
-                '/home/u251936581/domains/beardedmountaineerlodge.com/.env',
-                '/home/u251936581/domains/beardedmountaineerlodge.com/.env.production',
-                '/home/u251936581/domains/beardedmountaineerlodge.com/hbuilds/current/nodejs/.env',
-                '/home/u251936581/domains/beardedmountaineerlodge.com/hbuilds/source/repository/.env',
-                '/home/u251936581/.env'
-            ];
-            foreach ($files as $f) {
-                if (@file_exists($f) && @is_readable($f)) {
-                    $lines = @file($f, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-                    if ($lines) {
-                        foreach ($lines as $line) {
-                            $line = trim($line);
-                            if ($line && strpos($line, '#') !== 0 && strpos($line, '=') !== false) {
-                                $parts = explode('=', $line, 2);
-                                $k = trim($parts[0]);
-                                $v = trim($parts[1]);
-                                $len = strlen($v);
-                                if ($len >= 2) {
-                                    if (($v[0] === '"' && $v[$len - 1] === '"') || ($v[0] === "'" && $v[$len - 1] === "'")) {
-                                        $v = substr($v, 1, -1);
-                                    }
-                                }
-                                if (!isset($envMap[$k])) $envMap[$k] = $v;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        return $envMap[$key] ?? $default;
-    }
-}
-
-try {
-    // A. Endpoint Login (/api/auth/login)
-    if ((strpos($requestUri, 'login') !== false || strpos($requestUri, 'auth') !== false) && strtoupper($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
-        $input = json_decode($body, true);
-        if (!is_array($input) || empty($input)) {
-            $input = $_POST;
-        }
-        $u = trim($input['username'] ?? $input['user'] ?? $input['email'] ?? '');
-        $p = trim($input['password'] ?? $input['pass'] ?? '');
-
-        $expectedU = getAppConfig('ADMIN_USER', getAppConfig('ADMIN_USERNAME', 'admin'));
-        $expectedE = getAppConfig('ADMIN_EMAIL', 'admin@beardedmountaineerlodge.com');
-        $expectedP = getAppConfig('ADMIN_PASSWORD', getAppConfig('ADMIN_PASS', getAppConfig('ADMIN_PWD', 'admin')));
-        $secret = getAppConfig('JWT_SECRET', 'bearded-secret-key-fallback-min-32-chars');
-
-        $uMatch = (strcasecmp($u, $expectedU) === 0 || strcasecmp($u, $expectedE) === 0 || $u === 'admin');
-        $cleanExpP = trim($expectedP, "\"'");
-        $pMatch = ($p === $expectedP || $p === $cleanExpP || trim($p) === $cleanExpP);
-
-        header("Content-Type: application/json; charset=UTF-8");
-        if ($uMatch && $pMatch && !empty($p)) {
-            $hdr = b64UrlEnc(json_encode(['alg' => 'HS256', 'typ' => 'JWT']));
-            $payload = [
-                'username' => $expectedU,
-                'email' => $expectedE,
-                'role' => 'ADMIN',
-                'exp' => time() + (7 * 24 * 60 * 60)
-            ];
-            $b = b64UrlEnc(json_encode($payload));
-            $sig = b64UrlEnc(hash_hmac('sha256', "$hdr.$b", $secret, true));
-            $jwt = "$hdr.$b.$sig";
-
-            http_response_code(200);
-            echo json_encode([
-                'success' => true,
-                'token' => $jwt,
-                'user' => [
-                    'username' => $expectedU,
-                    'email' => $expectedE,
-                    'role' => 'ADMIN'
-                ]
-            ]);
-            exit(0);
-        } else {
-            http_response_code(401);
-            echo json_encode([
-                'success' => false,
-                'error' => 'Credenciales inválidas'
-            ]);
-            exit(0);
-        }
-    }
-
-    // B. Endpoint Sesión (/api/auth/me)
-    if (strpos($requestUri, '/auth/me') !== false) {
-        header("Content-Type: application/json; charset=UTF-8");
-        $authHdr = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
-        if (empty($authHdr) && function_exists('getallheaders')) {
-            $all = getallheaders();
-            $authHdr = $all['Authorization'] ?? $all['authorization'] ?? '';
-        }
-        if (!empty($authHdr) && strpos($authHdr, 'Bearer ') === 0) {
-            http_response_code(200);
-            echo json_encode(['success' => true, 'authenticated' => true]);
-            exit(0);
-        }
-        http_response_code(401);
-        echo json_encode(['success' => false, 'error' => 'No autenticado']);
-        exit(0);
-    }
-} catch (Throwable $t) {
-    @header("Content-Type: application/json; charset=UTF-8");
-    http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Error interno']);
-    exit(0);
-}
-
-// C. Endpoint Health (/api/health)
-if (strpos($requestUri, '/health') !== false || $requestUri === '/api') {
-    header("Content-Type: application/json; charset=UTF-8");
-    http_response_code(200);
-    echo json_encode([
-        'success' => true,
-        'status' => 'healthy',
-        'service' => 'Bearded Mountaineer Lodge API Gateway',
-        'timestamp' => date('c')
-    ]);
     exit(0);
 }
 
@@ -548,9 +361,11 @@ exit(0);
 
 const apiProxyHtaccess = `<IfModule mod_rewrite.c>
 RewriteEngine On
+RewriteBase /
+RewriteRule ^index\.php$ - [L]
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule ^ index.php [L]
+RewriteRule . /index.php [L]
 </IfModule>
 `;
 
@@ -573,15 +388,13 @@ const rootHtaccess = `DirectoryIndex index.html
   RewriteEngine On
   RewriteBase /
 
-  # 1. Redirigir /api al subdominio dedicado SOLO si la petición es al dominio principal
-  RewriteCond %{HTTP_HOST} !^api\\. [NC]
+  # 1. Redirigir /api al subdominio dedicado de API (preserva metodos POST/PUT con 307)
   RewriteRule ^api(/.*)?$ https://api.beardedmountaineerlodge.com/api$1 [R=307,L]
 
-  # 2. Redirigir /admin al subdominio dedicado SOLO si la petición es al dominio principal
-  RewriteCond %{HTTP_HOST} !^admin\\. [NC]
+  # 2. Redirigir /admin al subdominio dedicado de Admin (Next.js SSG)
   RewriteRule ^admin(/.*)?$ https://admin.beardedmountaineerlodge.com$1 [R=301,L]
 
-  # 3. Archivos y carpetas físicas reales (_next, uploads, api/, admin/, favicon, etc.)
+  # 3. Archivos y carpetas físicas del frontend (_next, uploads, favicon, etc.)
   RewriteCond %{REQUEST_FILENAME} -f [OR]
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
@@ -595,10 +408,6 @@ const rootHtaccess = `DirectoryIndex index.html
 const universalAdminHtaccess = `DirectoryIndex index.html
 <IfModule mod_rewrite.c>
 RewriteEngine On
-
-# Si el cliente admin llama a /api/*, delegar con 307 a api.beardedmountaineerlodge.com
-RewriteRule ^api(/.*)?$ https://api.beardedmountaineerlodge.com/api$1 [R=307,L]
-
 RewriteCond %{REQUEST_FILENAME} -f
 RewriteRule ^ - [L]
 RewriteCond %{REQUEST_FILENAME} -d
@@ -790,24 +599,6 @@ if (isLinux) {
     } catch (_) {}
   }
   console.log('[deploy] ✅ Señal de reinicio enviada a Passenger (tmp/restart.txt).');
-
-  // ── Lanzamiento de server.js como daemon background en Hostinger ──
-  try {
-    execSync('pkill -f "node.*server.js" 2>/dev/null || true');
-    const logPath = '/tmp/bml_server.log';
-    const outLog = fs.openSync(logPath, 'a');
-    const errLog = fs.openSync(logPath, 'a');
-    const child = spawn('node', [path.join(ROOT, 'server.js')], {
-      cwd: ROOT,
-      detached: true,
-      stdio: ['ignore', outLog, errLog],
-      env: process.env
-    });
-    child.unref();
-    console.log('[deploy] ✅ server.js iniciado en segundo plano (PID:', child.pid, ')');
-  } catch (e) {
-    console.warn('[deploy] ⚠️ Aviso iniciando server.js:', e.message);
-  }
 } else {
   console.log('[deploy] ℹ️  Entorno local (Windows): omitiendo despliegue en /home/u251936581.');
 }

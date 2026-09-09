@@ -1,8 +1,6 @@
 export const API_BASE_URL = typeof window !== 'undefined'
-  ? (window.location.hostname.includes('beardedmountaineerlodge.com')
-      ? 'https://api.beardedmountaineerlodge.com/api'
-      : (process.env.NEXT_PUBLIC_API_URL || '/api'))
-  : (process.env.NEXT_PUBLIC_API_URL || 'https://api.beardedmountaineerlodge.com/api');
+  ? '/api'
+  : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api');
 
 export function getCookie(name: string): string | null {
   if (typeof document === 'undefined') return null;
@@ -69,7 +67,7 @@ export async function mutateApi<T = any>(
     if (res.status === 401 || res.status === 403) {
       removeCookie('session_token');
       if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
-        window.location.href = '/login';
+        window.location.href = '/admin/login';
       }
     }
     throw new Error(data.error || data.message || `Error ${res.status}`);

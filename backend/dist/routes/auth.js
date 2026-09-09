@@ -11,21 +11,21 @@ router.post('/login', async (req, res) => {
         });
         return;
     }
+    // Leer variables de entorno con soporte para ADMIN_PASS (Hostinger) y ADMIN_PASSWORD
     const rawUser = process.env.ADMIN_USER || process.env.ADMIN_USERNAME || 'admin';
     const rawEmail = process.env.ADMIN_EMAIL || 'admin@beardedmountaineerlodge.com';
-    const rawPass = process.env.ADMIN_PASSWORD || process.env.ADMIN_PASS || process.env.ADMIN_PWD || 'admin';
+    const rawPass = process.env.ADMIN_PASS || process.env.ADMIN_PASSWORD || process.env.ADMIN_PWD || 'admin';
+    // Limpiar comillas y espacios que Hostinger puede añadir a las variables de entorno
     const cleanUser = rawUser.trim().replace(/^["']|["']$/g, '');
     const cleanEmail = rawEmail.trim().replace(/^["']|["']$/g, '');
     const cleanPass = rawPass.trim().replace(/^["']|["']$/g, '');
     const inputUser = String(username).trim();
     const inputPass = String(password);
-    // 1. Validar contra variables de entorno (Superadmin / Variables de Hostinger)
+    // 1. Validar contra variables de entorno de Hostinger (Superadmin)
     const userMatches = inputUser.toLowerCase() === cleanUser.toLowerCase() ||
-        inputUser.toLowerCase() === cleanEmail.toLowerCase() ||
-        inputUser === 'admin';
+        inputUser.toLowerCase() === cleanEmail.toLowerCase();
     const passMatches = inputPass === cleanPass ||
-        inputPass.trim() === cleanPass ||
-        inputPass === rawPass;
+        inputPass.trim() === cleanPass;
     if (userMatches && passMatches) {
         const token = generateToken({
             username: cleanUser,
