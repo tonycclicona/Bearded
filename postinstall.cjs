@@ -395,17 +395,19 @@ const rootHtaccess = `DirectoryIndex index.html
   RewriteCond %{HTTP_HOST} ^api\. [NC]
   RewriteRule ^(.*)$ https://beardedmountaineerlodge.com/api/$1 [R=307,L]
 
-  # 2. Rutas de API -> Pasar directamente a api/index.php
-  RewriteRule ^api(/.*)?$ api/index.php [QSA,L]
+  # 2. Rutas de API -> Pasar directamente a api/index.php sin bucle
+  RewriteRule ^api/index\.php$ - [L]
+  RewriteRule ^api(/.*)?$ /api/index.php [QSA,L]
 
   # 3. Rutas de Admin -> Servir archivos estáticos de admin/ con fallback a admin/index.html
-  RewriteRule ^admin$ admin/ [R=301,L]
-  RewriteCond %{REQUEST_URI} ^/admin/
+  RewriteRule ^admin/?$ admin/index.html [L]
+  RewriteCond %{DOCUMENT_ROOT}/admin/$1 -f [OR]
+  RewriteCond %{DOCUMENT_ROOT}/admin/$1/index.html -f
+  RewriteRule ^admin/(.*)$ admin/$1 [L]
   RewriteCond %{DOCUMENT_ROOT}/admin/$1.html -f
   RewriteRule ^admin/(.*)$ admin/$1.html [L]
   RewriteCond %{REQUEST_URI} ^/admin/
-  RewriteCond %{REQUEST_FILENAME} -f [OR]
-  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteCond %{REQUEST_FILENAME} -f
   RewriteRule ^ - [L]
   RewriteCond %{REQUEST_URI} ^/admin/
   RewriteRule ^admin/.*$ admin/index.html [L]
@@ -420,30 +422,13 @@ const rootHtaccess = `DirectoryIndex index.html
 </IfModule>
 `;
 
-// .htaccess para la subcarpeta /admin dentro de public_html
-const pubAdminHtaccess = `DirectoryIndex index.html
+// .htaccess universal para Admin (funciona en subcarpeta /admin y en subdominio admin.)
+const universalAdminHtaccess = `DirectoryIndex index.html
 <IfModule mod_rewrite.c>
 RewriteEngine On
-RewriteBase /admin/
 RewriteCond %{REQUEST_FILENAME} -f
 RewriteRule ^ - [L]
-RewriteCond %{REQUEST_FILENAME}/index.html -f
-RewriteRule ^(.*)$ $1/index.html [L]
-RewriteCond %{REQUEST_FILENAME}.html -f
-RewriteRule ^(.*)$ $1.html [L]
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule ^ index.html [L]
-</IfModule>
-`;
-
-// .htaccess para el subdominio admin.beardedmountaineerlodge.com (RewriteBase /)
-const subAdminHtaccess = `DirectoryIndex index.html
-<IfModule mod_rewrite.c>
-RewriteEngine On
-RewriteBase /
-RewriteCond %{REQUEST_FILENAME} -f
-RewriteRule ^ - [L]
+RewriteCond %{REQUEST_FILENAME} -d
 RewriteCond %{REQUEST_FILENAME}/index.html -f
 RewriteRule ^(.*)$ $1/index.html [L]
 RewriteCond %{REQUEST_FILENAME}.html -f
@@ -488,7 +473,7 @@ function deployTo(targetDir) {
       }
       fs.mkdirSync(pubAdmin, { recursive: true });
       copyDir(adminOut, pubAdmin);
-      fs.writeFileSync(path.join(pubAdmin, '.htaccess'), pubAdminHtaccess.trim());
+      fs.writeFileSync(path.join(pubAdmin, '.htaccess'), universalAdminHtaccess.trim());
       console.log('  ✅ Admin estático (Next.js) copiado a public_html/admin con .htaccess SPA');
     }
 
@@ -554,7 +539,7 @@ if (isLinux) {
         const adminOut = path.join(ROOT, 'admin/out');
         if (fs.existsSync(adminOut)) {
           copyDir(adminOut, p);
-          fs.writeFileSync(path.join(p, '.htaccess'), subAdminHtaccess.trim());
+          fs.writeFileSync(path.join(p, '.htaccess'), universalAdminHtaccess.trim());
           console.log('  ✅ Subdominio admin. poblado con Next.js SSG:', p);
         }
       } catch (_) {}
