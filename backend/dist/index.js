@@ -89,28 +89,32 @@ app.use('/api/guias', guiasRouter);
 app.use('/guias', guiasRouter);
 app.use('/api/bookings', bookingsRouter);
 app.use('/bookings', bookingsRouter);
-// API Welcome & Health check
+// API Welcome & Health check (Homologado con Unu-Raymi)
 app.get(['/', '/api'], (_req, res) => {
-    res.json({
+    res.status(200).json({
+        success: true,
+        name: 'Bearded Mountaineer Lodge API Server',
+        message: 'La API de Bearded Mountaineer Lodge está operativa.',
         status: 'ok',
         service: 'Bearded Mountaineer Lodge API Gateway',
-        timestamp: new Date().toISOString(),
-        endpoints: [
-            '/api/health',
-            '/api/passes',
-            '/api/routes',
-            '/api/rooms',
-            '/api/experiences',
-            '/api/photos',
-            '/api/workshops',
-            '/api/hummingbird-spots',
-            '/api/colibries',
-            '/api/puntos-gis',
-            '/api/tours',
-            '/api/guias',
-            '/api/bookings',
-            '/api/checkout'
-        ]
+        endpoints: {
+            health: '/api/health',
+            passes: '/api/passes',
+            routes: '/api/routes',
+            rooms: '/api/rooms',
+            experiences: '/api/experiences',
+            photos: '/api/photos',
+            workshops: '/api/workshops',
+            spots: '/api/spots',
+            colibries: '/api/colibries',
+            puntosGis: '/api/puntos-gis',
+            tours: '/api/tours',
+            guias: '/api/guias',
+            bookings: '/api/bookings',
+            checkout: '/api/checkout'
+        },
+        environment: process.env.NODE_ENV || 'production',
+        timestamp: new Date().toISOString()
     });
 });
 app.get('/api/health', (_req, res) => {

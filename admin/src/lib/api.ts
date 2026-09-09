@@ -1,17 +1,7 @@
-function resolveApiBaseUrl(): string {
-  if (typeof window !== 'undefined') {
-    if (window.location.hostname.includes('admin.')) {
-      return `${window.location.protocol}//${window.location.hostname.replace('admin.', 'api.')}/api`;
-    }
-    if (process.env.NEXT_PUBLIC_API_URL && !process.env.NEXT_PUBLIC_API_URL.startsWith('/')) {
-      return process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, '');
-    }
-    return '/api';
-  }
-  return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
-}
-
-export const API_BASE_URL = resolveApiBaseUrl();
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 
+  (typeof window !== 'undefined' && window.location.hostname.includes('beardedmountaineerlodge.com') 
+    ? 'https://api.beardedmountaineerlodge.com/api' 
+    : 'http://localhost:4000/api');
 
 
 export function getCookie(name: string): string | null {

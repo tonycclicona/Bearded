@@ -215,14 +215,10 @@ if ($port) {
     $targets[] = "http://127.0.0.1:" . $port;
 }
 $targets[] = 'http://127.0.0.1:4000';
-$targets[] = 'http://127.0.0.1:4001';
-$targets[] = 'http://127.0.0.1:4002';
-$targets[] = 'http://127.0.0.1:4003';
-$targets[] = 'http://127.0.0.1:3001';
-$targets[] = 'http://127.0.0.1:3002';
 $targets[] = 'http://127.0.0.1:3000';
-$targets[] = 'http://127.0.0.1:5000';
-$targets[] = 'http://127.0.0.1:8080';
+$targets[] = 'http://127.0.0.1:3001';
+$targets[] = 'http://127.0.0.1:4001';
+$targets[] = 'https://beardedmountaineerlodge.com';
 
 $response = false;
 $httpCode = 0;
@@ -315,7 +311,11 @@ if ($httpCode === 0) {
         curl_setopt($ch, CURLOPT_TIMEOUT, 30);
 
         $reqHeaders = $headers;
-        $reqHeaders[] = "Host: api.beardedmountaineerlodge.com";
+        if (strpos($baseTarget, 'beardedmountaineerlodge.com') !== false) {
+            $reqHeaders[] = "Host: beardedmountaineerlodge.com";
+        } else {
+            $reqHeaders[] = "Host: api.beardedmountaineerlodge.com";
+        }
 
         if ($isMultipart) {
             $filteredHeaders = array_filter($reqHeaders, function($h) {
@@ -336,7 +336,7 @@ if ($httpCode === 0) {
         $cType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
         curl_close($ch);
 
-        if ($code > 0) {
+        if ($code >= 200 && $code < 500 && $res !== false) {
             $response = $res;
             $httpCode = $code;
             $contentType = $cType;
