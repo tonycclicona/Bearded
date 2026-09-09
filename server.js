@@ -223,40 +223,61 @@ app.use(function(req, res) {
 });
 
 // ── 6. EN ENTORNOS HOSTINGER LITESPEED / NODE.JS ─────────────────────────────
-const port = process.env.PORT || process.env.GATEWAY_PORT || 4000;
-const server = app.listen(port, function() {
-  console.log('> [Server] Bearded Mountaineer Lodge corriendo en puerto:', port);
-  try {
-    const addr = server.address();
-    const actualPort = (typeof addr === 'object' && addr && addr.port) ? String(addr.port) : String(port);
-    if (actualPort && actualPort !== 'undefined') {
-      fs.writeFileSync(path.resolve(__dirname, '.node_port'), actualPort);
-    }
-    if (typeof addr === 'string') {
-      fs.writeFileSync(path.resolve(__dirname, '.node_socket'), addr);
-    }
-
-    // Escribir en ruta oficial de Hostinger si existe
-    const hostingerPublic = '/home/u251936581/domains/beardedmountaineerlodge.com/public_html';
-    if (fs.existsSync(hostingerPublic)) {
-      if (actualPort && actualPort !== 'undefined') {
-        fs.writeFileSync(path.join(hostingerPublic, '.node_port'), actualPort);
-        const apiDir = path.join(hostingerPublic, 'api');
-        const adminDir = path.join(hostingerPublic, 'admin');
-        if (fs.existsSync(apiDir)) fs.writeFileSync(path.join(apiDir, '.node_port'), actualPort);
-        if (fs.existsSync(adminDir)) fs.writeFileSync(path.join(adminDir, '.node_port'), actualPort);
+function writePortFiles(actualPort, actualSocket) {
+  const targetDirs = [
+    path.resolve(__dirname),
+    path.resolve(__dirname, 'public_html'),
+    path.resolve(__dirname, 'public_html/api'),
+    path.resolve(__dirname, '../public_html'),
+    path.resolve(__dirname, '../public_html/api'),
+    path.resolve(__dirname, '../../public_html'),
+    path.resolve(__dirname, '../../public_html/api'),
+    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html',
+    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/api',
+    '/home/u251936581/public_html',
+    '/home/u251936581/public_html/api',
+    '/tmp'
+  ];
+  targetDirs.forEach(function(dir) {
+    try {
+      if (fs.existsSync(dir)) {
+        if (actualPort) {
+          fs.writeFileSync(path.join(dir, '.node_port'), String(actualPort));
+          fs.writeFileSync(path.join(dir, 'bearded_node_port.txt'), String(actualPort));
+        }
+        if (actualSocket) {
+          fs.writeFileSync(path.join(dir, '.node_socket'), String(actualSocket));
+        }
       }
-      if (typeof addr === 'string') {
-        fs.writeFileSync(path.join(hostingerPublic, '.node_socket'), addr);
-      }
-    }
-  } catch (_) {}
-});
+    } catch (_) {}
+  });
+}
 
-server.on('error', function(err) {
-  if (err.code !== 'EADDRINUSE') {
-    console.error('> [Server Error]:', err.message);
-  }
-});
+function startServer(targetPort) {
+  const srv = app.listen(targetPort, function() {
+    console.log('> [Server] Bearded Mountaineer Lodge corriendo en puerto:', targetPort);
+    const addr = srv.address();
+    const p = (typeof addr === 'object' && addr && addr.port) ? addr.port : targetPort;
+    const s = typeof addr === 'string' ? addr : null;
+    writePortFiles(p, s);
+  });
+
+  srv.on('error', function(err) {
+    if (err.code === 'EADDRINUSE') {
+      console.warn(`> [Server] Puerto ${targetPort} en uso, intentando ${Number(targetPort) + 1}...`);
+      if (Number(targetPort) < 4020) {
+        startServer(Number(targetPort) + 1);
+      }
+    } else {
+      console.error('> [Server Error]:', err.message);
+    }
+  });
+
+  return srv;
+}
+
+const initialPort = process.env.PORT || process.env.GATEWAY_PORT || 4000;
+startServer(initialPort);
 
 module.exports = app;
+

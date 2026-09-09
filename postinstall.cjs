@@ -158,13 +158,43 @@ if (strpos($requestUri, '/api') !== 0 && strpos($requestUri, '/uploads') !== 0) 
     $requestUri = '/api' . $requestUri;
 }
 
-// Descubrir puerto dinámico escrito por server.js
+// Descubrir socket o puerto dinámico escrito por server.js
+$socket = null;
+$socketCandidates = [
+    __DIR__ . '/.node_socket',
+    dirname(__DIR__) . '/.node_socket',
+    dirname(dirname(__DIR__)) . '/.node_socket',
+    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/.node_socket',
+    '/home/u251936581/domains/beardedmountaineerlodge.com/hbuilds/current/nodejs/.node_socket',
+    '/home/u251936581/domains/beardedmountaineerlodge.com/hbuilds/source/repository/.node_socket',
+    '/home/u251936581/public_html/.node_socket',
+    '/tmp/.node_socket'
+];
+foreach ($socketCandidates as $sc) {
+    if (file_exists($sc)) {
+        $s = trim(file_get_contents($sc));
+        if (!empty($s) && file_exists($s)) {
+            $socket = $s;
+            break;
+        }
+    }
+}
+
 $port = null;
 $portCandidates = [
     __DIR__ . '/.node_port',
+    __DIR__ . '/bearded_node_port.txt',
     dirname(__DIR__) . '/.node_port',
+    dirname(__DIR__) . '/bearded_node_port.txt',
+    dirname(dirname(__DIR__)) . '/.node_port',
+    dirname(dirname(__DIR__)) . '/bearded_node_port.txt',
     '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/.node_port',
-    '/home/u251936581/public_html/.node_port'
+    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/bearded_node_port.txt',
+    '/home/u251936581/domains/beardedmountaineerlodge.com/hbuilds/current/nodejs/.node_port',
+    '/home/u251936581/domains/beardedmountaineerlodge.com/hbuilds/source/repository/.node_port',
+    '/home/u251936581/public_html/.node_port',
+    '/tmp/.node_port',
+    '/tmp/bearded_node_port.txt'
 ];
 foreach ($portCandidates as $pc) {
     if (file_exists($pc)) {
@@ -180,9 +210,12 @@ $targets = [];
 if ($port) {
     $targets[] = "http://127.0.0.1:" . $port;
 }
-$targets[] = 'http://127.0.0.1:3001';
 $targets[] = 'http://127.0.0.1:4000';
+$targets[] = 'http://127.0.0.1:4001';
+$targets[] = 'http://127.0.0.1:4002';
+$targets[] = 'http://127.0.0.1:3001';
 $targets[] = 'http://127.0.0.1:3000';
+$targets[] = 'http://127.0.0.1:8080';
 
 $response = false;
 $httpCode = 0;
@@ -227,21 +260,17 @@ if ($isMultipart) {
     $body = file_get_contents('php://input');
 }
 
-foreach ($targets as $baseTarget) {
-    $targetUrl = $baseTarget . $requestUri;
-    $ch = curl_init($targetUrl);
+// 1. Probar socket Unix si está disponible
+if ($socket) {
+    $ch = curl_init('http://localhost' . $requestUri);
+    curl_setopt($ch, CURLOPT_UNIX_SOCKET_PATH, $socket);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $_SERVER['REQUEST_METHOD']);
     curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
-    curl_setopt($ch, CURLOPT_ENCODING, '');
-    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 2);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 1);
     curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-
     $reqHeaders = $headers;
     $reqHeaders[] = "Host: api.beardedmountaineerlodge.com";
-
     if ($isMultipart) {
         $filteredHeaders = array_filter($reqHeaders, function($h) {
             $lh = strtolower($h);
@@ -251,22 +280,65 @@ foreach ($targets as $baseTarget) {
         curl_setopt($ch, CURLOPT_POSTFIELDS, $postFields);
     } else {
         curl_setopt($ch, CURLOPT_HTTPHEADER, $reqHeaders);
-        if ($body !== null) {
-            curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
-        }
+        if ($body !== null) curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
     }
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+    $res = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $cType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
     curl_close($ch);
-
-    if ($httpCode >= 200 && $httpCode < 500 && $response !== false) {
-        break;
+    if ($code > 0) {
+        $response = $res;
+        $httpCode = $code;
+        $contentType = $cType;
     }
 }
 
-if ($httpCode > 0 && $response !== false) {
+// 2. Probar puertos TCP si el socket no conectó
+if ($httpCode === 0) {
+    foreach ($targets as $baseTarget) {
+        $targetUrl = $baseTarget . $requestUri;
+        $ch = curl_init($targetUrl);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $_SERVER['REQUEST_METHOD']);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+        curl_setopt($ch, CURLOPT_ENCODING, '');
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 1);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+
+        $reqHeaders = $headers;
+        $reqHeaders[] = "Host: api.beardedmountaineerlodge.com";
+
+        if ($isMultipart) {
+            $filteredHeaders = array_filter($reqHeaders, function($h) {
+                $lh = strtolower($h);
+                return strpos($lh, 'content-type:') !== 0 && strpos($lh, 'content-length:') !== 0;
+            });
+            curl_setopt($ch, CURLOPT_HTTPHEADER, array_values($filteredHeaders));
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $postFields);
+        } else {
+            curl_setopt($ch, CURLOPT_HTTPHEADER, $reqHeaders);
+            if ($body !== null) {
+                curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
+            }
+        }
+
+        $res = curl_exec($ch);
+        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $cType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+        curl_close($ch);
+
+        if ($code > 0) {
+            $response = $res;
+            $httpCode = $code;
+            $contentType = $cType;
+            break;
+        }
+    }
+}
+
+if ($httpCode > 0) {
     if ($contentType) {
         header("Content-Type: $contentType");
     }
@@ -290,7 +362,7 @@ exit(0);
 const apiProxyHtaccess = `<IfModule mod_rewrite.c>
 RewriteEngine On
 RewriteBase /
-RewriteRule ^index\\.php$ - [L]
+RewriteRule ^index\.php$ - [L]
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule . /index.php [L]
@@ -317,18 +389,33 @@ const rootHtaccess = `DirectoryIndex index.html
   RewriteBase /
 
   # 1. Redirección de subdominios si LiteSpeed los enruta al public_html principal
-  RewriteCond %{HTTP_HOST} ^admin\\. [NC]
+  RewriteCond %{HTTP_HOST} ^admin\. [NC]
   RewriteRule ^(.*)$ https://beardedmountaineerlodge.com/admin/$1 [R=301,L]
 
-  RewriteCond %{HTTP_HOST} ^api\\. [NC]
+  RewriteCond %{HTTP_HOST} ^api\. [NC]
   RewriteRule ^(.*)$ https://beardedmountaineerlodge.com/api/$1 [R=307,L]
 
-  # 2. Rutas físicas existentes (archivos y carpetas: _next, admin, api, uploads)
+  # 2. Rutas de API -> Pasar directamente a api/index.php
+  RewriteRule ^api(/.*)?$ api/index.php [QSA,L]
+
+  # 3. Rutas de Admin -> Servir archivos estáticos de admin/ con fallback a admin/index.html
+  RewriteRule ^admin$ admin/ [R=301,L]
+  RewriteCond %{REQUEST_URI} ^/admin/
+  RewriteCond %{DOCUMENT_ROOT}/admin/$1.html -f
+  RewriteRule ^admin/(.*)$ admin/$1.html [L]
+  RewriteCond %{REQUEST_URI} ^/admin/
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+  RewriteCond %{REQUEST_URI} ^/admin/
+  RewriteRule ^admin/.*$ admin/index.html [L]
+
+  # 4. Archivos y carpetas físicas del frontend (_next, uploads, favicon, etc.)
   RewriteCond %{REQUEST_FILENAME} -f [OR]
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
 
-  # 3. Fallback SPA Next.js para rutas del frontend
+  # 5. Fallback SPA Next.js para rutas del frontend
   RewriteRule ^ index.html [L]
 </IfModule>
 `;
@@ -509,8 +596,12 @@ if (isLinux) {
   // ── Reinicio de aplicación Node.js en Hostinger (Phusion Passenger) ──
   const restartPaths = [
     path.join(ROOT, 'tmp', 'restart.txt'),
+    path.resolve(ROOT, '../tmp/restart.txt'),
+    path.resolve(ROOT, '../../tmp/restart.txt'),
     '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/tmp/restart.txt',
-    '/home/u251936581/domains/beardedmountaineerlodge.com/tmp/restart.txt'
+    '/home/u251936581/domains/beardedmountaineerlodge.com/tmp/restart.txt',
+    '/home/u251936581/domains/beardedmountaineerlodge.com/hbuilds/current/nodejs/tmp/restart.txt',
+    '/home/u251936581/domains/beardedmountaineerlodge.com/hbuilds/source/repository/tmp/restart.txt'
   ];
   for (const rp of restartPaths) {
     try {
