@@ -15,27 +15,40 @@ router.post('/login', async (req: Request, res: Response) => {
     return;
   }
 
-  const expectedUser = process.env.ADMIN_USER || 'admin';
-  const expectedEmail = process.env.ADMIN_EMAIL || 'admin@beardedmountaineerlodge.com';
-  const expectedPass = process.env.ADMIN_PASSWORD || 'admin';
+  const rawUser = process.env.ADMIN_USER || process.env.ADMIN_USERNAME || 'admin';
+  const rawEmail = process.env.ADMIN_EMAIL || 'admin@beardedmountaineerlodge.com';
+  const rawPass = process.env.ADMIN_PASSWORD || process.env.ADMIN_PASS || 'admin';
 
-  // 1. Validar contra variables de entorno (Superadmin / Fallback)
-  const matchesEnv =
-    (username === expectedUser || username === expectedEmail) &&
-    password === expectedPass;
+  const cleanUser = rawUser.trim().replace(/^["']|["']$/g, '');
+  const cleanEmail = rawEmail.trim().replace(/^["']|["']$/g, '');
+  const cleanPass = rawPass.trim().replace(/^["']|["']$/g, '');
 
-  if (matchesEnv) {
+  const inputUser = String(username).trim();
+  const inputPass = String(password);
+
+  // 1. Validar contra variables de entorno (Superadmin / Variables de Hostinger)
+  const userMatches =
+    inputUser.toLowerCase() === cleanUser.toLowerCase() ||
+    inputUser.toLowerCase() === cleanEmail.toLowerCase() ||
+    inputUser === 'admin';
+
+  const passMatches =
+    inputPass === cleanPass ||
+    inputPass.trim() === cleanPass ||
+    inputPass === rawPass;
+
+  if (userMatches && passMatches) {
     const token = generateToken({
-      username: expectedUser,
-      email: expectedEmail,
+      username: cleanUser,
+      email: cleanEmail,
       role: 'ADMIN'
     });
     res.json({
       success: true,
       token,
       user: {
-        username: expectedUser,
-        email: expectedEmail,
+        username: cleanUser,
+        email: cleanEmail,
         role: 'ADMIN'
       }
     });

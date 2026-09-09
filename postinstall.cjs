@@ -338,6 +338,68 @@ if ($httpCode === 0) {
     }
 }
 
+// 3. Si aún no responde, intentar levantar Node.js en background y reintentar
+if ($httpCode === 0) {
+    $serverCandidates = [
+        dirname(__DIR__) . '/server.js',
+        '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/server.js',
+        '/home/u251936581/domains/beardedmountaineerlodge.com/hbuilds/current/nodejs/server.js',
+        '/home/u251936581/domains/beardedmountaineerlodge.com/hbuilds/source/repository/server.js',
+        '/home/u251936581/public_html/server.js'
+    ];
+    $serverScript = null;
+    foreach ($serverCandidates as $sc) {
+        if (file_exists($sc)) {
+            $serverScript = $sc;
+            break;
+        }
+    }
+    if ($serverScript) {
+        $serverDir = dirname($serverScript);
+        $logPath = '/tmp/bml_node.log';
+        exec("pgrep -f 'node.*server.js' 2>/dev/null", $pids);
+        if (empty($pids)) {
+            exec("cd " . escapeshellarg($serverDir) . " && nohup node server.js > " . escapeshellarg($logPath) . " 2>&1 &");
+            usleep(900000);
+        }
+        foreach ($targets as $baseTarget) {
+            $targetUrl = $baseTarget . $requestUri;
+            $ch = curl_init($targetUrl);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $_SERVER['REQUEST_METHOD']);
+            curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+            curl_setopt($ch, CURLOPT_ENCODING, '');
+            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 1);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+            $reqHeaders = $headers;
+            $reqHeaders[] = "Host: api.beardedmountaineerlodge.com";
+            if ($isMultipart) {
+                $filteredHeaders = array_filter($reqHeaders, function($h) {
+                    $lh = strtolower($h);
+                    return strpos($lh, 'content-type:') !== 0 && strpos($lh, 'content-length:') !== 0;
+                });
+                curl_setopt($ch, CURLOPT_HTTPHEADER, array_values($filteredHeaders));
+                curl_setopt($ch, CURLOPT_POSTFIELDS, $postFields);
+            } else {
+                curl_setopt($ch, CURLOPT_HTTPHEADER, $reqHeaders);
+                if ($body !== null) curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
+            }
+            $res = curl_exec($ch);
+            $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $cType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+            curl_close($ch);
+            if ($code > 0) {
+                $response = $res;
+                $httpCode = $code;
+                $contentType = $cType;
+                break;
+            }
+        }
+    }
+}
+
 if ($httpCode > 0) {
     if ($contentType) {
         header("Content-Type: $contentType");
@@ -408,6 +470,10 @@ const rootHtaccess = `DirectoryIndex index.html
 const universalAdminHtaccess = `DirectoryIndex index.html
 <IfModule mod_rewrite.c>
 RewriteEngine On
+
+# Si el cliente admin llama a /api/*, delegar con 307 a api.beardedmountaineerlodge.com
+RewriteRule ^api(/.*)?$ https://api.beardedmountaineerlodge.com/api$1 [R=307,L]
+
 RewriteCond %{REQUEST_FILENAME} -f
 RewriteRule ^ - [L]
 RewriteCond %{REQUEST_FILENAME} -d
@@ -599,6 +665,24 @@ if (isLinux) {
     } catch (_) {}
   }
   console.log('[deploy] ✅ Señal de reinicio enviada a Passenger (tmp/restart.txt).');
+
+  // ── Lanzamiento de server.js como daemon background en Hostinger ──
+  try {
+    execSync('pkill -f "node.*server.js" 2>/dev/null || true');
+    const logPath = '/tmp/bml_server.log';
+    const outLog = fs.openSync(logPath, 'a');
+    const errLog = fs.openSync(logPath, 'a');
+    const child = spawn('node', [path.join(ROOT, 'server.js')], {
+      cwd: ROOT,
+      detached: true,
+      stdio: ['ignore', outLog, errLog],
+      env: process.env
+    });
+    child.unref();
+    console.log('[deploy] ✅ server.js iniciado en segundo plano (PID:', child.pid, ')');
+  } catch (e) {
+    console.warn('[deploy] ⚠️ Aviso iniciando server.js:', e.message);
+  }
 } else {
   console.log('[deploy] ℹ️  Entorno local (Windows): omitiendo despliegue en /home/u251936581.');
 }
