@@ -143,8 +143,8 @@ const apiProxyPhp = `<?php
 // Bearded Mountaineer Lodge API Dynamic Reverse Proxy (LiteSpeed / PHP -> Node.js)
 // ==============================================================================
 
-error_reporting(E_ALL);
-ini_set('display_errors', '1');
+@error_reporting(0);
+@ini_set('display_errors', '0');
 
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Credentials: true");
@@ -513,10 +513,10 @@ try {
         echo json_encode(['success' => false, 'error' => 'No autenticado']);
         exit(0);
     }
-} catch (\Throwable $t) {
-    header("Content-Type: application/json; charset=UTF-8");
+} catch (Throwable $t) {
+    @header("Content-Type: application/json; charset=UTF-8");
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => $t->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Error interno']);
     exit(0);
 }
 
