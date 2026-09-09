@@ -14,12 +14,17 @@ export default function LayoutContent({ children }: { children: React.ReactNode 
   const [authorized, setAuthorized] = useState(false);
 
   useEffect(() => {
+    const token = getCookie('session_token');
+
     if (isLoginPage) {
-      setAuthorized(true);
+      if (token) {
+        router.push('/');
+      } else {
+        setAuthorized(true);
+      }
       return;
     }
 
-    const token = getCookie('session_token');
     if (!token) {
       router.push('/login');
     } else {
