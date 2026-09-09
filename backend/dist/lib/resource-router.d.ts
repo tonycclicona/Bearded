@@ -2,6 +2,9 @@ import { Router } from 'express';
 interface ResourceController<T> {
     findMany(filter: unknown): Promise<T[]>;
     findUnique(filter: unknown): Promise<T | null>;
+    create?(data: unknown): Promise<T>;
+    update?(data: unknown): Promise<T>;
+    delete?(data: unknown): Promise<T>;
 }
 interface ResourceRouterOptions<T, F = unknown> {
     model: ResourceController<T>;

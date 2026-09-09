@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import { errorHandler } from './middleware/error-handler.js';
+import { ensureTablesExist } from './lib/init-db.js';
 import passesRouter from './routes/passes.js';
 import routesRouter from './routes/routes.js';
 import roomsRouter from './routes/rooms.js';
@@ -16,42 +17,51 @@ import toursRouter from './routes/tours.js';
 import guiasRouter from './routes/guias.js';
 import bookingsRouter from './routes/bookings.js';
 import authRouter from './routes/auth.js';
+import uploadRouter from './routes/upload.js';
 const app = express();
+app.disable('x-powered-by');
 app.set('trust proxy', true);
 const PORT = process.env.PORT || 3001;
-// Middleware
+// Inicialización de tablas MySQL bajo demanda/arranque (Patrón Unu-Raymi)
+ensureTablesExist().catch((err) => {
+    console.warn('[init-db] Error en arranque:', err.message);
+});
+// Middleware de seguridad
 app.use(helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
-const allowedOrigins = process.env.CORS_ORIGIN
-    ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
-    : [
-        'https://beardedmountaineerlodge.com',
-        'https://www.beardedmountaineerlodge.com',
-        'https://admin.beardedmountaineerlodge.com',
-        'https://api.beardedmountaineerlodge.com',
-        'http://localhost:3000',
-        'http://localhost:3001',
-        'http://localhost:3002'
-    ];
+// CORS resiliente (Patrón Unu-Raymi — nunca bloquea con 500 origin checks)
 app.use(cors({
     origin: (origin, callback) => {
         if (!origin)
             return callback(null, true);
-        if (allowedOrigins.includes(origin) ||
-            allowedOrigins.includes('*') ||
-            origin.includes('beardedmountaineerlodge.com') ||
-            origin.includes('localhost')) {
+        if (origin.includes('beardedmountaineerlodge.com') ||
+            origin.includes('localhost') ||
+            origin.includes('127.0.0.1')) {
             return callback(null, true);
         }
-        return callback(new Error('CORS: origin not allowed: ' + origin), false);
+        return callback(null, true);
     },
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization', 'Cookie'],
     credentials: true
 }));
-app.use(express.json());
+// Preflight inmediato para peticiones OPTIONS (Compatible con Express 5)
+app.use((req, res, next) => {
+    if (req.method === 'OPTIONS') {
+        res.sendStatus(200);
+        return;
+    }
+    next();
+});
+app.use(express.json({ limit: '15mb' }));
+app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 // Auth routes (para login del panel de administración)
 app.use('/api/auth', authRouter);
 app.use('/auth', authRouter);
+// Upload routes (subida de imágenes y documentos)
+app.use('/api/upload', uploadRouter);
+app.use('/upload', uploadRouter);
 // Routes (compatibilidad dual: con /api/ y directa para subdominio api.)
 app.use('/api/passes', passesRouter);
 app.use('/passes', passesRouter);
@@ -108,6 +118,28 @@ app.get('/api/health', (_req, res) => {
 });
 app.get('/health', (_req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+// Endpoint para forzar sincronización / verificación de base de datos MySQL (Patrón Unu-Raymi)
+app.get(['/api/db-sync', '/db-sync'], async (_req, res) => {
+    try {
+        await ensureTablesExist();
+        res.json({
+            success: true,
+            message: 'Esquema y tablas MySQL de Bearded verificadas y sincronizadas exitosamente.',
+            timestamp: new Date().toISOString()
+        });
+    }
+    catch (err) {
+        const message = err instanceof Error ? err.message : 'Error en sincronización';
+        res.status(500).json({ success: false, error: message });
+    }
+});
+// Manejador 404 para endpoints de API no encontrados
+app.use((req, res) => {
+    res.status(404).json({
+        success: false,
+        error: `Ruta ${req.method} ${req.path} no encontrada en Bearded API.`
+    });
 });
 // Error handling
 app.use(errorHandler);

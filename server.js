@@ -130,10 +130,10 @@ app.use(function(req, res, next) {
   }
 
   const host = (req.headers.host || '').toLowerCase();
-  if (host.startsWith('api.') || req.url.startsWith('/api') || req.url.startsWith('/uploads')) {
+  if (host.startsWith('api.') || req.url.startsWith('/api') || req.url.startsWith('/uploads') || req.url.startsWith('/upload')) {
     const handleApi = function() {
       if (typeof backendApp === 'function') {
-        if (host.startsWith('api.') && !req.url.startsWith('/api') && !req.url.startsWith('/uploads')) {
+        if (host.startsWith('api.') && !req.url.startsWith('/api') && !req.url.startsWith('/uploads') && !req.url.startsWith('/upload')) {
           req.url = '/api' + (req.url.startsWith('/') ? req.url : '/' + req.url);
         }
         return backendApp(req, res, next);

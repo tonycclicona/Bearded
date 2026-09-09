@@ -52,3 +52,11 @@ if (!compiled) {
 } else {
   console.log('[build:backend] ✅ Backend compilation successful.');
 }
+
+const distIndex = path.join(ROOT, 'dist/index.js');
+const distServer = path.join(ROOT, 'dist/server.js');
+if (fs.existsSync(distIndex) && !fs.existsSync(distServer)) {
+  fs.writeFileSync(distServer, "export { default } from './index.js';\nexport * from './index.js';\n");
+  console.log('[build:backend] ✅ dist/server.js generado para paridad con Unu-Raymi.');
+}
+
