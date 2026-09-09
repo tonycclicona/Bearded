@@ -143,8 +143,8 @@ const apiProxyPhp = `<?php
 // Bearded Mountaineer Lodge API Dynamic Reverse Proxy (LiteSpeed / PHP -> Node.js)
 // ==============================================================================
 
-@error_reporting(0);
-@ini_set('display_errors', '0');
+error_reporting(E_ALL);
+ini_set('display_errors', '1');
 
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Credentials: true");
