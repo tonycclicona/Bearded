@@ -405,8 +405,11 @@ function getAppConfig($key, $default = '') {
                             $parts = explode('=', $line, 2);
                             $k = trim($parts[0]);
                             $v = trim($parts[1]);
-                            if ((str_starts_with($v, '"') && str_ends_with($v, '"')) || (str_starts_with($v, "'") && str_ends_with($v, "'"))) {
-                                $v = substr($v, 1, -1);
+                            $len = strlen($v);
+                            if ($len >= 2) {
+                                if (($v[0] === '"' && $v[$len - 1] === '"') || ($v[0] === "'" && $v[$len - 1] === "'")) {
+                                    $v = substr($v, 1, -1);
+                                }
                             }
                             if (!isset($envMap[$k])) $envMap[$k] = $v;
                         }
@@ -419,10 +422,13 @@ function getAppConfig($key, $default = '') {
 }
 
 // A. Endpoint Login (/api/auth/login)
-if (strpos($requestUri, '/auth/login') !== false && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    $input = json_decode($body, true) ?: $_POST;
-    $u = trim($input['username'] ?? '');
-    $p = trim($input['password'] ?? '');
+if ((strpos($requestUri, 'login') !== false || strpos($requestUri, 'auth') !== false) && strtoupper($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+    $input = json_decode($body, true);
+    if (!is_array($input) || empty($input)) {
+        $input = $_POST;
+    }
+    $u = trim($input['username'] ?? $input['user'] ?? $input['email'] ?? '');
+    $p = trim($input['password'] ?? $input['pass'] ?? '');
 
     $expectedU = getAppConfig('ADMIN_USER', getAppConfig('ADMIN_USERNAME', 'admin'));
     $expectedE = getAppConfig('ADMIN_EMAIL', 'admin@beardedmountaineerlodge.com');
@@ -430,10 +436,11 @@ if (strpos($requestUri, '/auth/login') !== false && $_SERVER['REQUEST_METHOD'] =
     $secret = getAppConfig('JWT_SECRET', 'bearded-secret-key-fallback-min-32-chars');
 
     $uMatch = (strcasecmp($u, $expectedU) === 0 || strcasecmp($u, $expectedE) === 0 || $u === 'admin');
-    $pMatch = ($p === $expectedP || $p === trim($expectedP, "\"'"));
+    $cleanExpP = trim($expectedP, "\"'");
+    $pMatch = ($p === $expectedP || $p === $cleanExpP);
 
     header("Content-Type: application/json; charset=UTF-8");
-    if ($uMatch && $pMatch) {
+    if ($uMatch && $pMatch && !empty($p)) {
         $hdr = b64UrlEnc(json_encode(['alg' => 'HS256', 'typ' => 'JWT']));
         $payload = [
             'username' => $expectedU,
