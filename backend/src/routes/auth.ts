@@ -17,7 +17,7 @@ router.post('/login', async (req: Request, res: Response) => {
 
   const rawUser = process.env.ADMIN_USER || process.env.ADMIN_USERNAME || 'admin';
   const rawEmail = process.env.ADMIN_EMAIL || 'admin@beardedmountaineerlodge.com';
-  const rawPass = process.env.ADMIN_PASSWORD || process.env.ADMIN_PASS || 'admin';
+  const rawPass = process.env.ADMIN_PASSWORD || process.env.ADMIN_PASS || process.env.ADMIN_PWD || 'admin';
 
   const cleanUser = rawUser.trim().replace(/^["']|["']$/g, '');
   const cleanEmail = rawEmail.trim().replace(/^["']|["']$/g, '');

@@ -225,10 +225,28 @@ $httpCode = 0;
 $contentType = '';
 
 $headers = [];
-foreach (getallheaders() as $name => $value) {
-    $lower = strtolower($name);
-    if ($lower !== 'host' && $lower !== 'accept-encoding' && $lower !== 'content-length') {
-        $headers[] = "$name: $value";
+if (function_exists('getallheaders')) {
+    $rawHeaders = getallheaders();
+    if (is_array($rawHeaders)) {
+        foreach ($rawHeaders as $name => $value) {
+            $lower = strtolower($name);
+            if ($lower !== 'host' && $lower !== 'accept-encoding' && $lower !== 'content-length') {
+                $headers[] = "$name: $value";
+            }
+        }
+    }
+}
+if (empty($headers)) {
+    foreach ($_SERVER as $name => $value) {
+        if (substr($name, 0, 5) === 'HTTP_') {
+            $headerName = str_replace(' ', '-', ucwords(strtolower(str_replace('_', ' ', substr($name, 5)))));
+            $lower = strtolower($headerName);
+            if ($lower !== 'host' && $lower !== 'accept-encoding' && $lower !== 'content-length') {
+                $headers[] = "$headerName: $value";
+            }
+        } else if ($name === 'CONTENT_TYPE' && !empty($value)) {
+            $headers[] = "Content-Type: $value";
+        }
     }
 }
 
@@ -236,7 +254,7 @@ $isMultipart = !empty($_FILES) || (isset($_SERVER['CONTENT_TYPE']) && strpos(str
 $postFields = null;
 $body = null;
 
-if ($isMultipart) {
+if ($isMultipart && class_exists('CURLFile')) {
     $postFields = $_POST;
     foreach ($_FILES as $field => $fileData) {
         if (is_array($fileData['tmp_name'])) {
@@ -264,7 +282,7 @@ if ($isMultipart) {
 }
 
 // 1. Probar socket Unix si está disponible
-if ($socket) {
+if ($socket && function_exists('curl_init')) {
     $ch = curl_init('http://localhost' . $requestUri);
     curl_setopt($ch, CURLOPT_UNIX_SOCKET_PATH, $socket);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -297,7 +315,7 @@ if ($socket) {
 }
 
 // 2. Probar puertos TCP si el socket no conectó
-if ($httpCode === 0) {
+if ($httpCode === 0 && function_exists('curl_init')) {
     foreach ($targets as $baseTarget) {
         $targetUrl = $baseTarget . $requestUri;
         $ch = curl_init($targetUrl);
@@ -344,7 +362,7 @@ if ($httpCode === 0) {
 // 3. Si aún no responde, verificar si existe puerto directo en /tmp/bearded_node_port.txt
 if ($httpCode === 0) {
     $altPort = @file_get_contents('/tmp/bearded_node_port.txt');
-    if ($altPort && is_numeric(trim($altPort))) {
+    if ($altPort && is_numeric(trim($altPort)) && function_exists('curl_init')) {
         $altTarget = "http://127.0.0.1:" . trim($altPort) . $requestUri;
         $ch = curl_init($altTarget);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -437,12 +455,12 @@ try {
 
         $expectedU = getAppConfig('ADMIN_USER', getAppConfig('ADMIN_USERNAME', 'admin'));
         $expectedE = getAppConfig('ADMIN_EMAIL', 'admin@beardedmountaineerlodge.com');
-        $expectedP = getAppConfig('ADMIN_PASSWORD', getAppConfig('ADMIN_PASS', 'admin'));
+        $expectedP = getAppConfig('ADMIN_PASSWORD', getAppConfig('ADMIN_PASS', getAppConfig('ADMIN_PWD', 'admin')));
         $secret = getAppConfig('JWT_SECRET', 'bearded-secret-key-fallback-min-32-chars');
 
         $uMatch = (strcasecmp($u, $expectedU) === 0 || strcasecmp($u, $expectedE) === 0 || $u === 'admin');
         $cleanExpP = trim($expectedP, "\"'");
-        $pMatch = ($p === $expectedP || $p === $cleanExpP);
+        $pMatch = ($p === $expectedP || $p === $cleanExpP || trim($p) === $cleanExpP);
 
         header("Content-Type: application/json; charset=UTF-8");
         if ($uMatch && $pMatch && !empty($p)) {
