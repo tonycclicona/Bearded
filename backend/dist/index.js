@@ -117,11 +117,13 @@ app.get(['/', '/api'], (_req, res) => {
         timestamp: new Date().toISOString()
     });
 });
-app.get('/api/health', (_req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-app.get('/health', (_req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+app.get(['/api/health', '/health'], (_req, res) => {
+    res.status(200).json({
+        success: true,
+        message: 'Bearded Mountaineer Lodge API está funcionando correctamente.',
+        environment: process.env.NODE_ENV || 'production',
+        timestamp: new Date().toISOString()
+    });
 });
 // Endpoint para forzar sincronización / verificación de base de datos MySQL (Patrón Unu-Raymi)
 app.get(['/api/db-sync', '/db-sync'], async (_req, res) => {

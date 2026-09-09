@@ -14,18 +14,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit(0);
 }
 
-// Prevención de bucle de reenvío proxy
-if (isset($_SERVER['HTTP_X_BEARDED_PROXY'])) {
-    http_response_code(502);
-    header("Content-Type: application/json; charset=UTF-8");
-    echo json_encode([
-        "success" => false,
-        "error" => "El backend Node.js no está respondiendo en los puertos locales.",
-        "timestamp" => date("c")
-    ]);
-    exit(0);
-}
-
 $requestUri = $_SERVER['REQUEST_URI'];
 if (strpos($requestUri, '/api') !== 0) {
     $requestUri = '/api' . $requestUri;
@@ -33,7 +21,6 @@ if (strpos($requestUri, '/api') !== 0) {
 
 $targets = [
     'http://127.0.0.1:4000',
-    'http://127.0.0.1:3001',
     'http://127.0.0.1:3000',
     'https://beardedmountaineerlodge.com'
 ];
@@ -88,12 +75,11 @@ foreach ($targets as $baseTarget) {
     curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
     curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
-    curl_setopt($ch, CURLOPT_ENCODING, ''); // Decodifica gzip/deflate/br automáticamente
-    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 2);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 6);
+    curl_setopt($ch, CURLOPT_ENCODING, '');
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
     
     $reqHeaders = $headers;
-    $reqHeaders[] = "X-Bearded-Proxy: 1";
     if (strpos($baseTarget, 'beardedmountaineerlodge.com') !== false) {
         $reqHeaders[] = "Host: beardedmountaineerlodge.com";
     } else {
@@ -119,8 +105,7 @@ foreach ($targets as $baseTarget) {
     $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
     curl_close($ch);
 
-    $isHtml = (strpos(strtolower($contentType ?: ''), 'text/html') !== false);
-    if ($httpCode >= 200 && $httpCode < 500 && $response !== false && !$isHtml) {
+    if ($httpCode >= 200 && $httpCode < 500 && $response !== false) {
         break;
     }
 }
