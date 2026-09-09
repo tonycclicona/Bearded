@@ -234,6 +234,10 @@ function writePortFiles(actualPort, actualSocket) {
     path.resolve(__dirname, '../../public_html/api'),
     '/home/u251936581/domains/beardedmountaineerlodge.com/public_html',
     '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/api',
+    '/home/u251936581/domains/api.beardedmountaineerlodge.com/public_html',
+    '/home/u251936581/domains/api.beardedmountaineerlodge.com',
+    '/home/u251936581/domains/admin.beardedmountaineerlodge.com/public_html',
+    '/home/u251936581/domains/admin.beardedmountaineerlodge.com',
     '/home/u251936581/public_html',
     '/home/u251936581/public_html/api',
     '/tmp'

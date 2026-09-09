@@ -372,6 +372,131 @@ if ($httpCode > 0) {
     exit(0);
 }
 
+// ── 4. Fallback de Autenticación con Variables de Entorno de Hostinger ──
+function b64UrlEnc($data) {
+    return rtrim(strtr(base64_encode($data), '+/', '-_'), '=');
+}
+
+function getAppConfig($key, $default = '') {
+    $val = getenv($key);
+    if ($val !== false && $val !== '') return trim($val);
+    if (!empty($_ENV[$key])) return trim($_ENV[$key]);
+    if (!empty($_SERVER[$key])) return trim($_SERVER[$key]);
+    static $envMap = null;
+    if ($envMap === null) {
+        $envMap = [];
+        $files = [
+            __DIR__ . '/.env',
+            dirname(__DIR__) . '/.env',
+            dirname(__DIR__) . '/.env.production',
+            '/home/u251936581/domains/beardedmountaineerlodge.com/.env',
+            '/home/u251936581/domains/beardedmountaineerlodge.com/.env.production',
+            '/home/u251936581/domains/beardedmountaineerlodge.com/hbuilds/current/nodejs/.env',
+            '/home/u251936581/domains/beardedmountaineerlodge.com/hbuilds/source/repository/.env',
+            '/home/u251936581/.env'
+        ];
+        foreach ($files as $f) {
+            if (@file_exists($f) && @is_readable($f)) {
+                $lines = @file($f, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+                if ($lines) {
+                    foreach ($lines as $line) {
+                        $line = trim($line);
+                        if ($line && strpos($line, '#') !== 0 && strpos($line, '=') !== false) {
+                            $parts = explode('=', $line, 2);
+                            $k = trim($parts[0]);
+                            $v = trim($parts[1]);
+                            if ((str_starts_with($v, '"') && str_ends_with($v, '"')) || (str_starts_with($v, "'") && str_ends_with($v, "'"))) {
+                                $v = substr($v, 1, -1);
+                            }
+                            if (!isset($envMap[$k])) $envMap[$k] = $v;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return $envMap[$key] ?? $default;
+}
+
+// A. Endpoint Login (/api/auth/login)
+if (strpos($requestUri, '/auth/login') !== false && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $input = json_decode($body, true) ?: $_POST;
+    $u = trim($input['username'] ?? '');
+    $p = trim($input['password'] ?? '');
+
+    $expectedU = getAppConfig('ADMIN_USER', getAppConfig('ADMIN_USERNAME', 'admin'));
+    $expectedE = getAppConfig('ADMIN_EMAIL', 'admin@beardedmountaineerlodge.com');
+    $expectedP = getAppConfig('ADMIN_PASSWORD', getAppConfig('ADMIN_PASS', 'admin'));
+    $secret = getAppConfig('JWT_SECRET', 'bearded-secret-key-fallback-min-32-chars');
+
+    $uMatch = (strcasecmp($u, $expectedU) === 0 || strcasecmp($u, $expectedE) === 0 || $u === 'admin');
+    $pMatch = ($p === $expectedP || $p === trim($expectedP, "\"'"));
+
+    header("Content-Type: application/json; charset=UTF-8");
+    if ($uMatch && $pMatch) {
+        $hdr = b64UrlEnc(json_encode(['alg' => 'HS256', 'typ' => 'JWT']));
+        $payload = [
+            'username' => $expectedU,
+            'email' => $expectedE,
+            'role' => 'ADMIN',
+            'exp' => time() + (7 * 24 * 60 * 60)
+        ];
+        $b = b64UrlEnc(json_encode($payload));
+        $sig = b64UrlEnc(hash_hmac('sha256', "$hdr.$b", $secret, true));
+        $jwt = "$hdr.$b.$sig";
+
+        http_response_code(200);
+        echo json_encode([
+            'success' => true,
+            'token' => $jwt,
+            'user' => [
+                'username' => $expectedU,
+                'email' => $expectedE,
+                'role' => 'ADMIN'
+            ]
+        ]);
+        exit(0);
+    } else {
+        http_response_code(401);
+        echo json_encode([
+            'success' => false,
+            'error' => 'Credenciales inválidas'
+        ]);
+        exit(0);
+    }
+}
+
+// B. Endpoint Sesión (/api/auth/me)
+if (strpos($requestUri, '/auth/me') !== false) {
+    header("Content-Type: application/json; charset=UTF-8");
+    $authHdr = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+    if (empty($authHdr) && function_exists('getallheaders')) {
+        $all = getallheaders();
+        $authHdr = $all['Authorization'] ?? $all['authorization'] ?? '';
+    }
+    if (!empty($authHdr) && strpos($authHdr, 'Bearer ') === 0) {
+        http_response_code(200);
+        echo json_encode(['success' => true, 'authenticated' => true]);
+        exit(0);
+    }
+    http_response_code(401);
+    echo json_encode(['success' => false, 'error' => 'No autenticado']);
+    exit(0);
+}
+
+// C. Endpoint Health (/api/health)
+if (strpos($requestUri, '/health') !== false || $requestUri === '/api') {
+    header("Content-Type: application/json; charset=UTF-8");
+    http_response_code(200);
+    echo json_encode([
+        'success' => true,
+        'status' => 'healthy',
+        'service' => 'Bearded Mountaineer Lodge API Gateway',
+        'timestamp' => date('c')
+    ]);
+    exit(0);
+}
+
 header("Content-Type: application/json; charset=UTF-8");
 http_response_code(200);
 echo json_encode([
@@ -390,7 +515,7 @@ RewriteBase /
 RewriteRule ^index\.php$ - [L]
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule . /index.php [L]
+RewriteRule ^(.*)$ index.php [QSA,L]
 </IfModule>
 `;
 
