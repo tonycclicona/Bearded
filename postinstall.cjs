@@ -388,36 +388,18 @@ const rootHtaccess = `DirectoryIndex index.html
   RewriteEngine On
   RewriteBase /
 
-  # 1. Redirección de subdominios si LiteSpeed los enruta al public_html principal
-  RewriteCond %{HTTP_HOST} ^admin\. [NC]
-  RewriteRule ^(.*)$ https://beardedmountaineerlodge.com/admin/$1 [R=301,L]
+  # 1. Redirigir /api al subdominio dedicado de API (preserva metodos POST/PUT con 307)
+  RewriteRule ^api(/.*)?$ https://api.beardedmountaineerlodge.com/api$1 [R=307,L]
 
-  RewriteCond %{HTTP_HOST} ^api\. [NC]
-  RewriteRule ^(.*)$ https://beardedmountaineerlodge.com/api/$1 [R=307,L]
+  # 2. Redirigir /admin al subdominio dedicado de Admin (Next.js SSG)
+  RewriteRule ^admin(/.*)?$ https://admin.beardedmountaineerlodge.com$1 [R=301,L]
 
-  # 2. Rutas de API -> Pasar directamente a api/index.php sin bucle
-  RewriteRule ^api/index\.php$ - [L]
-  RewriteRule ^api(/.*)?$ /api/index.php [QSA,L]
-
-  # 3. Rutas de Admin -> Servir archivos estáticos de admin/ con fallback a admin/index.html
-  RewriteRule ^admin/?$ admin/index.html [L]
-  RewriteCond %{DOCUMENT_ROOT}/admin/$1 -f [OR]
-  RewriteCond %{DOCUMENT_ROOT}/admin/$1/index.html -f
-  RewriteRule ^admin/(.*)$ admin/$1 [L]
-  RewriteCond %{DOCUMENT_ROOT}/admin/$1.html -f
-  RewriteRule ^admin/(.*)$ admin/$1.html [L]
-  RewriteCond %{REQUEST_URI} ^/admin/
-  RewriteCond %{REQUEST_FILENAME} -f
-  RewriteRule ^ - [L]
-  RewriteCond %{REQUEST_URI} ^/admin/
-  RewriteRule ^admin/.*$ admin/index.html [L]
-
-  # 4. Archivos y carpetas físicas del frontend (_next, uploads, favicon, etc.)
+  # 3. Archivos y carpetas físicas del frontend (_next, uploads, favicon, etc.)
   RewriteCond %{REQUEST_FILENAME} -f [OR]
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
 
-  # 5. Fallback SPA Next.js para rutas del frontend
+  # 4. Fallback SPA Next.js para rutas del frontend
   RewriteRule ^ index.html [L]
 </IfModule>
 `;
