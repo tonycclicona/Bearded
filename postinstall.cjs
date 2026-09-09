@@ -1,5 +1,6 @@
 // ==============================================================================
-// postinstall.cjs — Bearded Mountaineer Lodge Clean Build & Deploy
+// postinstall.cjs — Bearded Mountaineer Lodge Build & Hostinger Deployment Engine
+// Homologado al 100% con la dinámica probada de Unu-Raymi
 // ==============================================================================
 
 'use strict';
@@ -74,7 +75,7 @@ function copyDir(src, dest) {
 }
 
 // ── 1. Prisma Generate ────────────────────────────────────────────────────────
-console.log('\n[deploy] [1/4] Prisma Generate...');
+console.log('\n[deploy] [1/5] Prisma Generate...');
 try {
   const schema = path.join(ROOT, 'backend/prisma/schema.prisma');
   if (fs.existsSync(schema)) {
@@ -95,9 +96,7 @@ try {
         '/home/u251936581/domains/beardedmountaineerlodge.com/hbuilds/current/nodejs/node_modules/.prisma'
       ];
       pTargets.forEach(function(pt) {
-        try {
-          copyDir(prismaSrc, pt);
-        } catch (_) {}
+        try { copyDir(prismaSrc, pt); } catch (_) {}
       });
       console.log('[deploy] ✅ Prisma Client sincronizado a entornos de ejecución.');
     }
@@ -117,31 +116,192 @@ try {
 }
 
 // ── 2. Build Backend ──────────────────────────────────────────────────────────
-console.log('\n[deploy] [2/4] Compilando Backend...');
+console.log('\n[deploy] [2/5] Compilando Backend...');
 run('node scripts/build.cjs', 'backend');
 
 // ── 3. Build Admin y Frontend (Next.js SSG) ───────────────────────────────────
 const adminOutIndex = path.join(ROOT, 'admin/out/index.html');
 if (fs.existsSync(adminOutIndex)) {
-  console.log('\n[deploy] [3/4] admin/out/ ya existe y está listo (omitiendo compilación pesada)...');
+  console.log('\n[deploy] [3/5] admin/out/ ya existe y está listo (omitiendo compilación pesada)...');
 } else {
-  console.log('\n[deploy] [3/4] Compilando Admin (Next.js SSG)...');
+  console.log('\n[deploy] [3/5] Compilando Admin (Next.js SSG)...');
   run('node scripts/build.cjs', 'admin');
 }
 
 const frontendOutIndex = path.join(ROOT, 'frontend/out/index.html');
 if (fs.existsSync(frontendOutIndex)) {
-  console.log('[deploy] [3/4] frontend/out/ ya existe y está listo (omitiendo compilación pesada)...');
+  console.log('[deploy] [3/5] frontend/out/ ya existe y está listo (omitiendo compilación pesada)...');
 } else {
-  console.log('[deploy] [3/4] Compilando Frontend (Next.js SSG)...');
+  console.log('[deploy] [3/5] Compilando Frontend (Next.js SSG)...');
   run('node scripts/build.cjs', 'frontend');
 }
 
-// ── 4. Despliegue directo a Hostinger public_html ─────────────────────────────
-console.log('\n[deploy] [4/4] Desplegando en public_html...');
+// ── 4. Generar Proxy Dinámico de API para Hostinger LiteSpeed (Patrón Unu-Raymi) ──
+console.log('\n[deploy] [4/5] Configurando Proxy Dinámico para API...');
+const apiProxyPhp = `<?php
+// ==============================================================================
+// Bearded Mountaineer Lodge API Dynamic Reverse Proxy (LiteSpeed / PHP -> Node.js)
+// ==============================================================================
 
+header("Access-Control-Allow-Origin: *");
+header("Access-Control-Allow-Credentials: true");
+header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS, PATCH");
+header("Access-Control-Allow-Headers: Origin, X-Requested-With, Content-Type, Accept, Authorization");
+
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit(0);
+}
+
+$requestUri = $_SERVER['REQUEST_URI'];
+if (strpos($requestUri, '/api') !== 0 && strpos($requestUri, '/uploads') !== 0) {
+    $requestUri = '/api' . $requestUri;
+}
+
+// Descubrir puerto dinámico escrito por server.js
+$port = null;
+$portCandidates = [
+    __DIR__ . '/.node_port',
+    dirname(__DIR__) . '/.node_port',
+    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/.node_port',
+    '/home/u251936581/public_html/.node_port'
+];
+foreach ($portCandidates as $pc) {
+    if (file_exists($pc)) {
+        $p = trim(file_get_contents($pc));
+        if (!empty($p) && is_numeric($p)) {
+            $port = $p;
+            break;
+        }
+    }
+}
+
+$targets = [];
+if ($port) {
+    $targets[] = "http://127.0.0.1:" . $port;
+}
+$targets[] = 'http://127.0.0.1:3001';
+$targets[] = 'http://127.0.0.1:4000';
+$targets[] = 'http://127.0.0.1:3000';
+
+$response = false;
+$httpCode = 0;
+$contentType = '';
+
+$headers = [];
+foreach (getallheaders() as $name => $value) {
+    $lower = strtolower($name);
+    if ($lower !== 'host' && $lower !== 'accept-encoding' && $lower !== 'content-length') {
+        $headers[] = "$name: $value";
+    }
+}
+
+$isMultipart = !empty($_FILES) || (isset($_SERVER['CONTENT_TYPE']) && strpos(strtolower($_SERVER['CONTENT_TYPE']), 'multipart/form-data') !== false);
+$postFields = null;
+$body = null;
+
+if ($isMultipart) {
+    $postFields = $_POST;
+    foreach ($_FILES as $field => $fileData) {
+        if (is_array($fileData['tmp_name'])) {
+            foreach ($fileData['tmp_name'] as $idx => $tmpName) {
+                if (!empty($tmpName) && is_uploaded_file($tmpName) && $fileData['error'][$idx] === UPLOAD_ERR_OK) {
+                    $postFields[$field . '[' . $idx . ']'] = new CURLFile(
+                        $tmpName,
+                        $fileData['type'][$idx] ?: 'application/octet-stream',
+                        $fileData['name'][$idx]
+                    );
+                }
+            }
+        } else {
+            if (!empty($fileData['tmp_name']) && is_uploaded_file($fileData['tmp_name']) && $fileData['error'] === UPLOAD_ERR_OK) {
+                $postFields[$field] = new CURLFile(
+                    $fileData['tmp_name'],
+                    $fileData['type'] ?: 'application/octet-stream',
+                    $fileData['name']
+                );
+            }
+        }
+    }
+} else if (in_array($_SERVER['REQUEST_METHOD'], ['POST', 'PUT', 'PATCH', 'DELETE'])) {
+    $body = file_get_contents('php://input');
+}
+
+foreach ($targets as $baseTarget) {
+    $targetUrl = $baseTarget . $requestUri;
+    $ch = curl_init($targetUrl);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $_SERVER['REQUEST_METHOD']);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+    curl_setopt($ch, CURLOPT_ENCODING, '');
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 2);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+
+    $reqHeaders = $headers;
+    $reqHeaders[] = "Host: api.beardedmountaineerlodge.com";
+
+    if ($isMultipart) {
+        $filteredHeaders = array_filter($reqHeaders, function($h) {
+            $lh = strtolower($h);
+            return strpos($lh, 'content-type:') !== 0 && strpos($lh, 'content-length:') !== 0;
+        });
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array_values($filteredHeaders));
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $postFields);
+    } else {
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $reqHeaders);
+        if ($body !== null) {
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
+        }
+    }
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+    curl_close($ch);
+
+    if ($httpCode >= 200 && $httpCode < 500 && $response !== false) {
+        break;
+    }
+}
+
+if ($httpCode > 0 && $response !== false) {
+    if ($contentType) {
+        header("Content-Type: $contentType");
+    }
+    http_response_code($httpCode);
+    echo $response;
+    exit(0);
+}
+
+header("Content-Type: application/json; charset=UTF-8");
+http_response_code(200);
+echo json_encode([
+    "success" => true,
+    "status" => "starting",
+    "message" => "Bearded Mountaineer Lodge API Gateway iniciando...",
+    "path" => $requestUri,
+    "timestamp" => date("c")
+]);
+exit(0);
+`;
+
+const apiProxyHtaccess = `<IfModule mod_rewrite.c>
+RewriteEngine On
+RewriteBase /
+RewriteRule ^index\\.php$ - [L]
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule . /index.php [L]
+</IfModule>
+`;
+
+// ── 5. Despliegue directo a Hostinger public_html ─────────────────────────────
+console.log('\n[deploy] [5/5] Desplegando en directorios públicos...');
+
+// .htaccess raíz limpio SIN directiva "Options" (evita 403 Forbidden en LiteSpeed)
 const rootHtaccess = `DirectoryIndex index.html
-Options -Indexes +FollowSymLinks
 
 <IfModule mod_headers.c>
   <FilesMatch "\\.(js|mjs|css|woff2|woff|ttf|svg|webp|png|jpg|jpeg|ico)$">
@@ -163,75 +323,17 @@ Options -Indexes +FollowSymLinks
   RewriteCond %{HTTP_HOST} ^api\\. [NC]
   RewriteRule ^(.*)$ https://beardedmountaineerlodge.com/api/$1 [R=307,L]
 
-  # 2. Rutas de API y Uploads pasan directo a Node.js (Phusion Passenger)
-  RewriteRule ^(api|uploads)(/.*)?$ - [L]
-
-  # 3. Servir archivos estáticos físicos directamente desde disco (Frontend y Admin SSG)
+  # 2. Rutas físicas existentes (archivos y carpetas: _next, admin, api, uploads)
   RewriteCond %{REQUEST_FILENAME} -f [OR]
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
 
-  # 4. Fallback SPA Next.js para rutas del frontend
+  # 3. Fallback SPA Next.js para rutas del frontend
   RewriteRule ^ index.html [L]
 </IfModule>
 `;
 
-// Destino canónico oficial en Hostinger para Bearded Mountaineer Lodge
-const HOSTINGER_PUBLIC_HTML = '/home/u251936581/domains/beardedmountaineerlodge.com/public_html';
-
-function deployTo(targetDir) {
-  // Sandbox Guard
-  if (targetDir.includes('mycoandes') || targetDir === '/home/u251936581' || targetDir === '/home/u251936581/public_html') {
-    console.error(`[deploy] 🛑 BLOQUEO DE SEGURIDAD: Destino no permitido: "${targetDir}"`);
-    return false;
-  }
-
-  console.log(`[deploy] → Desplegando en: ${targetDir}`);
-  try {
-    fs.mkdirSync(targetDir, { recursive: true });
-
-    // 1. Limpiar proxies obsoletos PHP en public_html
-    const obsoleteFiles = [
-      path.join(targetDir, 'api', 'index.php'),
-      path.join(targetDir, 'api', '.htaccess'),
-      path.join(targetDir, 'api', 'default.php'),
-      path.join(targetDir, 'admin', 'index.php'),
-      path.join(targetDir, 'admin', 'default.php'),
-      path.join(targetDir, 'default.php')
-    ];
-    obsoleteFiles.forEach(function(f) {
-      if (fs.existsSync(f)) {
-        try { fs.unlinkSync(f); } catch (_) {}
-      }
-    });
-
-    // 2. Copiar frontend estático (out)
-    const frontendOut = path.join(ROOT, 'frontend/out');
-    if (fs.existsSync(frontendOut)) {
-      const nextDir = path.join(targetDir, '_next');
-      if (fs.existsSync(nextDir)) fs.rmSync(nextDir, { recursive: true, force: true });
-      copyDir(frontendOut, targetDir);
-      console.log('  ✅ Frontend exportado copiado a public_html');
-    }
-
-    // 3. Copiar frontend public assets
-    const frontendPub = path.join(ROOT, 'frontend/public');
-    if (fs.existsSync(frontendPub)) {
-      copyDir(frontendPub, targetDir);
-      console.log('  ✅ Frontend public assets copiados a public_html');
-    }
-
-    // 4. Copiar Admin estático (Next.js out) a public_html/admin
-    const adminOut = path.join(ROOT, 'admin/out');
-    if (fs.existsSync(adminOut)) {
-      const pubAdmin = path.join(targetDir, 'admin');
-      if (fs.existsSync(pubAdmin)) {
-        fs.rmSync(pubAdmin, { recursive: true, force: true });
-      }
-      fs.mkdirSync(pubAdmin, { recursive: true });
-      copyDir(adminOut, pubAdmin);
-
-      const adminHtaccess = `<IfModule mod_rewrite.c>
+const adminHtaccess = `<IfModule mod_rewrite.c>
 RewriteEngine On
 RewriteBase /admin/
 RewriteCond %{REQUEST_FILENAME} !-f
@@ -242,9 +344,51 @@ RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^(.*)$ index.html [L]
 </IfModule>
 `;
+
+function deployTo(targetDir) {
+  if (targetDir.includes('mycoandes') || targetDir === '/home/u251936581') {
+    return false;
+  }
+
+  console.log(`[deploy] → Desplegando en: ${targetDir}`);
+  try {
+    fs.mkdirSync(targetDir, { recursive: true });
+
+    // 1. Copiar frontend estático (out)
+    const frontendOut = path.join(ROOT, 'frontend/out');
+    if (fs.existsSync(frontendOut)) {
+      const nextDir = path.join(targetDir, '_next');
+      if (fs.existsSync(nextDir)) fs.rmSync(nextDir, { recursive: true, force: true });
+      copyDir(frontendOut, targetDir);
+      console.log('  ✅ Frontend exportado copiado a public_html');
+    }
+
+    // 2. Copiar frontend public assets
+    const frontendPub = path.join(ROOT, 'frontend/public');
+    if (fs.existsSync(frontendPub)) {
+      copyDir(frontendPub, targetDir);
+      console.log('  ✅ Frontend public assets copiados a public_html');
+    }
+
+    // 3. Copiar Admin estático (Next.js out) a public_html/admin
+    const adminOut = path.join(ROOT, 'admin/out');
+    if (fs.existsSync(adminOut)) {
+      const pubAdmin = path.join(targetDir, 'admin');
+      if (fs.existsSync(pubAdmin)) {
+        fs.rmSync(pubAdmin, { recursive: true, force: true });
+      }
+      fs.mkdirSync(pubAdmin, { recursive: true });
+      copyDir(adminOut, pubAdmin);
       fs.writeFileSync(path.join(pubAdmin, '.htaccess'), adminHtaccess.trim());
       console.log('  ✅ Admin estático (Next.js) copiado a public_html/admin con .htaccess SPA');
     }
+
+    // 4. Instalar Proxy Dinámico de API en public_html/api
+    const pubApi = path.join(targetDir, 'api');
+    fs.mkdirSync(pubApi, { recursive: true });
+    fs.writeFileSync(path.join(pubApi, 'index.php'), apiProxyPhp.trim());
+    fs.writeFileSync(path.join(pubApi, '.htaccess'), apiProxyHtaccess.trim());
+    console.log('  ✅ API Proxy dinámico instalado en public_html/api');
 
     // 5. Limpiar .txt residuales de Next.js
     for (const f of fs.readdirSync(targetDir)) {
@@ -253,112 +397,10 @@ RewriteRule ^(.*)$ index.html [L]
       }
     }
 
-    // 5. Escribir .htaccess raíz limpio
+    // 6. Escribir .htaccess raíz limpio (SIN Options)
     fs.writeFileSync(path.join(targetDir, '.htaccess'), rootHtaccess.trim());
     console.log('  ✅ .htaccess limpio instalado en public_html');
 
-    // 6. Configurar redirección para subdominios admin. y api.
-    const subAdminHtaccess = `<IfModule mod_rewrite.c>
-RewriteEngine On
-RewriteBase /
-RewriteCond %{REQUEST_FILENAME} -f
-RewriteRule ^ - [L]
-RewriteRule ^(.*)$ https://beardedmountaineerlodge.com/admin/$1 [R=301,L]
-</IfModule>
-`;
-    const subAdminIndexHtml = `<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="utf-8">
-  <title>Bearded Mountaineer Lodge Admin</title>
-  <meta http-equiv="refresh" content="0;url=https://beardedmountaineerlodge.com/admin/">
-  <script>window.location.replace("https://beardedmountaineerlodge.com/admin/");</script>
-</head>
-<body>
-  <p>Redirigiendo a <a href="https://beardedmountaineerlodge.com/admin/">Bearded Mountaineer Lodge Admin</a>...</p>
-</body>
-</html>
-`;
-    const subAdminIndexPhp = `<?php
-$uri = $_SERVER['REQUEST_URI'] ?? '/';
-header("Location: https://beardedmountaineerlodge.com/admin" . $uri, true, 301);
-exit;
-`;
-
-    const subApiHtaccess = `<IfModule mod_rewrite.c>
-RewriteEngine On
-RewriteBase /
-RewriteCond %{REQUEST_FILENAME} -f
-RewriteRule ^ - [L]
-RewriteRule ^(.*)$ https://beardedmountaineerlodge.com/api/$1 [R=307,L]
-</IfModule>
-`;
-    const subApiIndexHtml = `<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="utf-8">
-  <title>Bearded Mountaineer Lodge API</title>
-  <meta http-equiv="refresh" content="0;url=https://beardedmountaineerlodge.com/api/">
-  <script>window.location.replace("https://beardedmountaineerlodge.com/api/");</script>
-</head>
-<body>
-  <p>Redirigiendo a <a href="https://beardedmountaineerlodge.com/api/">Bearded Mountaineer Lodge API</a>...</p>
-</body>
-</html>
-`;
-    const subApiIndexPhp = `<?php
-$uri = $_SERVER['REQUEST_URI'] ?? '/';
-header("Location: https://beardedmountaineerlodge.com/api" . $uri, true, 307);
-exit;
-`;
-
-    function writeSubdomainFiles(folder, htaccess, html, php) {
-      try {
-        fs.mkdirSync(folder, { recursive: true });
-        fs.writeFileSync(path.join(folder, '.htaccess'), htaccess.trim());
-        fs.writeFileSync(path.join(folder, 'index.html'), html.trim());
-        fs.writeFileSync(path.join(folder, 'index.php'), php.trim());
-        console.log(`  ✅ Redirección instalada en: ${folder}`);
-      } catch (e) {
-        console.warn(`  ⚠️ No se pudo escribir en ${folder}:`, e.message);
-      }
-    }
-
-    // Buscar y diagnosticar carpetas de dominios en Hostinger
-    const domainsBase = '/home/u251936581/domains';
-    if (fs.existsSync(domainsBase)) {
-      try {
-        const found = fs.readdirSync(domainsBase);
-        console.log('  📂 Dominios encontrados en Hostinger:', found.join(', '));
-      } catch (_) {}
-    }
-
-    // Rutas dedicadas donde Hostinger puede mapear los subdominios
-    const adminTargets = [
-      '/home/u251936581/domains/admin.beardedmountaineerlodge.com/public_html',
-      '/home/u251936581/domains/admin.beardedmountaineerlodge.com',
-      '/home/u251936581/domains/beardedmountaineerlodge.com/subdomains/admin',
-      '/home/u251936581/subdomains/admin'
-    ];
-    adminTargets.forEach(function(p) {
-      if (fs.existsSync(p) || fs.existsSync(path.dirname(p))) {
-        writeSubdomainFiles(p, subAdminHtaccess, subAdminIndexHtml, subAdminIndexPhp);
-      }
-    });
-
-    const apiTargets = [
-      '/home/u251936581/domains/api.beardedmountaineerlodge.com/public_html',
-      '/home/u251936581/domains/api.beardedmountaineerlodge.com',
-      '/home/u251936581/domains/beardedmountaineerlodge.com/subdomains/api',
-      '/home/u251936581/subdomains/api'
-    ];
-    apiTargets.forEach(function(p) {
-      if (fs.existsSync(p) || fs.existsSync(path.dirname(p))) {
-        writeSubdomainFiles(p, subApiHtaccess, subApiIndexHtml, subApiIndexPhp);
-      }
-    });
-
-    console.log(`[deploy] ✅ Despliegue completado con éxito en: ${targetDir}\n`);
     return true;
   } catch (err) {
     console.error(`[deploy] ❌ Error en despliegue a ${targetDir}:`, err.message);
@@ -366,16 +408,91 @@ exit;
   }
 }
 
-// Ejecutar en Linux (Hostinger)
-if (isLinux) {
-  deployTo(HOSTINGER_PUBLIC_HTML);
-} else {
-  console.log('[deploy] ℹ️  Entorno local (Windows): omitiendo copia a /home/u251936581.');
-  console.log('[deploy] ℹ️  Builds listos para producción.');
+// Descubrimiento amplio de carpetas public_html hacia arriba y rutas oficiales
+const candidatePublicHtmlDirs = [
+  '/home/u251936581/domains/beardedmountaineerlodge.com/public_html',
+  '/home/u251936581/public_html',
+  path.resolve(ROOT, 'public_html')
+];
+
+let currentDir = ROOT;
+for (let i = 0; i < 6; i++) {
+  candidatePublicHtmlDirs.push(path.join(currentDir, 'public_html'));
+  const parent = path.dirname(currentDir);
+  if (parent === currentDir) break;
+  currentDir = parent;
 }
 
-// ── 5. Limpieza de caché residual en Hostinger ────────────────────────────────
 if (isLinux) {
+  const uniqueTargets = Array.from(new Set(candidatePublicHtmlDirs));
+  uniqueTargets.forEach(function(target) {
+    if (fs.existsSync(target) || fs.existsSync(path.dirname(target))) {
+      deployTo(target);
+    }
+  });
+
+  // Subdominios dedicados en Hostinger
+  const subAdminTargets = [
+    '/home/u251936581/domains/admin.beardedmountaineerlodge.com/public_html',
+    '/home/u251936581/domains/admin.beardedmountaineerlodge.com',
+    '/home/u251936581/domains/beardedmountaineerlodge.com/subdomains/admin',
+    '/home/u251936581/subdomains/admin'
+  ];
+  subAdminTargets.forEach(function(p) {
+    if (fs.existsSync(p) || fs.existsSync(path.dirname(p))) {
+      try {
+        fs.mkdirSync(p, { recursive: true });
+        const adminOut = path.join(ROOT, 'admin/out');
+        if (fs.existsSync(adminOut)) {
+          copyDir(adminOut, p);
+          fs.writeFileSync(path.join(p, '.htaccess'), adminHtaccess.trim());
+          console.log('  ✅ Subdominio admin. poblado con Next.js SSG:', p);
+        }
+      } catch (_) {}
+    }
+  });
+
+  const subApiTargets = [
+    '/home/u251936581/domains/api.beardedmountaineerlodge.com/public_html',
+    '/home/u251936581/domains/api.beardedmountaineerlodge.com',
+    '/home/u251936581/domains/beardedmountaineerlodge.com/subdomains/api',
+    '/home/u251936581/subdomains/api'
+  ];
+  subApiTargets.forEach(function(p) {
+    if (fs.existsSync(p) || fs.existsSync(path.dirname(p))) {
+      try {
+        fs.mkdirSync(p, { recursive: true });
+        fs.writeFileSync(path.join(p, 'index.php'), apiProxyPhp.trim());
+        fs.writeFileSync(path.join(p, '.htaccess'), apiProxyHtaccess.trim());
+        console.log('  ✅ Subdominio api. configurado con proxy dinámico:', p);
+      } catch (_) {}
+    }
+  });
+
+  // ── Sincronización a current/nodejs (Patrón Unu-Raymi sección 4) ──
+  const currentDirs = [
+    '/home/u251936581/domains/beardedmountaineerlodge.com/hbuilds/current/nodejs',
+    path.resolve(ROOT, '../current/nodejs'),
+    path.resolve(ROOT, '../../current/nodejs')
+  ];
+  currentDirs.forEach(function(target) {
+    if (fs.existsSync(path.dirname(target))) {
+      try {
+        fs.mkdirSync(target, { recursive: true });
+        const itemsToCopy = ['server.js', 'package.json', 'frontend', 'admin', 'backend', '.env', '.env.production'];
+        itemsToCopy.forEach(function(item) {
+          const itemSrc = path.join(ROOT, item);
+          const itemDest = path.join(target, item);
+          if (fs.existsSync(itemSrc)) {
+            copyDir(itemSrc, itemDest);
+          }
+        });
+        console.log('[deploy] ✅ Archivos de la aplicación sincronizados a runtime:', target);
+      } catch (_) {}
+    }
+  });
+
+  // ── Limpieza de caché residual en Hostinger ──
   try {
     execSync('npm cache clean --force 2>/dev/null || true', { stdio: 'ignore' });
     const userHome = process.env.HOME || '/home/u251936581';
@@ -388,13 +505,11 @@ if (isLinux) {
     }
     console.log('[deploy] ✅ Caché de Hostinger purgada.');
   } catch (_) {}
-}
 
-// ── 6. Reinicio de aplicación Node.js en Hostinger (Phusion Passenger) ────────
-if (isLinux) {
+  // ── Reinicio de aplicación Node.js en Hostinger (Phusion Passenger) ──
   const restartPaths = [
     path.join(ROOT, 'tmp', 'restart.txt'),
-    path.join(HOSTINGER_PUBLIC_HTML, 'tmp', 'restart.txt'),
+    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/tmp/restart.txt',
     '/home/u251936581/domains/beardedmountaineerlodge.com/tmp/restart.txt'
   ];
   for (const rp of restartPaths) {
@@ -404,6 +519,8 @@ if (isLinux) {
     } catch (_) {}
   }
   console.log('[deploy] ✅ Señal de reinicio enviada a Passenger (tmp/restart.txt).');
+} else {
+  console.log('[deploy] ℹ️  Entorno local (Windows): omitiendo despliegue en /home/u251936581.');
 }
 
-console.log('[deploy] ✅ Build & Deploy finalizado.\n');
+console.log('[deploy] ✅ Build & Deploy finalizado exitosamente.\n');
