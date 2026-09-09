@@ -372,11 +372,10 @@ exit(0);
 
 const apiProxyHtaccess = `<IfModule mod_rewrite.c>
 RewriteEngine On
-RewriteBase /
-RewriteRule ^index\.php$ - [L]
+RewriteRule ^index\\.php$ - [L]
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule . /index.php [L]
+RewriteRule . index.php [L]
 </IfModule>
 `;
 
@@ -399,12 +398,17 @@ const rootHtaccess = `DirectoryIndex index.html
   RewriteEngine On
   RewriteBase /
 
-  # 1. Archivos y carpetas físicas del frontend, API y Admin
+  # 1. Dejar pasar SIEMPRE peticiones /api y /admin a Node.js / Passenger sin interceptarlas con fallback SPA
+  RewriteCond %{REQUEST_URI} ^/api [NC,OR]
+  RewriteCond %{REQUEST_URI} ^/admin [NC]
+  RewriteRule ^ - [L]
+
+  # 2. Archivos y carpetas físicas del frontend (_next, uploads, favicon, etc.)
   RewriteCond %{REQUEST_FILENAME} -f [OR]
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
 
-  # 2. Fallback SPA Next.js para rutas del frontend
+  # 3. Fallback SPA Next.js únicamente para navegación del frontend
   RewriteRule ^ index.html [L]
 </IfModule>
 `;
@@ -478,14 +482,21 @@ function deployTo(targetDir) {
       }
     }
 
-    // 6. Escribir .htaccess raíz limpio SOLO si no existe ninguno
+    // 6. Configurar .htaccess raíz para permitir que /api y /admin pasen a Node.js sin ser interceptados por el fallback SPA
     const rootHtPath = path.join(targetDir, '.htaccess');
-    if (!fs.existsSync(rootHtPath)) {
-      fs.writeFileSync(rootHtPath, rootHtaccess.trim());
-      console.log('  ✅ .htaccess base creado en public_html');
-    } else {
-      console.log('  ℹ️  .htaccess existente en public_html preservado (para respetar configuración de Hostinger Node.js)');
+    let existingContent = '';
+    if (fs.existsSync(rootHtPath)) {
+      try { existingContent = fs.readFileSync(rootHtPath, 'utf8'); } catch (_) {}
     }
+
+    // Si tiene directivas de Passenger de Hostinger, preservarlas arriba
+    const passengerLines = existingContent.split('\n').filter(function(l) {
+      return l.includes('Passenger') || l.includes('CLOUDLINUX') || l.includes('passenger');
+    });
+    const passengerBlock = passengerLines.length > 0 ? passengerLines.join('\n') + '\n\n' : '';
+
+    fs.writeFileSync(rootHtPath, (passengerBlock + rootHtaccess.trim()).trim() + '\n');
+    console.log('  ✅ .htaccess de public_html configurado (preservando Passenger y excluyendo /api y /admin del fallback SPA)');
 
     return true;
   } catch (err) {
