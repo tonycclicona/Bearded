@@ -3,6 +3,19 @@
 // ==============================================================================
 
 import { prisma } from './prisma.js';
+import {
+  FALLBACK_PASSES,
+  FALLBACK_SPOTS,
+  FALLBACK_ROUTES,
+  FALLBACK_ROOMS,
+  FALLBACK_EXPERIENCES,
+  FALLBACK_PHOTOS,
+  FALLBACK_WORKSHOPS,
+  FALLBACK_COLIBRIES,
+  FALLBACK_PUNTOS_GIS,
+  FALLBACK_TOURS,
+  FALLBACK_GUIAS
+} from './fallbacks.js';
 
 export async function ensureTablesExist(): Promise<void> {
   const dbUrl = process.env.DATABASE_URL || '';
@@ -174,7 +187,19 @@ export async function ensureTablesExist(): Promise<void> {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
 
-    // 10. bookings
+    // 10. order_items
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS \`order_items\` (
+        \`id\` VARCHAR(191) NOT NULL PRIMARY KEY,
+        \`productId\` VARCHAR(191) NOT NULL,
+        \`quantity\` INT NOT NULL,
+        \`price\` DOUBLE NOT NULL,
+        \`orderId\` VARCHAR(191) NOT NULL,
+        INDEX \`order_items_orderId_idx\` (\`orderId\`)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
+    // 11. bookings
     await prisma.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS \`bookings\` (
         \`id\` VARCHAR(191) NOT NULL PRIMARY KEY,
@@ -199,24 +224,40 @@ export async function ensureTablesExist(): Promise<void> {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
 
-    // 11. guias
+    // 12. booking_guests
     await prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS \`guias\` (
+      CREATE TABLE IF NOT EXISTS \`booking_guests\` (
+        \`id\` VARCHAR(191) NOT NULL PRIMARY KEY,
+        \`bookingId\` VARCHAR(191) NOT NULL,
+        \`name\` VARCHAR(255) NOT NULL,
+        \`documentId\` VARCHAR(100) NULL,
+        \`isPrimary\` BOOLEAN NOT NULL DEFAULT FALSE,
+        \`createdAt\` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+        INDEX \`booking_guests_bookingId_idx\` (\`bookingId\`)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
+    // 13. especies_colibries
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS \`especies_colibries\` (
         \`id\` INT AUTO_INCREMENT PRIMARY KEY,
-        \`nombre\` VARCHAR(255) NOT NULL,
-        \`especialidad\` VARCHAR(255) NOT NULL,
-        \`experiencia\` VARCHAR(255) NOT NULL,
-        \`idiomas\` VARCHAR(255) NOT NULL,
-        \`foto\` VARCHAR(500) NOT NULL,
+        \`nombreComun\` VARCHAR(255) NOT NULL,
+        \`nombreCientifico\` VARCHAR(191) NOT NULL UNIQUE,
+        \`familia\` VARCHAR(100) NOT NULL DEFAULT 'Trochilidae',
+        \`estadoIUCN\` VARCHAR(100) NOT NULL DEFAULT 'En Peligro (EN)',
+        \`endemicoPeru\` BOOLEAN NOT NULL DEFAULT FALSE,
+        \`altitudMinMsnm\` INT NOT NULL DEFAULT 1500,
+        \`altitudMaxMsnm\` INT NOT NULL DEFAULT 3200,
         \`descripcion\` TEXT NOT NULL,
-        \`activo\` BOOLEAN NOT NULL DEFAULT TRUE,
-        \`orden\` INT NOT NULL DEFAULT 0,
+        \`fotoPrincipal\` VARCHAR(500) NOT NULL,
+        \`galeriaFotos\` TEXT NULL,
+        \`audioCantoUrl\` VARCHAR(500) NULL,
         \`createdAt\` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
         \`updatedAt\` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
 
-    // 12. puntos_gis
+    // 14. puntos_gis
     await prisma.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS \`puntos_gis\` (
         \`id\` INT AUTO_INCREMENT PRIMARY KEY,
@@ -237,7 +278,7 @@ export async function ensureTablesExist(): Promise<void> {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
 
-    // 13. tours
+    // 15. tours
     await prisma.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS \`tours\` (
         \`id\` INT AUTO_INCREMENT PRIMARY KEY,
@@ -266,7 +307,166 @@ export async function ensureTablesExist(): Promise<void> {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
 
-    console.log('[init-db] ✅ Verificación y auto-sincronización de tablas MySQL completada.');
+    // 16. tour_imagenes
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS \`tour_imagenes\` (
+        \`id\` INT AUTO_INCREMENT PRIMARY KEY,
+        \`tourId\` INT NOT NULL,
+        \`url\` VARCHAR(500) NOT NULL,
+        \`esPortada\` BOOLEAN NOT NULL DEFAULT FALSE,
+        \`createdAt\` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+        INDEX \`tour_imagenes_tourId_idx\` (\`tourId\`)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
+    // 17. guias
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS \`guias\` (
+        \`id\` INT AUTO_INCREMENT PRIMARY KEY,
+        \`nombre\` VARCHAR(255) NOT NULL,
+        \`especialidad\` VARCHAR(255) NOT NULL,
+        \`experiencia\` VARCHAR(255) NOT NULL,
+        \`idiomas\` VARCHAR(255) NOT NULL,
+        \`foto\` VARCHAR(500) NOT NULL,
+        \`descripcion\` TEXT NOT NULL,
+        \`activo\` BOOLEAN NOT NULL DEFAULT TRUE,
+        \`orden\` INT NOT NULL DEFAULT 0,
+        \`createdAt\` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+        \`updatedAt\` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
+    // 18. Tablas intermedias de relaciones Many-to-Many
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS \`_EspecieHotspots\` (
+        \`A\` INT NOT NULL,
+        \`B\` INT NOT NULL,
+        UNIQUE INDEX \`_EspecieHotspots_AB_unique\` (\`A\`, \`B\`),
+        INDEX \`_EspecieHotspots_B_index\` (\`B\`)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS \`_TourHotspots\` (
+        \`A\` INT NOT NULL,
+        \`B\` INT NOT NULL,
+        UNIQUE INDEX \`_TourHotspots_AB_unique\` (\`A\`, \`B\`),
+        INDEX \`_TourHotspots_B_index\` (\`B\`)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
+    console.log('[init-db] ✅ Verificación y auto-creación de tablas MySQL completada.');
+
+    // ── AUTO-POBLADO INICIAL SI ESTÁN VACÍAS (Evita listas en 0 en producción) ──
+    try {
+      const roomCount = await prisma.room.count();
+      if (roomCount === 0 && FALLBACK_ROOMS.length > 0) {
+        console.log('[init-db] Sembrando habitaciones iniciales...');
+        for (const r of FALLBACK_ROOMS) {
+          await prisma.room.create({
+            data: {
+              name: r.name,
+              pricePerNight: r.pricePerNight,
+              pricePerNightUSD: r.pricePerNightUSD,
+              showPEN: r.showPEN,
+              showUSD: r.showUSD,
+              capacity: r.capacity,
+              amenities: (r.amenities || []) as any,
+              imageUrl: r.imageUrl,
+              gallery: (r.gallery || []) as any,
+              featured: r.featured,
+              sortOrder: r.sortOrder
+            }
+          });
+        }
+      }
+
+      const guiasCount = await prisma.guia.count();
+      if (guiasCount === 0 && FALLBACK_GUIAS.length > 0) {
+        console.log('[init-db] Sembrando guías iniciales...');
+        for (const g of FALLBACK_GUIAS) {
+          await prisma.guia.create({
+            data: {
+              nombre: g.nombre,
+              especialidad: g.especialidad,
+              experiencia: g.experiencia,
+              idiomas: g.idiomas,
+              foto: g.foto,
+              descripcion: g.descripcion,
+              activo: g.activo,
+              orden: g.orden
+            }
+          });
+        }
+      }
+
+      const colibriesCount = await prisma.especieColibri.count();
+      if (colibriesCount === 0 && FALLBACK_COLIBRIES.length > 0) {
+        console.log('[init-db] Sembrando colibríes iniciales...');
+        for (const c of FALLBACK_COLIBRIES) {
+          await prisma.especieColibri.create({
+            data: {
+              nombreComun: c.nombreComun,
+              nombreCientifico: c.nombreCientifico,
+              familia: c.familia || 'Trochilidae',
+              estadoIUCN: c.estadoIUCN || 'En Peligro (EN)',
+              endemicoPeru: !!c.endemicoPeru,
+              altitudMinMsnm: c.altitudMinMsnm || 1500,
+              altitudMaxMsnm: c.altitudMaxMsnm || 3200,
+              descripcion: c.descripcion,
+              fotoPrincipal: c.fotoPrincipal,
+              galeriaFotos: c.galeriaFotos || null,
+              audioCantoUrl: c.audioCantoUrl || null
+            }
+          });
+        }
+      }
+
+      const puntosCount = await prisma.puntoGIS.count();
+      if (puntosCount === 0 && FALLBACK_PUNTOS_GIS.length > 0) {
+        console.log('[init-db] Sembrando puntos GIS iniciales...');
+        for (const p of FALLBACK_PUNTOS_GIS) {
+          await prisma.puntoGIS.create({
+            data: {
+              nombre: p.nombre,
+              slug: p.slug,
+              categoria: p.categoria,
+              departamento: p.departamento,
+              latitud: p.latitud,
+              longitud: p.longitud,
+              altitudMsnm: p.altitudMsnm,
+              mejorTemporada: p.mejorTemporada,
+              acceso: p.acceso,
+              descripcion: p.descripcion,
+              fotoUrl: p.fotoUrl,
+              activo: p.activo
+            }
+          });
+        }
+      }
+
+      const passesCount = await prisma.hummingbirdPass.count();
+      if (passesCount === 0 && FALLBACK_PASSES.length > 0) {
+        console.log('[init-db] Sembrando pases iniciales...');
+        for (const p of FALLBACK_PASSES) {
+          await prisma.hummingbirdPass.create({
+            data: {
+              title: p.title,
+              price: p.price,
+              priceUSD: p.priceUSD,
+              showPEN: p.showPEN,
+              showUSD: p.showUSD,
+              description: p.description,
+              features: (p.features || []) as any,
+              featured: p.featured,
+              sortOrder: p.sortOrder
+            }
+          });
+        }
+      }
+    } catch (seedErr) {
+      console.warn('[init-db] Aviso sembrado inicial:', seedErr instanceof Error ? seedErr.message : seedErr);
+    }
   } catch (err: unknown) {
     console.warn('[init-db] ⚠️ Aviso en auto-sincronización MySQL:', err instanceof Error ? err.message : err);
   }

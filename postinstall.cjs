@@ -77,6 +77,16 @@ try {
     } catch (e) {
       console.warn('[postinstall] ⚠️  Prisma generate aviso:', e.message);
     }
+
+    if (process.env.DATABASE_URL && !process.env.DATABASE_URL.includes('dummy')) {
+      try {
+        console.log('[postinstall] Sincronizando esquema MySQL con Prisma db push...');
+        execSync(`npx prisma db push --schema="${schema}" --accept-data-loss`, { stdio: 'inherit', env: process.env });
+        console.log('[postinstall] ✅ Base de datos MySQL sincronizada exitosamente.');
+      } catch (dbErr) {
+        console.warn('[postinstall] ⚠️ Aviso en prisma db push (se ejecutará auto-init en arranque):', dbErr.message);
+      }
+    }
   }
 } catch (_) {}
 
