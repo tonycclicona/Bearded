@@ -238,6 +238,11 @@ function writePortFiles(actualPort, actualSocket) {
     '/home/u251936581/domains/api.beardedmountaineerlodge.com',
     '/home/u251936581/domains/admin.beardedmountaineerlodge.com/public_html',
     '/home/u251936581/domains/admin.beardedmountaineerlodge.com',
+    '/home/u251936581/domains/beardedmountaineerlodge.com/hbuilds/current/nodejs',
+    '/home/u251936581/domains/beardedmountaineerlodge.com/hbuilds/source/repository',
+    '/home/u251936581/domains/beardedmountaineerlodge.com',
+    '/home/u251936581/domains/beardedmountaineerlodge.com/subdomains/api',
+    '/home/u251936581/domains/beardedmountaineerlodge.com/subdomains/admin',
     '/home/u251936581/public_html',
     '/home/u251936581/public_html/api',
     '/tmp'
@@ -264,6 +269,11 @@ function startServer(targetPort) {
     const p = (typeof addr === 'object' && addr && addr.port) ? addr.port : targetPort;
     const s = typeof addr === 'string' ? addr : null;
     writePortFiles(p, s);
+
+    // Mantener sincronizados los archivos de puerto periódicamente
+    setInterval(function() {
+      writePortFiles(p, s);
+    }, 15000);
   });
 
   srv.on('error', function(err) {

@@ -190,8 +190,12 @@ $portCandidates = [
     dirname(dirname(__DIR__)) . '/bearded_node_port.txt',
     '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/.node_port',
     '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/bearded_node_port.txt',
+    '/home/u251936581/domains/api.beardedmountaineerlodge.com/public_html/.node_port',
+    '/home/u251936581/domains/api.beardedmountaineerlodge.com/.node_port',
     '/home/u251936581/domains/beardedmountaineerlodge.com/hbuilds/current/nodejs/.node_port',
     '/home/u251936581/domains/beardedmountaineerlodge.com/hbuilds/source/repository/.node_port',
+    '/home/u251936581/domains/beardedmountaineerlodge.com/.node_port',
+    '/home/u251936581/domains/beardedmountaineerlodge.com/subdomains/api/.node_port',
     '/home/u251936581/public_html/.node_port',
     '/tmp/.node_port',
     '/tmp/bearded_node_port.txt'
@@ -213,8 +217,11 @@ if ($port) {
 $targets[] = 'http://127.0.0.1:4000';
 $targets[] = 'http://127.0.0.1:4001';
 $targets[] = 'http://127.0.0.1:4002';
+$targets[] = 'http://127.0.0.1:4003';
 $targets[] = 'http://127.0.0.1:3001';
+$targets[] = 'http://127.0.0.1:3002';
 $targets[] = 'http://127.0.0.1:3000';
+$targets[] = 'http://127.0.0.1:5000';
 $targets[] = 'http://127.0.0.1:8080';
 
 $response = false;
@@ -304,7 +311,7 @@ if ($httpCode === 0) {
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
         curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
         curl_setopt($ch, CURLOPT_ENCODING, '');
-        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 1);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
         curl_setopt($ch, CURLOPT_TIMEOUT, 30);
 
         $reqHeaders = $headers;
@@ -348,11 +355,12 @@ if ($httpCode > 0) {
 }
 
 header("Content-Type: application/json; charset=UTF-8");
-http_response_code(200);
+http_response_code(503);
 echo json_encode([
-    "success" => true,
+    "success" => false,
     "status" => "starting",
     "message" => "Bearded Mountaineer Lodge API Gateway iniciando...",
+    "error" => "El servidor API de Node.js está iniciando o requiere reiniciarse en el panel de Hostinger.",
     "path" => $requestUri,
     "timestamp" => date("c")
 ]);

@@ -27,8 +27,10 @@ export default function LoginPage() {
         setCookie('session_token', res.token, 7);
         router.push('/');
         router.refresh();
+      } else if (res.status === 'starting' || res.message?.includes('iniciando')) {
+        throw new Error(res.message || 'El servidor API está iniciando en Hostinger. Espera 10-20 segundos y vuelve a intentar.');
       } else {
-        throw new Error(res.error || 'Credenciales inválidas');
+        throw new Error(res.error || res.message || 'Credenciales inválidas');
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error al conectar con el servidor';
