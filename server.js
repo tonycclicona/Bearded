@@ -64,6 +64,30 @@ console.log('> [Server] Frontend dir:', frontendDir);
 console.log('> [Server] Admin dir:', adminDir);
 console.log('> [Server] Uploads dir:', uploadsDir);
 
+// ── Sincronizar frontend/out y admin/out a public_html en tiempo de ejecución (Patrón Unu-Raymi) ──
+try {
+  const pubTargets = [
+    path.resolve(__dirname, 'public_html'),
+    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html'
+  ];
+  pubTargets.forEach(function(target) {
+    if (fs.existsSync(target) && fs.existsSync(frontendDir) && target !== frontendDir) {
+      if (!fs.existsSync(path.join(target, 'index.html')) || !fs.existsSync(path.join(target, '_next'))) {
+        fs.cpSync(frontendDir, target, { recursive: true });
+        console.log('> [Server] Sincronizados archivos de frontend a:', target);
+      }
+      const pubAdmin = path.join(target, 'admin');
+      if (fs.existsSync(adminDir) && (!fs.existsSync(pubAdmin) || !fs.existsSync(path.join(pubAdmin, 'index.html')))) {
+        fs.mkdirSync(pubAdmin, { recursive: true });
+        fs.cpSync(adminDir, pubAdmin, { recursive: true });
+        console.log('> [Server] Sincronizados archivos de admin a:', pubAdmin);
+      }
+    }
+  });
+} catch (e) {
+  console.error('> [Server] Aviso sincronizando a public_html:', e.message);
+}
+
 // ── 1. CARGAR BACKEND API (ASÍNCRONO CON PATH TO FILE URL) ────────────────────
 let backendApp = null;
 let backendError = null;
