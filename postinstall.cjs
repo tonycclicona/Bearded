@@ -108,6 +108,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit(0);
 }
 
+// Prevención de bucle de reenvío proxy
+if (isset($_SERVER['HTTP_X_BEARDED_PROXY'])) {
+    http_response_code(502);
+    header("Content-Type: application/json; charset=UTF-8");
+    echo json_encode([
+        "success" => false,
+        "error" => "El backend Node.js no está respondiendo en los puertos locales.",
+        "timestamp" => date("c")
+    ]);
+    exit(0);
+}
+
 $requestUri = $_SERVER['REQUEST_URI'];
 if (strpos($requestUri, '/api') !== 0) {
     $requestUri = '/api' . $requestUri;
@@ -171,10 +183,11 @@ foreach ($targets as $baseTarget) {
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
     curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
     curl_setopt($ch, CURLOPT_ENCODING, ''); // Decodifica gzip/deflate/br automáticamente
-    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 2);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 6);
     
     $reqHeaders = $headers;
+    $reqHeaders[] = "X-Bearded-Proxy: 1";
     if (strpos($baseTarget, 'beardedmountaineerlodge.com') !== false) {
         $reqHeaders[] = "Host: beardedmountaineerlodge.com";
     } else {
@@ -292,18 +305,17 @@ try {
 RewriteEngine On
 RewriteBase /
 
-# 1. Rutas existentes fisicamente (imagenes, assets, chunks JS, etc.)
+# 1. Rutas de API y Admin: dejar pasar a Node.js / Passenger DIRECTAMENTE (nunca interceptar con fallback SPA)
+RewriteCond %{REQUEST_URI} ^/api [NC,OR]
+RewriteCond %{REQUEST_URI} ^/admin [NC]
+RewriteRule ^ - [L]
+
+# 2. Rutas existentes fisicamente (imagenes, assets, chunks JS, etc.)
 RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d
 RewriteRule ^ - [L]
 
-# 2. Rutas de API: delegar siempre al proxy de API interno
-RewriteRule ^api(/.*)?$ api/index.php [QSA,L]
-
-# 3. Rutas de Admin: delegar al panel administrativo
-RewriteRule ^admin(/.*)?$ admin/index.html [QSA,L]
-
-# 4. Fallback SPA Frontend (Next.js SSG)
+# 3. Fallback SPA Frontend (Next.js SSG)
 RewriteRule ^index\\.html$ - [L]
 RewriteRule . /index.html [L]
 </IfModule>
@@ -314,9 +326,10 @@ RewriteRule . /index.html [L]
       try {
         fs.cpSync(srcOut, target, { recursive: true });
         fs.writeFileSync(path.join(target, '.htaccess'), rootHtaccessContent);
+        // La raiz no debe tener index.php para evitar que LiteSpeed intercepte las peticiones dirigidas a Node.js
         const rootIndexPhp = path.join(target, 'index.php');
-        if (!fs.existsSync(rootIndexPhp)) {
-          fs.writeFileSync(rootIndexPhp, apiIndexContent);
+        if (fs.existsSync(rootIndexPhp)) {
+          try { fs.unlinkSync(rootIndexPhp); } catch (_) {}
         }
         console.log(`[postinstall] ✅ Copied frontend static export directly and generated master .htaccess in: ${target}`);
       } catch (err) {
