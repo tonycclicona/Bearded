@@ -373,121 +373,132 @@ if ($httpCode > 0) {
 }
 
 // ── 4. Fallback de Autenticación con Variables de Entorno de Hostinger ──
-function b64UrlEnc($data) {
-    return rtrim(strtr(base64_encode($data), '+/', '-_'), '=');
+if (!function_exists('b64UrlEnc')) {
+    function b64UrlEnc($data) {
+        return rtrim(strtr(base64_encode($data), '+/', '-_'), '=');
+    }
 }
 
-function getAppConfig($key, $default = '') {
-    $val = getenv($key);
-    if ($val !== false && $val !== '') return trim($val);
-    if (!empty($_ENV[$key])) return trim($_ENV[$key]);
-    if (!empty($_SERVER[$key])) return trim($_SERVER[$key]);
-    static $envMap = null;
-    if ($envMap === null) {
-        $envMap = [];
-        $files = [
-            __DIR__ . '/.env',
-            dirname(__DIR__) . '/.env',
-            dirname(__DIR__) . '/.env.production',
-            '/home/u251936581/domains/beardedmountaineerlodge.com/.env',
-            '/home/u251936581/domains/beardedmountaineerlodge.com/.env.production',
-            '/home/u251936581/domains/beardedmountaineerlodge.com/hbuilds/current/nodejs/.env',
-            '/home/u251936581/domains/beardedmountaineerlodge.com/hbuilds/source/repository/.env',
-            '/home/u251936581/.env'
-        ];
-        foreach ($files as $f) {
-            if (@file_exists($f) && @is_readable($f)) {
-                $lines = @file($f, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-                if ($lines) {
-                    foreach ($lines as $line) {
-                        $line = trim($line);
-                        if ($line && strpos($line, '#') !== 0 && strpos($line, '=') !== false) {
-                            $parts = explode('=', $line, 2);
-                            $k = trim($parts[0]);
-                            $v = trim($parts[1]);
-                            $len = strlen($v);
-                            if ($len >= 2) {
-                                if (($v[0] === '"' && $v[$len - 1] === '"') || ($v[0] === "'" && $v[$len - 1] === "'")) {
-                                    $v = substr($v, 1, -1);
+if (!function_exists('getAppConfig')) {
+    function getAppConfig($key, $default = '') {
+        $val = getenv($key);
+        if ($val !== false && $val !== '') return trim($val);
+        if (!empty($_ENV[$key])) return trim($_ENV[$key]);
+        if (!empty($_SERVER[$key])) return trim($_SERVER[$key]);
+        static $envMap = null;
+        if ($envMap === null) {
+            $envMap = [];
+            $files = [
+                __DIR__ . '/.env',
+                dirname(__DIR__) . '/.env',
+                dirname(__DIR__) . '/.env.production',
+                '/home/u251936581/domains/beardedmountaineerlodge.com/.env',
+                '/home/u251936581/domains/beardedmountaineerlodge.com/.env.production',
+                '/home/u251936581/domains/beardedmountaineerlodge.com/hbuilds/current/nodejs/.env',
+                '/home/u251936581/domains/beardedmountaineerlodge.com/hbuilds/source/repository/.env',
+                '/home/u251936581/.env'
+            ];
+            foreach ($files as $f) {
+                if (@file_exists($f) && @is_readable($f)) {
+                    $lines = @file($f, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+                    if ($lines) {
+                        foreach ($lines as $line) {
+                            $line = trim($line);
+                            if ($line && strpos($line, '#') !== 0 && strpos($line, '=') !== false) {
+                                $parts = explode('=', $line, 2);
+                                $k = trim($parts[0]);
+                                $v = trim($parts[1]);
+                                $len = strlen($v);
+                                if ($len >= 2) {
+                                    if (($v[0] === '"' && $v[$len - 1] === '"') || ($v[0] === "'" && $v[$len - 1] === "'")) {
+                                        $v = substr($v, 1, -1);
+                                    }
                                 }
+                                if (!isset($envMap[$k])) $envMap[$k] = $v;
                             }
-                            if (!isset($envMap[$k])) $envMap[$k] = $v;
                         }
                     }
                 }
             }
         }
+        return $envMap[$key] ?? $default;
     }
-    return $envMap[$key] ?? $default;
 }
 
-// A. Endpoint Login (/api/auth/login)
-if ((strpos($requestUri, 'login') !== false || strpos($requestUri, 'auth') !== false) && strtoupper($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
-    $input = json_decode($body, true);
-    if (!is_array($input) || empty($input)) {
-        $input = $_POST;
-    }
-    $u = trim($input['username'] ?? $input['user'] ?? $input['email'] ?? '');
-    $p = trim($input['password'] ?? $input['pass'] ?? '');
+try {
+    // A. Endpoint Login (/api/auth/login)
+    if ((strpos($requestUri, 'login') !== false || strpos($requestUri, 'auth') !== false) && strtoupper($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+        $input = json_decode($body, true);
+        if (!is_array($input) || empty($input)) {
+            $input = $_POST;
+        }
+        $u = trim($input['username'] ?? $input['user'] ?? $input['email'] ?? '');
+        $p = trim($input['password'] ?? $input['pass'] ?? '');
 
-    $expectedU = getAppConfig('ADMIN_USER', getAppConfig('ADMIN_USERNAME', 'admin'));
-    $expectedE = getAppConfig('ADMIN_EMAIL', 'admin@beardedmountaineerlodge.com');
-    $expectedP = getAppConfig('ADMIN_PASSWORD', getAppConfig('ADMIN_PASS', 'admin'));
-    $secret = getAppConfig('JWT_SECRET', 'bearded-secret-key-fallback-min-32-chars');
+        $expectedU = getAppConfig('ADMIN_USER', getAppConfig('ADMIN_USERNAME', 'admin'));
+        $expectedE = getAppConfig('ADMIN_EMAIL', 'admin@beardedmountaineerlodge.com');
+        $expectedP = getAppConfig('ADMIN_PASSWORD', getAppConfig('ADMIN_PASS', 'admin'));
+        $secret = getAppConfig('JWT_SECRET', 'bearded-secret-key-fallback-min-32-chars');
 
-    $uMatch = (strcasecmp($u, $expectedU) === 0 || strcasecmp($u, $expectedE) === 0 || $u === 'admin');
-    $cleanExpP = trim($expectedP, "\"'");
-    $pMatch = ($p === $expectedP || $p === $cleanExpP);
+        $uMatch = (strcasecmp($u, $expectedU) === 0 || strcasecmp($u, $expectedE) === 0 || $u === 'admin');
+        $cleanExpP = trim($expectedP, "\"'");
+        $pMatch = ($p === $expectedP || $p === $cleanExpP);
 
-    header("Content-Type: application/json; charset=UTF-8");
-    if ($uMatch && $pMatch && !empty($p)) {
-        $hdr = b64UrlEnc(json_encode(['alg' => 'HS256', 'typ' => 'JWT']));
-        $payload = [
-            'username' => $expectedU,
-            'email' => $expectedE,
-            'role' => 'ADMIN',
-            'exp' => time() + (7 * 24 * 60 * 60)
-        ];
-        $b = b64UrlEnc(json_encode($payload));
-        $sig = b64UrlEnc(hash_hmac('sha256', "$hdr.$b", $secret, true));
-        $jwt = "$hdr.$b.$sig";
-
-        http_response_code(200);
-        echo json_encode([
-            'success' => true,
-            'token' => $jwt,
-            'user' => [
+        header("Content-Type: application/json; charset=UTF-8");
+        if ($uMatch && $pMatch && !empty($p)) {
+            $hdr = b64UrlEnc(json_encode(['alg' => 'HS256', 'typ' => 'JWT']));
+            $payload = [
                 'username' => $expectedU,
                 'email' => $expectedE,
-                'role' => 'ADMIN'
-            ]
-        ]);
-        exit(0);
-    } else {
-        http_response_code(401);
-        echo json_encode([
-            'success' => false,
-            'error' => 'Credenciales inválidas'
-        ]);
-        exit(0);
-    }
-}
+                'role' => 'ADMIN',
+                'exp' => time() + (7 * 24 * 60 * 60)
+            ];
+            $b = b64UrlEnc(json_encode($payload));
+            $sig = b64UrlEnc(hash_hmac('sha256', "$hdr.$b", $secret, true));
+            $jwt = "$hdr.$b.$sig";
 
-// B. Endpoint Sesión (/api/auth/me)
-if (strpos($requestUri, '/auth/me') !== false) {
-    header("Content-Type: application/json; charset=UTF-8");
-    $authHdr = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
-    if (empty($authHdr) && function_exists('getallheaders')) {
-        $all = getallheaders();
-        $authHdr = $all['Authorization'] ?? $all['authorization'] ?? '';
+            http_response_code(200);
+            echo json_encode([
+                'success' => true,
+                'token' => $jwt,
+                'user' => [
+                    'username' => $expectedU,
+                    'email' => $expectedE,
+                    'role' => 'ADMIN'
+                ]
+            ]);
+            exit(0);
+        } else {
+            http_response_code(401);
+            echo json_encode([
+                'success' => false,
+                'error' => 'Credenciales inválidas'
+            ]);
+            exit(0);
+        }
     }
-    if (!empty($authHdr) && strpos($authHdr, 'Bearer ') === 0) {
-        http_response_code(200);
-        echo json_encode(['success' => true, 'authenticated' => true]);
+
+    // B. Endpoint Sesión (/api/auth/me)
+    if (strpos($requestUri, '/auth/me') !== false) {
+        header("Content-Type: application/json; charset=UTF-8");
+        $authHdr = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+        if (empty($authHdr) && function_exists('getallheaders')) {
+            $all = getallheaders();
+            $authHdr = $all['Authorization'] ?? $all['authorization'] ?? '';
+        }
+        if (!empty($authHdr) && strpos($authHdr, 'Bearer ') === 0) {
+            http_response_code(200);
+            echo json_encode(['success' => true, 'authenticated' => true]);
+            exit(0);
+        }
+        http_response_code(401);
+        echo json_encode(['success' => false, 'error' => 'No autenticado']);
         exit(0);
     }
-    http_response_code(401);
-    echo json_encode(['success' => false, 'error' => 'No autenticado']);
+} catch (\Throwable $t) {
+    header("Content-Type: application/json; charset=UTF-8");
+    http_response_code(500);
+    echo json_encode(['success' => false, 'error' => $t->getMessage()]);
     exit(0);
 }
 
