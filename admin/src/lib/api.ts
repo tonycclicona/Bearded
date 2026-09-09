@@ -1,6 +1,18 @@
-export const API_BASE_URL = typeof window !== 'undefined'
-  ? '/api'
-  : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api');
+function resolveApiBaseUrl(): string {
+  if (typeof window !== 'undefined') {
+    if (window.location.hostname.includes('admin.')) {
+      return `${window.location.protocol}//${window.location.hostname.replace('admin.', 'api.')}/api`;
+    }
+    if (process.env.NEXT_PUBLIC_API_URL && !process.env.NEXT_PUBLIC_API_URL.startsWith('/')) {
+      return process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, '');
+    }
+    return '/api';
+  }
+  return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+}
+
+export const API_BASE_URL = resolveApiBaseUrl();
+
 
 export function getCookie(name: string): string | null {
   if (typeof document === 'undefined') return null;

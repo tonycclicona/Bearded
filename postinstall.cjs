@@ -522,7 +522,14 @@ if (isLinux) {
         if (fs.existsSync(adminOut)) {
           copyDir(adminOut, p);
           fs.writeFileSync(path.join(p, '.htaccess'), universalAdminHtaccess.trim());
-          console.log('  ✅ Subdominio admin. poblado con Next.js SSG:', p);
+
+          // También desplegar proxy de API en subdominio admin como respaldo
+          const adminApi = path.join(p, 'api');
+          fs.mkdirSync(adminApi, { recursive: true });
+          fs.writeFileSync(path.join(adminApi, 'index.php'), apiProxyPhp.trim());
+          fs.writeFileSync(path.join(adminApi, '.htaccess'), apiProxyHtaccess.trim());
+
+          console.log('  ✅ Subdominio admin. poblado con Next.js SSG y proxy /api:', p);
         }
       } catch (_) {}
     }

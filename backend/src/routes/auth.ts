@@ -15,8 +15,8 @@ router.post('/login', async (req: Request, res: Response) => {
     return;
   }
 
-  // Leer variables de entorno con soporte para ADMIN_PASS (Hostinger) y ADMIN_PASSWORD
-  const rawUser = process.env.ADMIN_USER || process.env.ADMIN_USERNAME || 'admin';
+  // Leer variables de entorno con soporte para ADMIN_USER, ADMIN_USR, ADMIN_PASS (Hostinger) y ADMIN_PASSWORD
+  const rawUser = process.env.ADMIN_USER || process.env.ADMIN_USR || process.env.ADMIN_USERNAME || 'admin';
   const rawEmail = process.env.ADMIN_EMAIL || 'admin@beardedmountaineerlodge.com';
   const rawPass = process.env.ADMIN_PASS || process.env.ADMIN_PASSWORD || process.env.ADMIN_PWD || 'admin';
 
