@@ -547,11 +547,10 @@ exit(0);
 
 const apiProxyHtaccess = `<IfModule mod_rewrite.c>
 RewriteEngine On
-RewriteBase /
-RewriteRule ^index\.php$ - [L]
+RewriteRule ^index\\.php$ - [L]
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule ^(.*)$ index.php [QSA,L]
+RewriteRule . index.php [L]
 </IfModule>
 `;
 
@@ -574,26 +573,20 @@ const rootHtaccess = `DirectoryIndex index.html
   RewriteEngine On
   RewriteBase /
 
-  # 1. Si la petición ya es al subdominio api., pasar directamente al proxy api/index.php
-  RewriteCond %{HTTP_HOST} ^api\. [NC]
-  RewriteRule ^api/index\.php$ - [L]
-  RewriteCond %{HTTP_HOST} ^api\. [NC]
-  RewriteRule ^(.*)$ api/index.php [QSA,L]
-
-  # 2. Redirigir /api al subdominio dedicado SOLO si NO estamos en el subdominio api.
-  RewriteCond %{HTTP_HOST} !^api\. [NC]
+  # 1. Redirigir /api al subdominio dedicado SOLO si la petición es al dominio principal
+  RewriteCond %{HTTP_HOST} !^api\\. [NC]
   RewriteRule ^api(/.*)?$ https://api.beardedmountaineerlodge.com/api$1 [R=307,L]
 
-  # 3. Redirigir /admin al subdominio dedicado SOLO si NO estamos en el subdominio admin.
-  RewriteCond %{HTTP_HOST} !^admin\. [NC]
+  # 2. Redirigir /admin al subdominio dedicado SOLO si la petición es al dominio principal
+  RewriteCond %{HTTP_HOST} !^admin\\. [NC]
   RewriteRule ^admin(/.*)?$ https://admin.beardedmountaineerlodge.com$1 [R=301,L]
 
-  # 4. Archivos y carpetas físicas del frontend (_next, uploads, favicon, etc.)
+  # 3. Archivos y carpetas físicas reales (_next, uploads, api/, admin/, favicon, etc.)
   RewriteCond %{REQUEST_FILENAME} -f [OR]
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
 
-  # 5. Fallback SPA Next.js para rutas del frontend
+  # 4. Fallback SPA Next.js para rutas del frontend
   RewriteRule ^ index.html [L]
 </IfModule>
 `;
