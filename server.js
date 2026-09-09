@@ -68,6 +68,7 @@ try {
 }
 
 // ── 1. CARGAR BACKEND API (ASÍNCRONO CON PATH TO FILE URL) ────────────────────
+process.env.UNIFIED_SERVER = 'true';
 const { pathToFileURL } = require('url');
 let backendApp = null;
 const candidateBackendPaths = [

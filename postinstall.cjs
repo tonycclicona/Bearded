@@ -105,6 +105,7 @@ if (strpos($requestUri, '/api') !== 0) {
 
 $targets = [
     'http://127.0.0.1:4000',
+    'http://127.0.0.1:3001',
     'http://127.0.0.1:3000',
     'https://beardedmountaineerlodge.com'
 ];
@@ -189,7 +190,8 @@ foreach ($targets as $baseTarget) {
     $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
     curl_close($ch);
 
-    if ($httpCode >= 200 && $httpCode < 500 && $response !== false) {
+    $isHtml = (strpos(strtolower($contentType ?: ''), 'text/html') !== false);
+    if ($httpCode >= 200 && $httpCode < 500 && $response !== false && !$isHtml) {
         break;
     }
 }
@@ -207,7 +209,7 @@ header("Content-Type: application/json; charset=UTF-8");
 http_response_code(502);
 echo json_encode([
     "success" => false,
-    "error" => "El servidor Node.js de Bearded Mountaineer Lodge no está respondiendo en los puertos locales (4000/3000). Asegúrate de iniciar la aplicación Node.js en el panel de Hostinger.",
+    "error" => "El servidor Node.js de Bearded Mountaineer Lodge no está respondiendo en los puertos locales (4000/3001/3000). Asegúrate de iniciar la aplicación Node.js en el panel de Hostinger.",
     "path" => $requestUri,
     "timestamp" => date("c")
 ]);
@@ -220,7 +222,7 @@ RewriteBase /
 RewriteRule ^index\\.php$ - [L]
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule . /index.php [L]
+RewriteRule ^(.*)$ index.php [QSA,L]
 </IfModule>
 `;
 
@@ -276,11 +278,37 @@ try {
     '/home/u251936581/public_html'
   ];
 
+  const rootHtaccessContent = `<IfModule mod_rewrite.c>
+RewriteEngine On
+RewriteBase /
+
+# 1. Rutas existentes fisicamente (imagenes, assets, chunks JS, etc.)
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# 2. Rutas de API: delegar siempre al proxy de API interno
+RewriteRule ^api(/.*)?$ api/index.php [QSA,L]
+
+# 3. Rutas de Admin: delegar al panel administrativo
+RewriteRule ^admin(/.*)?$ admin/index.html [QSA,L]
+
+# 4. Fallback SPA Frontend (Next.js SSG)
+RewriteRule ^index\\.html$ - [L]
+RewriteRule . /index.html [L]
+</IfModule>
+`;
+
   publicHtmlTargets.forEach(target => {
     if (fs.existsSync(target) && target !== srcOut) {
       try {
         fs.cpSync(srcOut, target, { recursive: true });
-        console.log(`[postinstall] ✅ Copied frontend static export directly to: ${target}`);
+        fs.writeFileSync(path.join(target, '.htaccess'), rootHtaccessContent);
+        const rootIndexPhp = path.join(target, 'index.php');
+        if (!fs.existsSync(rootIndexPhp)) {
+          fs.writeFileSync(rootIndexPhp, apiIndexContent);
+        }
+        console.log(`[postinstall] ✅ Copied frontend static export directly and generated master .htaccess in: ${target}`);
       } catch (err) {
         console.error(`Warning: Failed to copy to ${target}:`, err.message);
       }

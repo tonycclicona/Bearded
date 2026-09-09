@@ -21,6 +21,7 @@ if (strpos($requestUri, '/api') !== 0) {
 
 $targets = [
     'http://127.0.0.1:4000',
+    'http://127.0.0.1:3001',
     'http://127.0.0.1:3000',
     'https://beardedmountaineerlodge.com'
 ];
@@ -105,7 +106,8 @@ foreach ($targets as $baseTarget) {
     $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
     curl_close($ch);
 
-    if ($httpCode >= 200 && $httpCode < 500 && $response !== false) {
+    $isHtml = (strpos(strtolower($contentType ?: ''), 'text/html') !== false);
+    if ($httpCode >= 200 && $httpCode < 500 && $response !== false && !$isHtml) {
         break;
     }
 }
