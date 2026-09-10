@@ -22,7 +22,11 @@ export default function LayoutContent({ children }: { children: React.ReactNode 
     }
 
     if (!token) {
-      router.push('/login');
+      if (typeof window !== 'undefined') {
+        window.location.replace('/login');
+      } else {
+        router.replace('/login');
+      }
       return;
     }
 
@@ -33,7 +37,11 @@ export default function LayoutContent({ children }: { children: React.ReactNode 
       })
       .catch(() => {
         removeCookie('session_token');
-        router.push('/login');
+        if (typeof window !== 'undefined') {
+          window.location.replace('/login');
+        } else {
+          router.replace('/login');
+        }
       });
   }, [pathname, isLoginPage, router]);
 

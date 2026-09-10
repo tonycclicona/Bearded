@@ -25,8 +25,11 @@ export default function LoginPage() {
 
       if (res.success && res.token) {
         setCookie('session_token', res.token, 7);
-        router.push('/');
-        router.refresh();
+        if (typeof window !== 'undefined') {
+          window.location.href = '/';
+        } else {
+          router.push('/');
+        }
       } else if (res.status === 'starting' || res.message?.includes('iniciando')) {
         throw new Error(res.message || 'El servidor API está iniciando en Hostinger. Espera 10-20 segundos y vuelve a intentar.');
       } else {
