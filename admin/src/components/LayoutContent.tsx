@@ -18,7 +18,15 @@ export default function LayoutContent({ children }: { children: React.ReactNode 
 
     if (isLoginPage) {
       if (token) {
-        router.push('/');
+        // Verificar si el token guardado aún es válido
+        fetcher('/auth/me')
+          .then(() => {
+            router.push('/');
+          })
+          .catch(() => {
+            removeCookie('session_token');
+            setAuthorized(true);
+          });
       } else {
         setAuthorized(true);
       }
@@ -27,9 +35,19 @@ export default function LayoutContent({ children }: { children: React.ReactNode 
 
     if (!token) {
       router.push('/login');
-    } else {
-      setAuthorized(true);
+      return;
     }
+
+    // Validar token activo con el backend
+    fetcher('/auth/me')
+      .then(() => {
+        setAuthorized(true);
+      })
+      .catch((err) => {
+        console.warn('Sesión inválida o expirada:', err);
+        removeCookie('session_token');
+        router.push('/login');
+      });
   }, [pathname, isLoginPage, router]);
 
   if (isLoginPage) {

@@ -18,6 +18,7 @@ interface ResourceTableProps<T = any> {
   onEdit?: (item: T) => void;
   onNew?: () => void;
   idKey?: keyof T;
+  refreshKey?: number | string;
 }
 
 export default function ResourceTable<T extends Record<string, any>>({
@@ -27,7 +28,8 @@ export default function ResourceTable<T extends Record<string, any>>({
   columns,
   onEdit,
   onNew,
-  idKey = 'id' as keyof T
+  idKey = 'id' as keyof T,
+  refreshKey
 }: ResourceTableProps<T>) {
   const [items, setItems] = useState<T[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,7 +51,7 @@ export default function ResourceTable<T extends Record<string, any>>({
 
   useEffect(() => {
     loadData();
-  }, [endpoint]);
+  }, [endpoint, refreshKey]);
 
   const handleDelete = async (id: any) => {
     if (!confirm('¿Estás seguro de eliminar este registro?')) return;
