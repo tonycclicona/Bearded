@@ -22,7 +22,7 @@ import uploadRouter from './routes/upload.js';
 const app = express();
 app.disable('x-powered-by');
 app.set('trust proxy', true);
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 4000;
 
 // Inicialización de tablas MySQL bajo demanda/arranque (Patrón Unu-Raymi)
 ensureTablesExist().catch((err) => {
