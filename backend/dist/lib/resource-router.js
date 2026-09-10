@@ -6,10 +6,15 @@ export function createResourceRouter(options) {
     const map = transform ?? ((item) => item);
     const router = Router();
     const notFoundError = () => new AppError('NOT_FOUND', `${singularLabel} no encontrado`, 404);
+    // Helper para resolver el modelo dinámico en tiempo de ejecución
+    const getModel = () => {
+        return typeof options.model === 'function' ? options.model() : options.model;
+    };
     // 1. GET / - Listar recursos
     router.get('/', async (_req, res) => {
+        const currentModel = getModel();
         try {
-            const items = await model.findMany({ select });
+            const items = await currentModel.findMany({ select });
             if (items && items.length > 0) {
                 res.json(AppResponse.success(items.map(map)));
                 return;
@@ -31,9 +36,10 @@ export function createResourceRouter(options) {
     });
     // 2. GET /:key - Obtener recurso individual
     router.get('/:key', async (req, res) => {
+        const currentModel = getModel();
         const rawKey = Array.isArray(req.params.key) ? req.params.key[0] : req.params.key;
         try {
-            const item = await model.findUnique({ where: { [key]: rawKey }, select });
+            const item = await currentModel.findUnique({ where: { [key]: rawKey }, select });
             if (item) {
                 res.json(AppResponse.success(map(item)));
                 return;
@@ -55,14 +61,25 @@ export function createResourceRouter(options) {
     });
     // 3. POST / - Crear nuevo recurso (Admin CRUD)
     router.post('/', async (req, res) => {
+        const currentModel = getModel();
         try {
-            const payload = req.body;
-            if (typeof model.create === 'function') {
-                const created = await model.create({ data: payload, select });
-                res.status(201).json(AppResponse.success(map(created)));
-                return;
+            const rawPayload = req.body || {};
+            // Sanitizar datos para enviar únicamente campos que pertenecen al modelo
+            const allowedKeys = Object.keys(select);
+            const cleanData = {};
+            for (const k of allowedKeys) {
+                if (k !== 'id' && rawPayload[k] !== undefined) {
+                    cleanData[k] = rawPayload[k];
+                }
             }
-            res.status(201).json(AppResponse.success({ id: Date.now().toString(), ...payload }));
+            if (typeof currentModel.create === 'function') {
+                const created = await currentModel.create({ data: cleanData, select });
+                if (created) {
+                    res.status(201).json(AppResponse.success(map(created)));
+                    return;
+                }
+            }
+            res.status(201).json(AppResponse.success({ id: Date.now().toString(), ...cleanData }));
         }
         catch (err) {
             console.error(`[API] Error creando ${singularLabel}:`, err);
@@ -72,19 +89,29 @@ export function createResourceRouter(options) {
     });
     // 4. PUT /:id - Actualizar recurso existente (Admin CRUD)
     router.put('/:id', async (req, res) => {
+        const currentModel = getModel();
         const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
         try {
-            const payload = req.body;
-            if (typeof model.update === 'function') {
-                const updated = await model.update({
+            const rawPayload = req.body || {};
+            const allowedKeys = Object.keys(select);
+            const cleanData = {};
+            for (const k of allowedKeys) {
+                if (k !== 'id' && rawPayload[k] !== undefined) {
+                    cleanData[k] = rawPayload[k];
+                }
+            }
+            if (typeof currentModel.update === 'function') {
+                const updated = await currentModel.update({
                     where: { [key]: id },
-                    data: payload,
+                    data: cleanData,
                     select
                 });
-                res.json(AppResponse.success(map(updated)));
-                return;
+                if (updated) {
+                    res.json(AppResponse.success(map(updated)));
+                    return;
+                }
             }
-            res.json(AppResponse.success({ [key]: id, ...payload }));
+            res.json(AppResponse.success({ [key]: id, ...cleanData }));
         }
         catch (err) {
             console.error(`[API] Error actualizando ${singularLabel}:`, err);
@@ -94,10 +121,11 @@ export function createResourceRouter(options) {
     });
     // 5. DELETE /:id - Eliminar recurso (Admin CRUD)
     router.delete('/:id', async (req, res) => {
+        const currentModel = getModel();
         const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
         try {
-            if (typeof model.delete === 'function') {
-                await model.delete({ where: { [key]: id } });
+            if (typeof currentModel.delete === 'function') {
+                await currentModel.delete({ where: { [key]: id } });
             }
             res.json(AppResponse.success({ deleted: true, id }));
         }

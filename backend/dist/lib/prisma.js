@@ -2,11 +2,13 @@ import { PrismaClient } from '@prisma/client';
 const globalForPrisma = globalThis;
 let _prismaInstance = null;
 function createResilientMock() {
-    return new Proxy({}, {
+    const mock = new Proxy({}, {
         get(_target, prop) {
             if (prop === '$connect' || prop === '$disconnect') {
                 return async () => { };
             }
+            if (prop === '_isMock')
+                return true;
             return new Proxy({}, {
                 get(_subTarget, method) {
                     return async () => {
@@ -17,17 +19,23 @@ function createResilientMock() {
             });
         }
     });
+    return mock;
 }
 export function getPrisma() {
-    if (!_prismaInstance) {
+    // Si no hay instancia o la instancia anterior era un mock transitorio, intentar conectar con la base de datos real
+    if (!_prismaInstance || _prismaInstance._isMock) {
         try {
-            _prismaInstance = globalForPrisma.prisma ?? new PrismaClient();
+            const client = globalForPrisma.prisma ?? new PrismaClient();
+            _prismaInstance = client;
             if (process.env.NODE_ENV !== 'production')
                 globalForPrisma.prisma = _prismaInstance;
+            return _prismaInstance;
         }
         catch (err) {
             console.warn('[Prisma] Error inicializando PrismaClient (se activan fallbacks locales):', err.message);
-            _prismaInstance = createResilientMock();
+            const mock = createResilientMock();
+            _prismaInstance = mock;
+            return mock;
         }
     }
     return _prismaInstance;
