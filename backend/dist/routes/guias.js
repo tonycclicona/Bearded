@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
 import { AppResponse } from '../utils/response.js';
 import { AppError } from '../utils/errors.js';
-import { FALLBACK_GUIAS } from '../lib/fallbacks.js';
+import { LocalStore } from '../lib/store.js';
 const router = Router();
 // GET /api/guias
 router.get('/', async (_req, res, _next) => {
@@ -30,84 +30,107 @@ router.get('/', async (_req, res, _next) => {
             res.json(AppResponse.success(guias));
             return;
         }
-        res.json(AppResponse.success(FALLBACK_GUIAS));
     }
     catch (error) {
-        console.warn('[API] guias findMany failed, serving fallback:', error);
-        res.json(AppResponse.success(FALLBACK_GUIAS));
+        console.warn('[API] guias findMany failed, serving LocalStore:', error.message);
     }
+    const items = LocalStore.getAll('guias');
+    res.json(AppResponse.success(items));
 });
 // GET /api/guias/:id
 router.get('/:id', async (req, res, next) => {
     const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const id = parseInt(rawId, 10);
-    if (isNaN(id)) {
-        next(new AppError('INVALID_ID', 'ID de guía inválido', 400));
-        return;
-    }
-    try {
-        const guia = await prisma.guia.findUnique({
-            where: { id },
-            select: {
-                id: true,
-                nombre: true,
-                especialidad: true,
-                experiencia: true,
-                idiomas: true,
-                foto: true,
-                descripcion: true,
-                activo: true,
-                orden: true,
-                createdAt: true,
-                updatedAt: true
+    if (!isNaN(id)) {
+        try {
+            const guia = await prisma.guia.findUnique({
+                where: { id },
+                select: {
+                    id: true,
+                    nombre: true,
+                    especialidad: true,
+                    experiencia: true,
+                    idiomas: true,
+                    foto: true,
+                    descripcion: true,
+                    activo: true,
+                    orden: true,
+                    createdAt: true,
+                    updatedAt: true
+                }
+            });
+            if (guia) {
+                res.json(AppResponse.success(guia));
+                return;
             }
-        });
-        if (guia) {
-            res.json(AppResponse.success(guia));
-            return;
+        }
+        catch (dbErr) {
+            console.warn('[API] guias findUnique failed, checking LocalStore:', dbErr.message);
         }
     }
-    catch (dbErr) {
-        console.warn('[API] guias findUnique failed, checking fallback:', dbErr);
-    }
-    const fallback = FALLBACK_GUIAS.find((g) => g.id === id);
+    const fallback = LocalStore.getById('guias', rawId, 'id') || LocalStore.getById('guias', rawId, 'nombre');
     if (fallback) {
         res.json(AppResponse.success(fallback));
         return;
     }
     next(new AppError('NOT_FOUND', 'Guía no encontrado', 404));
 });
-// POST /api/guias - Crear guía
+// POST /api/guias - Crear guía (LocalStore + DB)
 router.post('/', async (req, res) => {
+    const payload = { ...req.body };
+    if (payload.orden !== undefined)
+        payload.orden = Number(payload.orden) || 0;
+    if (payload.imageUrl && !payload.foto)
+        payload.foto = payload.imageUrl;
+    if (payload.foto && !payload.imageUrl)
+        payload.imageUrl = payload.foto;
+    let dbCreated = null;
     try {
-        const created = await prisma.guia.create({ data: req.body });
-        res.status(201).json(AppResponse.success(created));
+        dbCreated = await prisma.guia.create({ data: payload });
     }
     catch (error) {
-        res.status(201).json(AppResponse.success({ id: Date.now(), ...req.body }));
+        console.warn('[API] prisma.guia.create failed, saving in LocalStore:', error.message);
     }
+    const saved = LocalStore.create('guias', dbCreated || payload);
+    res.status(201).json(AppResponse.success(saved));
 });
-// PUT /api/guias/:id - Actualizar guía
+// PUT /api/guias/:id - Actualizar guía (LocalStore + DB)
 router.put('/:id', async (req, res) => {
-    const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
-    try {
-        const updated = await prisma.guia.update({ where: { id }, data: req.body });
-        res.json(AppResponse.success(updated));
+    const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const id = parseInt(rawId, 10);
+    const payload = { ...req.body };
+    if (payload.orden !== undefined)
+        payload.orden = Number(payload.orden) || 0;
+    if (payload.imageUrl && !payload.foto)
+        payload.foto = payload.imageUrl;
+    if (payload.foto && !payload.imageUrl)
+        payload.imageUrl = payload.foto;
+    let dbUpdated = null;
+    if (!isNaN(id)) {
+        try {
+            dbUpdated = await prisma.guia.update({ where: { id }, data: payload });
+        }
+        catch (error) {
+            console.warn('[API] prisma.guia.update failed, updating in LocalStore:', error.message);
+        }
     }
-    catch (error) {
-        res.json(AppResponse.success({ id, ...req.body }));
-    }
+    const updated = LocalStore.update('guias', !isNaN(id) ? id : rawId, dbUpdated || payload);
+    res.json(AppResponse.success(updated));
 });
-// DELETE /api/guias/:id - Eliminar guía
+// DELETE /api/guias/:id - Eliminar guía (LocalStore + DB)
 router.delete('/:id', async (req, res) => {
-    const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
-    try {
-        await prisma.guia.delete({ where: { id } });
-        res.json(AppResponse.success({ deleted: true, id }));
+    const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const id = parseInt(rawId, 10);
+    if (!isNaN(id)) {
+        try {
+            await prisma.guia.delete({ where: { id } });
+        }
+        catch (error) {
+            console.warn('[API] prisma.guia.delete failed:', error.message);
+        }
     }
-    catch (error) {
-        res.json(AppResponse.success({ deleted: true, id }));
-    }
+    LocalStore.delete('guias', !isNaN(id) ? id : rawId);
+    res.json(AppResponse.success({ deleted: true, id: rawId }));
 });
 export default router;
 //# sourceMappingURL=guias.js.map

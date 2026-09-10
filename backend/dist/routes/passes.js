@@ -15,7 +15,7 @@ export default createResourceRouter({
         featured: true,
         sortOrder: true
     },
-    label: 'pases',
+    label: 'passes',
     singularLabel: 'Pase',
     key: 'id',
     fallbackData: FALLBACK_PASSES

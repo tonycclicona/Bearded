@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { AppResponse } from '../utils/response.js';
 import { AppError } from '../utils/errors.js';
+import { LocalStore } from './store.js';
 
 interface ResourceController<T> {
   findMany(filter: unknown): Promise<T[]>;
@@ -47,7 +48,6 @@ function sanitizePayload(raw: Record<string, any>, allowedKeys: string[]): Recor
     if (k === 'id' || raw[k] === undefined) continue;
     const val = raw[k];
 
-    // Campos JSON (arrays o listas multilínea)
     if (JSON_FIELDS.has(k)) {
       if (Array.isArray(val)) {
         clean[k] = val;
@@ -60,38 +60,35 @@ function sanitizePayload(raw: Record<string, any>, allowedKeys: string[]): Recor
       } else {
         clean[k] = val || [];
       }
-    }
-    // Campos numéricos
-    else if (NUMERIC_FIELDS.has(k)) {
+    } else if (NUMERIC_FIELDS.has(k)) {
       if (val === '' || val === null || val === undefined) {
         clean[k] = 0;
       } else {
         const num = Number(val);
         clean[k] = isNaN(num) ? 0 : num;
       }
-    }
-    // Campos booleanos
-    else if (typeof val === 'boolean') {
+    } else if (typeof val === 'boolean') {
       clean[k] = val;
-    }
-    // Cadenas normales
-    else {
+    } else {
       clean[k] = val !== null && val !== undefined ? String(val).trim() : '';
     }
   }
+
+  // Preservar imageUrl / fotoUrl si están presentes
+  if (raw.imageUrl && !clean.imageUrl && allowedKeys.includes('imageUrl')) clean.imageUrl = raw.imageUrl;
+  if (raw.fotoUrl && !clean.fotoUrl && allowedKeys.includes('fotoUrl')) clean.fotoUrl = raw.fotoUrl;
 
   return clean;
 }
 
 export function createResourceRouter<T, F = unknown>(options: ResourceRouterOptions<T, F>): Router {
-  const { model, select, label, singularLabel, key, transform, fallbackData } = options;
+  const { model, select, label, singularLabel, key, transform } = options;
   const map = transform ?? ((item: T) => item);
   const router = Router();
 
   const notFoundError = (): AppError =>
     new AppError('NOT_FOUND', `${singularLabel} no encontrado`, 404);
 
-  // Helper para resolver el modelo dinámico en tiempo de ejecución
   const getModel = (): ResourceController<T> => {
     return typeof (options.model as any) === 'function' ? (options.model as any)() : options.model;
   };
@@ -100,24 +97,20 @@ export function createResourceRouter<T, F = unknown>(options: ResourceRouterOpti
   router.get('/', async (_req: Request, res: Response) => {
     const currentModel = getModel();
     try {
-      const items = await currentModel.findMany({ select });
-      if (items && items.length > 0) {
-        res.json(AppResponse.success(items.map(map)));
-        return;
+      if (currentModel && typeof currentModel.findMany === 'function') {
+        const items = await currentModel.findMany({ select });
+        if (items && items.length > 0) {
+          res.json(AppResponse.success(items.map(map)));
+          return;
+        }
       }
-      if (fallbackData && fallbackData.length > 0) {
-        res.json(AppResponse.success(fallbackData.map((item) => (transform ? transform(item as unknown as T) : item))));
-        return;
-      }
-      res.json(AppResponse.success([]));
     } catch (dbErr) {
-      console.warn(`[API] DB fetch failed for ${label}, using fallback data:`, (dbErr as Error).message);
-      if (fallbackData && fallbackData.length > 0) {
-        res.json(AppResponse.success(fallbackData.map((item) => (transform ? transform(item as unknown as T) : item))));
-        return;
-      }
-      res.json(AppResponse.success([]));
+      console.warn(`[API] DB fetch failed for ${label}, using LocalStore data:`, (dbErr as Error).message);
     }
+
+    // Usar LocalStore persistente (con nuevos registros + modificaciones)
+    const storeItems = LocalStore.getAll(label);
+    res.json(AppResponse.success(storeItems.map((item) => (transform ? transform(item as unknown as T) : item))));
   });
 
   // 2. GET /:key - Obtener recurso individual
@@ -125,51 +118,49 @@ export function createResourceRouter<T, F = unknown>(options: ResourceRouterOpti
     const currentModel = getModel();
     const rawKey = Array.isArray(req.params.key) ? req.params.key[0] : req.params.key;
     try {
-      const item: T | null = await currentModel.findUnique({ where: { [key]: rawKey }, select });
-      if (item) {
-        res.json(AppResponse.success(map(item)));
-        return;
+      if (currentModel && typeof currentModel.findUnique === 'function') {
+        const item: T | null = await currentModel.findUnique({ where: { [key]: rawKey }, select });
+        if (item) {
+          res.json(AppResponse.success(map(item)));
+          return;
+        }
       }
     } catch (error) {
       if (error instanceof AppError) throw error;
-      console.warn(`[API] DB fetchUnique failed for ${singularLabel}, using fallback if found:`, (error as Error).message);
+      console.warn(`[API] DB fetchUnique failed for ${singularLabel}, using LocalStore:`, (error as Error).message);
     }
 
-    if (fallbackData) {
-      const fallbackItem = fallbackData.find((f) => String((f as Record<string, unknown>)[key]) === String(rawKey));
-      if (fallbackItem) {
-        res.json(AppResponse.success(transform ? transform(fallbackItem as unknown as T) : fallbackItem));
-        return;
-      }
+    const storeItem = LocalStore.getById(label, rawKey, key);
+    if (storeItem) {
+      res.json(AppResponse.success(transform ? transform(storeItem as unknown as T) : storeItem));
+      return;
     }
 
     throw notFoundError();
   });
 
-  // 3. POST / - Crear nuevo recurso (Admin CRUD resiliente)
+  // 3. POST / - Crear nuevo recurso (Persistencia LocalStore + DB)
   router.post('/', async (req: Request, res: Response) => {
     const currentModel = getModel();
     const rawPayload = req.body || {};
     const allowedKeys = Object.keys(select);
     const cleanData = sanitizePayload(rawPayload, allowedKeys);
 
+    let dbItem: any = null;
     try {
-      if (typeof currentModel.create === 'function') {
-        const created = await currentModel.create({ data: cleanData, select });
-        if (created) {
-          res.status(201).json(AppResponse.success(map(created)));
-          return;
-        }
+      if (typeof currentModel?.create === 'function') {
+        dbItem = await currentModel.create({ data: cleanData, select });
       }
-      res.status(201).json(AppResponse.success({ id: Date.now().toString(), ...cleanData }));
     } catch (err: unknown) {
-      console.warn(`[API] DB create no disponible para ${singularLabel}, respondiendo con fallback:`, (err as Error).message);
-      // Responder con el objeto creado para no bloquear la experiencia del admin
-      res.status(201).json(AppResponse.success({ id: Date.now().toString(), ...cleanData }));
+      console.warn(`[API] DB create no disponible para ${singularLabel}, guardando en LocalStore:`, (err as Error).message);
     }
+
+    // SIEMPRE registrar en LocalStore para garantizar que persista en el entorno
+    const saved = LocalStore.create(label, dbItem ? map(dbItem) : cleanData);
+    res.status(201).json(AppResponse.success(saved));
   });
 
-  // 4. PUT /:id - Actualizar recurso existente (Admin CRUD resiliente)
+  // 4. PUT /:id - Actualizar recurso existente (Persistencia LocalStore + DB)
   router.put('/:id', async (req: Request, res: Response) => {
     const currentModel = getModel();
     const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
@@ -177,38 +168,38 @@ export function createResourceRouter<T, F = unknown>(options: ResourceRouterOpti
     const allowedKeys = Object.keys(select);
     const cleanData = sanitizePayload(rawPayload, allowedKeys);
 
+    let dbItem: any = null;
     try {
-      if (typeof currentModel.update === 'function') {
-        const updated = await currentModel.update({
+      if (typeof currentModel?.update === 'function') {
+        dbItem = await currentModel.update({
           where: { [key]: id },
           data: cleanData,
           select
         });
-        if (updated) {
-          res.json(AppResponse.success(map(updated)));
-          return;
-        }
       }
-      res.json(AppResponse.success({ [key]: id, ...cleanData }));
     } catch (err: unknown) {
-      console.warn(`[API] DB update no disponible para ${singularLabel}, respondiendo con fallback:`, (err as Error).message);
-      res.json(AppResponse.success({ [key]: id, ...cleanData }));
+      console.warn(`[API] DB update no disponible para ${singularLabel}, guardando en LocalStore:`, (err as Error).message);
     }
+
+    // SIEMPRE actualizar en LocalStore
+    const updated = LocalStore.update(label, id, dbItem ? map(dbItem) : cleanData, key);
+    res.json(AppResponse.success(updated));
   });
 
-  // 5. DELETE /:id - Eliminar recurso (Admin CRUD)
+  // 5. DELETE /:id - Eliminar recurso (Persistencia LocalStore + DB)
   router.delete('/:id', async (req: Request, res: Response) => {
     const currentModel = getModel();
     const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     try {
-      if (typeof currentModel.delete === 'function') {
+      if (typeof currentModel?.delete === 'function') {
         await currentModel.delete({ where: { [key]: id } });
       }
-      res.json(AppResponse.success({ deleted: true, id }));
     } catch (err: unknown) {
       console.warn(`[API] DB delete no disponible para ${singularLabel}:`, (err as Error).message);
-      res.json(AppResponse.success({ deleted: true, id }));
     }
+
+    LocalStore.delete(label, id, key);
+    res.json(AppResponse.success({ deleted: true, id }));
   });
 
   return router;

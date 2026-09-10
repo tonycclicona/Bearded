@@ -16,7 +16,7 @@ export default createResourceRouter({
         imageUrl: true,
         sortOrder: true
     },
-    label: 'experiencias',
+    label: 'experiences',
     singularLabel: 'Experiencia',
     key: 'id',
     fallbackData: FALLBACK_EXPERIENCES

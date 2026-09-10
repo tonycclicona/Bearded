@@ -12,7 +12,7 @@ export default createResourceRouter({
     imageUrl: true,
     sortOrder: true
   },
-  label: 'escenarios',
+  label: 'spots',
   singularLabel: 'Escenario',
   key: 'id',
   fallbackData: FALLBACK_SPOTS

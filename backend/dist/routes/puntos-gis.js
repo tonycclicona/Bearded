@@ -2,29 +2,18 @@ import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
 import { AppResponse } from '../utils/response.js';
 import { AppError } from '../utils/errors.js';
-import { FALLBACK_PUNTOS_GIS } from '../lib/fallbacks.js';
+import { LocalStore } from '../lib/store.js';
 const router = Router();
 // GET /api/puntos-gis
 router.get('/', async (req, res, _next) => {
     try {
-        const { categoria, departamento, piso } = req.query;
+        const { categoria, departamento } = req.query;
         const where = { activo: true };
         if (categoria && typeof categoria === 'string' && categoria !== 'TODOS') {
             where.categoria = categoria;
         }
         if (departamento && typeof departamento === 'string') {
             where.departamento = { contains: departamento, mode: 'insensitive' };
-        }
-        if (piso && typeof piso === 'string') {
-            if (piso === 'YUNGA') {
-                where.altitudMsnm = { gte: 500, lte: 2300 };
-            }
-            else if (piso === 'QUECHUA') {
-                where.altitudMsnm = { gt: 2300, lte: 3500 };
-            }
-            else if (piso === 'SUNI_PUNA') {
-                where.altitudMsnm = { gt: 3500 };
-            }
         }
         const puntos = await prisma.puntoGIS.findMany({
             where,
@@ -42,49 +31,6 @@ router.get('/', async (req, res, _next) => {
                 descripcion: true,
                 fotoUrl: true,
                 activo: true,
-                especies: {
-                    select: {
-                        id: true,
-                        nombreComun: true,
-                        nombreCientifico: true,
-                        estadoIUCN: true,
-                        endemicoPeru: true,
-                        fotoPrincipal: true,
-                        audioCantoUrl: true
-                    }
-                },
-                toursAsociados: {
-                    select: {
-                        id: true,
-                        nombre: true,
-                        slug: true,
-                        descripcion: true,
-                        itinerario: true,
-                        regionRuta: true,
-                        nivelCaminata: true,
-                        equipoOpticoReq: true,
-                        precio_adulto: true,
-                        precio_adulto_usd: true,
-                        precio_nino: true,
-                        precio_nino_usd: true,
-                        showPEN: true,
-                        showUSD: true,
-                        duracion_dias: true,
-                        cupos_disponibles: true,
-                        servicios_incluidos: true,
-                        servicios_excluidos: true,
-                        que_llevar: true,
-                        activo: true,
-                        destacado: true,
-                        imagenes: {
-                            select: {
-                                id: true,
-                                url: true,
-                                esPortada: true
-                            }
-                        }
-                    }
-                },
                 createdAt: true,
                 updatedAt: true
             },
@@ -101,17 +47,17 @@ router.get('/', async (req, res, _next) => {
             res.json(AppResponse.success(parsed));
             return;
         }
-        res.json(AppResponse.success(FALLBACK_PUNTOS_GIS));
     }
     catch (error) {
-        console.warn('[API] puntos-gis findMany failed, serving fallback:', error);
-        res.json(AppResponse.success(FALLBACK_PUNTOS_GIS));
+        console.warn('[API] puntos-gis findMany failed, serving LocalStore:', error.message);
     }
+    const items = LocalStore.getAll('puntos-gis');
+    res.json(AppResponse.success(items));
 });
 // GET /api/puntos-gis/:slug
 router.get('/:slug', async (req, res, next) => {
+    const slug = Array.isArray(req.params.slug) ? req.params.slug[0] : req.params.slug;
     try {
-        const slug = Array.isArray(req.params.slug) ? req.params.slug[0] : req.params.slug;
         const punto = await prisma.puntoGIS.findUnique({
             where: { slug },
             select: {
@@ -128,53 +74,6 @@ router.get('/:slug', async (req, res, next) => {
                 descripcion: true,
                 fotoUrl: true,
                 activo: true,
-                especies: {
-                    select: {
-                        id: true,
-                        nombreComun: true,
-                        nombreCientifico: true,
-                        familia: true,
-                        estadoIUCN: true,
-                        endemicoPeru: true,
-                        altitudMinMsnm: true,
-                        altitudMaxMsnm: true,
-                        descripcion: true,
-                        fotoPrincipal: true,
-                        audioCantoUrl: true
-                    }
-                },
-                toursAsociados: {
-                    select: {
-                        id: true,
-                        nombre: true,
-                        slug: true,
-                        descripcion: true,
-                        itinerario: true,
-                        regionRuta: true,
-                        nivelCaminata: true,
-                        equipoOpticoReq: true,
-                        precio_adulto: true,
-                        precio_adulto_usd: true,
-                        precio_nino: true,
-                        precio_nino_usd: true,
-                        showPEN: true,
-                        showUSD: true,
-                        duracion_dias: true,
-                        cupos_disponibles: true,
-                        servicios_incluidos: true,
-                        servicios_excluidos: true,
-                        que_llevar: true,
-                        activo: true,
-                        destacado: true,
-                        imagenes: {
-                            select: {
-                                id: true,
-                                url: true,
-                                esPortada: true
-                            }
-                        }
-                    }
-                },
                 createdAt: true,
                 updatedAt: true
             }
@@ -189,47 +88,87 @@ router.get('/:slug', async (req, res, next) => {
         }
     }
     catch (dbErr) {
-        console.warn('[API] puntos-gis findUnique failed, checking fallback:', dbErr);
+        console.warn('[API] puntos-gis findUnique failed, checking LocalStore:', dbErr.message);
     }
-    const slug = Array.isArray(req.params.slug) ? req.params.slug[0] : req.params.slug;
-    const fallback = FALLBACK_PUNTOS_GIS.find((p) => p.slug === slug);
+    const fallback = LocalStore.getById('puntos-gis', slug, 'slug') || LocalStore.getById('puntos-gis', slug, 'id');
     if (fallback) {
         res.json(AppResponse.success(fallback));
         return;
     }
     next(new AppError('NOT_FOUND', 'Punto GIS no encontrado', 404));
 });
-// POST /api/puntos-gis - Crear punto GIS
+// POST /api/puntos-gis - Crear punto GIS (LocalStore + DB)
 router.post('/', async (req, res) => {
+    const payload = { ...req.body };
+    if (!payload.slug && payload.nombre) {
+        payload.slug = payload.nombre
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/(^-|-$)+/g, '');
+    }
+    if (payload.latitud !== undefined)
+        payload.latitud = Number(payload.latitud) || 0;
+    if (payload.longitud !== undefined)
+        payload.longitud = Number(payload.longitud) || 0;
+    if (payload.altitudMsnm !== undefined)
+        payload.altitudMsnm = Number(payload.altitudMsnm) || 2800;
+    if (payload.imageUrl && !payload.fotoUrl)
+        payload.fotoUrl = payload.imageUrl;
+    if (payload.fotoUrl && !payload.imageUrl)
+        payload.imageUrl = payload.fotoUrl;
+    let dbCreated = null;
     try {
-        const created = await prisma.puntoGIS.create({ data: req.body });
-        res.status(201).json(AppResponse.success(created));
+        dbCreated = await prisma.puntoGIS.create({ data: payload });
     }
     catch (error) {
-        res.status(201).json(AppResponse.success({ id: Date.now(), ...req.body }));
+        console.warn('[API] prisma.puntoGIS.create failed, saving in LocalStore:', error.message);
     }
+    const saved = LocalStore.create('puntos-gis', dbCreated || payload);
+    res.status(201).json(AppResponse.success(saved));
 });
-// PUT /api/puntos-gis/:id - Actualizar punto GIS
+// PUT /api/puntos-gis/:id - Actualizar punto GIS (LocalStore + DB)
 router.put('/:id', async (req, res) => {
-    const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
-    try {
-        const updated = await prisma.puntoGIS.update({ where: { id }, data: req.body });
-        res.json(AppResponse.success(updated));
+    const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const numId = parseInt(rawId, 10);
+    const payload = { ...req.body };
+    if (payload.latitud !== undefined)
+        payload.latitud = Number(payload.latitud) || 0;
+    if (payload.longitud !== undefined)
+        payload.longitud = Number(payload.longitud) || 0;
+    if (payload.altitudMsnm !== undefined)
+        payload.altitudMsnm = Number(payload.altitudMsnm) || 2800;
+    if (payload.imageUrl && !payload.fotoUrl)
+        payload.fotoUrl = payload.imageUrl;
+    if (payload.fotoUrl && !payload.imageUrl)
+        payload.imageUrl = payload.fotoUrl;
+    let dbUpdated = null;
+    if (!isNaN(numId)) {
+        try {
+            dbUpdated = await prisma.puntoGIS.update({ where: { id: numId }, data: payload });
+        }
+        catch (error) {
+            console.warn('[API] prisma.puntoGIS.update failed, updating in LocalStore:', error.message);
+        }
     }
-    catch (error) {
-        res.json(AppResponse.success({ id, ...req.body }));
-    }
+    const updated = LocalStore.update('puntos-gis', !isNaN(numId) ? numId : rawId, dbUpdated || payload);
+    res.json(AppResponse.success(updated));
 });
-// DELETE /api/puntos-gis/:id - Eliminar punto GIS
+// DELETE /api/puntos-gis/:id - Eliminar punto GIS (LocalStore + DB)
 router.delete('/:id', async (req, res) => {
-    const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
-    try {
-        await prisma.puntoGIS.delete({ where: { id } });
-        res.json(AppResponse.success({ deleted: true, id }));
+    const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const numId = parseInt(rawId, 10);
+    if (!isNaN(numId)) {
+        try {
+            await prisma.puntoGIS.delete({ where: { id: numId } });
+        }
+        catch (error) {
+            console.warn('[API] prisma.puntoGIS.delete failed:', error.message);
+        }
     }
-    catch (error) {
-        res.json(AppResponse.success({ deleted: true, id }));
-    }
+    LocalStore.delete('puntos-gis', !isNaN(numId) ? numId : rawId);
+    res.json(AppResponse.success({ deleted: true, id: rawId }));
 });
 export default router;
 //# sourceMappingURL=puntos-gis.js.map

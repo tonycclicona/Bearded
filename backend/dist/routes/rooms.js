@@ -17,7 +17,7 @@ export default createResourceRouter({
         featured: true,
         sortOrder: true
     },
-    label: 'habitaciones',
+    label: 'rooms',
     singularLabel: 'Habitación',
     key: 'id',
     fallbackData: FALLBACK_ROOMS

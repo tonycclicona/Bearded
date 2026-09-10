@@ -72,7 +72,7 @@ export default createResourceRouter<PhotoRow>({
     featured: true,
     sortOrder: true
   },
-  label: 'fotos',
+  label: 'photos',
   singularLabel: 'Foto',
   key: 'slug',
   transform: mapPhoto,

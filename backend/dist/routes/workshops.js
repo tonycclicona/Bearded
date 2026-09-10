@@ -17,7 +17,7 @@ export default createResourceRouter({
         featured: true,
         sortOrder: true
     },
-    label: 'talleres',
+    label: 'workshops',
     singularLabel: 'Taller',
     key: 'id',
     fallbackData: FALLBACK_WORKSHOPS

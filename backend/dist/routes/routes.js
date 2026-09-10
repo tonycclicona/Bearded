@@ -16,7 +16,7 @@ export default createResourceRouter({
         startPoint: true,
         sortOrder: true
     },
-    label: 'rutas',
+    label: 'routes',
     singularLabel: 'Ruta',
     key: 'id',
     fallbackData: FALLBACK_ROUTES

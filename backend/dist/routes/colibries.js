@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
 import { AppResponse } from '../utils/response.js';
 import { AppError } from '../utils/errors.js';
-import { FALLBACK_COLIBRIES } from '../lib/fallbacks.js';
+import { LocalStore } from '../lib/store.js';
 const router = Router();
 // GET /api/colibries
 router.get('/', async (req, res, _next) => {
@@ -30,16 +30,6 @@ router.get('/', async (req, res, _next) => {
                 fotoPrincipal: true,
                 galeriaFotos: true,
                 audioCantoUrl: true,
-                hotspots: {
-                    select: {
-                        id: true,
-                        nombre: true,
-                        slug: true,
-                        categoria: true,
-                        departamento: true,
-                        altitudMsnm: true
-                    }
-                },
                 createdAt: true,
                 updatedAt: true
             },
@@ -51,99 +41,118 @@ router.get('/', async (req, res, _next) => {
             res.json(AppResponse.success(colibries));
             return;
         }
-        res.json(AppResponse.success(FALLBACK_COLIBRIES));
     }
     catch (error) {
-        console.warn('[API] colibries findMany failed, serving fallback:', error);
-        res.json(AppResponse.success(FALLBACK_COLIBRIES));
+        console.warn('[API] colibries findMany failed, serving LocalStore:', error.message);
     }
+    const items = LocalStore.getAll('colibries');
+    res.json(AppResponse.success(items));
 });
 // GET /api/colibries/:id
 router.get('/:id', async (req, res, next) => {
     const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const id = parseInt(rawId, 10);
-    if (isNaN(id)) {
-        next(new AppError('INVALID_ID', 'ID de colibrí inválido', 400));
-        return;
-    }
-    try {
-        const colibri = await prisma.especieColibri.findUnique({
-            where: { id },
-            select: {
-                id: true,
-                nombreComun: true,
-                nombreCientifico: true,
-                familia: true,
-                estadoIUCN: true,
-                endemicoPeru: true,
-                altitudMinMsnm: true,
-                altitudMaxMsnm: true,
-                descripcion: true,
-                fotoPrincipal: true,
-                galeriaFotos: true,
-                audioCantoUrl: true,
-                hotspots: {
-                    select: {
-                        id: true,
-                        nombre: true,
-                        slug: true,
-                        categoria: true,
-                        departamento: true,
-                        latitud: true,
-                        longitud: true,
-                        altitudMsnm: true
-                    }
-                },
-                createdAt: true,
-                updatedAt: true
+    if (!isNaN(id)) {
+        try {
+            const colibri = await prisma.especieColibri.findUnique({
+                where: { id },
+                select: {
+                    id: true,
+                    nombreComun: true,
+                    nombreCientifico: true,
+                    familia: true,
+                    estadoIUCN: true,
+                    endemicoPeru: true,
+                    altitudMinMsnm: true,
+                    altitudMaxMsnm: true,
+                    descripcion: true,
+                    fotoPrincipal: true,
+                    galeriaFotos: true,
+                    audioCantoUrl: true,
+                    createdAt: true,
+                    updatedAt: true
+                }
+            });
+            if (colibri) {
+                res.json(AppResponse.success(colibri));
+                return;
             }
-        });
-        if (colibri) {
-            res.json(AppResponse.success(colibri));
-            return;
+        }
+        catch (error) {
+            console.warn('[API] colibries findUnique failed, checking LocalStore:', error.message);
         }
     }
-    catch (dbErr) {
-        console.warn('[API] colibries findUnique failed, checking fallback:', dbErr);
-    }
-    const fallback = FALLBACK_COLIBRIES.find((c) => c.id === id);
+    const fallback = LocalStore.getById('colibries', rawId, 'id') || LocalStore.getById('colibries', rawId, 'nombreCientifico');
     if (fallback) {
         res.json(AppResponse.success(fallback));
         return;
     }
     next(new AppError('NOT_FOUND', 'Especie de colibrí no encontrada', 404));
 });
-// POST /api/colibries - Crear colibrí
+// POST /api/colibries - Crear colibrí (LocalStore + DB)
 router.post('/', async (req, res) => {
+    const payload = { ...req.body };
+    if (payload.altitudMinMsnm !== undefined)
+        payload.altitudMinMsnm = Number(payload.altitudMinMsnm) || 1500;
+    if (payload.altitudMaxMsnm !== undefined)
+        payload.altitudMaxMsnm = Number(payload.altitudMaxMsnm) || 3200;
+    if (payload.imageUrl && !payload.fotoPrincipal)
+        payload.fotoPrincipal = payload.imageUrl;
+    if (payload.foto && !payload.fotoPrincipal)
+        payload.fotoPrincipal = payload.foto;
+    if (payload.fotoPrincipal && !payload.imageUrl)
+        payload.imageUrl = payload.fotoPrincipal;
+    let dbCreated = null;
     try {
-        const created = await prisma.especieColibri.create({ data: req.body });
-        res.status(201).json(AppResponse.success(created));
+        dbCreated = await prisma.especieColibri.create({ data: payload });
     }
     catch (error) {
-        res.status(201).json(AppResponse.success({ id: Date.now(), ...req.body }));
+        console.warn('[API] prisma.especieColibri.create failed, saving in LocalStore:', error.message);
     }
+    const saved = LocalStore.create('colibries', dbCreated || payload);
+    res.status(201).json(AppResponse.success(saved));
 });
-// PUT /api/colibries/:id - Actualizar colibrí
+// PUT /api/colibries/:id - Actualizar colibrí (LocalStore + DB)
 router.put('/:id', async (req, res) => {
-    const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
-    try {
-        const updated = await prisma.especieColibri.update({ where: { id }, data: req.body });
-        res.json(AppResponse.success(updated));
+    const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const id = parseInt(rawId, 10);
+    const payload = { ...req.body };
+    if (payload.altitudMinMsnm !== undefined)
+        payload.altitudMinMsnm = Number(payload.altitudMinMsnm) || 1500;
+    if (payload.altitudMaxMsnm !== undefined)
+        payload.altitudMaxMsnm = Number(payload.altitudMaxMsnm) || 3200;
+    if (payload.imageUrl && !payload.fotoPrincipal)
+        payload.fotoPrincipal = payload.imageUrl;
+    if (payload.foto && !payload.fotoPrincipal)
+        payload.fotoPrincipal = payload.foto;
+    if (payload.fotoPrincipal && !payload.imageUrl)
+        payload.imageUrl = payload.fotoPrincipal;
+    let dbUpdated = null;
+    if (!isNaN(id)) {
+        try {
+            dbUpdated = await prisma.especieColibri.update({ where: { id }, data: payload });
+        }
+        catch (error) {
+            console.warn('[API] prisma.especieColibri.update failed, updating in LocalStore:', error.message);
+        }
     }
-    catch (error) {
-        res.json(AppResponse.success({ id, ...req.body }));
-    }
+    const updated = LocalStore.update('colibries', !isNaN(id) ? id : rawId, dbUpdated || payload);
+    res.json(AppResponse.success(updated));
 });
-// DELETE /api/colibries/:id - Eliminar colibrí
+// DELETE /api/colibries/:id - Eliminar colibrí (LocalStore + DB)
 router.delete('/:id', async (req, res) => {
-    const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id, 10);
-    try {
-        await prisma.especieColibri.delete({ where: { id } });
-        res.json(AppResponse.success({ deleted: true, id }));
+    const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const id = parseInt(rawId, 10);
+    if (!isNaN(id)) {
+        try {
+            await prisma.especieColibri.delete({ where: { id } });
+        }
+        catch (error) {
+            console.warn('[API] prisma.especieColibri.delete failed:', error.message);
+        }
     }
-    catch (error) {
-        res.json(AppResponse.success({ deleted: true, id }));
-    }
+    LocalStore.delete('colibries', !isNaN(id) ? id : rawId);
+    res.json(AppResponse.success({ deleted: true, id: rawId }));
 });
 export default router;
 //# sourceMappingURL=colibries.js.map
