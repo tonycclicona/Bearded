@@ -5,55 +5,47 @@ export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ||
 
 
 export function getCookie(name: string): string | null {
-  if (typeof document === 'undefined') return null;
-  const value = `; ${document.cookie}`;
-  const parts = value.split(`; ${name}=`);
-  if (parts.length === 2) {
-    const rawVal = parts.pop()?.split(';').shift();
-    if (rawVal) {
-      try { return decodeURIComponent(rawVal); } catch (_) { return rawVal; }
-    }
-  }
+  if (typeof window === 'undefined') return null;
   try {
-    return localStorage.getItem(name);
-  } catch (_) {
-    return null;
-  }
+    const fromStorage = localStorage.getItem(name);
+    if (fromStorage) return fromStorage;
+  } catch (_) {}
+
+  try {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) {
+      const rawVal = parts.pop()?.split(';').shift();
+      if (rawVal) {
+        try { return decodeURIComponent(rawVal); } catch (_) { return rawVal; }
+      }
+    }
+  } catch (_) {}
+  return null;
 }
 
 export function setCookie(name: string, value: string, days: number = 7) {
-  if (typeof document === 'undefined') return;
-  const maxAge = days * 86400;
-  const expires = new Date(Date.now() + days * 864e5).toUTCString();
-
-  // 1. Cookie estándar en la ruta raíz
-  document.cookie = `${name}=${value}; expires=${expires}; max-age=${maxAge}; path=/; SameSite=Lax`;
-
-  // 2. Cookie de dominio raíz para compartir entre subdominios si aplica
-  try {
-    const hostname = window.location.hostname;
-    if (hostname.includes('beardedmountaineerlodge.com')) {
-      document.cookie = `${name}=${value}; expires=${expires}; max-age=${maxAge}; path=/; domain=.beardedmountaineerlodge.com; SameSite=Lax`;
-    }
-  } catch (_) {}
-
-  // 3. Respaldo infalible en localStorage
+  if (typeof window === 'undefined') return;
   try {
     localStorage.setItem(name, value);
+    sessionStorage.setItem(name, value);
+  } catch (_) {}
+
+  try {
+    const maxAge = days * 86400;
+    const expires = new Date(Date.now() + days * 864e5).toUTCString();
+    document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; max-age=${maxAge}; path=/; SameSite=Lax`;
   } catch (_) {}
 }
 
 export function removeCookie(name: string) {
-  if (typeof document === 'undefined') return;
-  document.cookie = `${name}=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; max-age=0;`;
-  try {
-    const hostname = window.location.hostname;
-    if (hostname.includes('beardedmountaineerlodge.com')) {
-      document.cookie = `${name}=; path=/; domain=.beardedmountaineerlodge.com; expires=Thu, 01 Jan 1970 00:00:01 GMT; max-age=0;`;
-    }
-  } catch (_) {}
+  if (typeof window === 'undefined') return;
   try {
     localStorage.removeItem(name);
+    sessionStorage.removeItem(name);
+  } catch (_) {}
+  try {
+    document.cookie = `${name}=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; max-age=0; SameSite=Lax`;
   } catch (_) {}
 }
 
@@ -100,13 +92,6 @@ export async function mutateApi<T = any>(
   const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
-    if (res.status === 401 || res.status === 403) {
-      removeCookie('session_token');
-      if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
-        const isSubdomain = window.location.hostname.startsWith('admin.');
-        window.location.href = isSubdomain ? '/login' : '/admin/login';
-      }
-    }
     throw new Error(data.error || data.message || `Error ${res.status}`);
   }
 

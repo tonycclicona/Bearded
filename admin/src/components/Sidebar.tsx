@@ -50,8 +50,11 @@ export default function Sidebar({ isOpen = false, onClose = () => {} }: SidebarP
 
   const handleLogout = () => {
     removeCookie('session_token');
-    router.push('/login');
-    router.refresh();
+    if (typeof window !== 'undefined') {
+      window.location.href = '/login';
+    } else {
+      router.replace('/login');
+    }
   };
 
   return (

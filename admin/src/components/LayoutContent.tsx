@@ -14,13 +14,12 @@ export default function LayoutContent({ children }: { children: React.ReactNode 
   const [authorized, setAuthorized] = useState(false);
 
   useEffect(() => {
-    const token = getCookie('session_token');
-
     if (isLoginPage) {
       setAuthorized(true);
       return;
     }
 
+    const token = getCookie('session_token');
     if (!token) {
       if (typeof window !== 'undefined') {
         window.location.replace('/login');
@@ -30,19 +29,7 @@ export default function LayoutContent({ children }: { children: React.ReactNode 
       return;
     }
 
-    // Validar token activo con el backend de forma segura
-    fetcher('/auth/me')
-      .then(() => {
-        setAuthorized(true);
-      })
-      .catch(() => {
-        removeCookie('session_token');
-        if (typeof window !== 'undefined') {
-          window.location.replace('/login');
-        } else {
-          router.replace('/login');
-        }
-      });
+    setAuthorized(true);
   }, [pathname, isLoginPage, router]);
 
   if (isLoginPage) {

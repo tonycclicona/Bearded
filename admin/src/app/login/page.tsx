@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { mutateApi, setCookie } from '@/lib/api';
-import { Lock, User, ShieldAlert, CheckCircle2 } from 'lucide-react';
+import { Lock, User, ShieldAlert } from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
