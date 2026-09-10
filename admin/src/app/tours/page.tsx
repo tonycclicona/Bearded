@@ -3,11 +3,24 @@
 import { useState } from 'react';
 import ResourceTable, { Column } from '@/components/ResourceTable';
 import CrudModal, { FormField } from '@/components/CrudModal';
-import { mutateApi } from '@/lib/api';
+import { mutateApi, resolveMediaUrl } from '@/lib/api';
 
 const FIELDS: FormField[] = [
-  { name: 'nombre', label: 'Nombre del Tour / Expedición', type: 'text', required: true, placeholder: 'Ej. Expedición Endémicas del Manu & Cusco' },
-  { name: 'slug', label: 'Identificador URL (slug)', type: 'text', required: true, placeholder: 'expedicion-endemicas-manu-cusco' },
+  {
+    name: 'nombre',
+    label: 'Nombre del Tour / Expedición',
+    type: 'text',
+    required: true,
+    placeholder: 'Ej. Expedición Endémicas del Manu & Cusco',
+    colSpan: 2
+  },
+  {
+    name: 'imageUrl',
+    label: 'Foto de Portada de la Expedición',
+    type: 'image',
+    required: true,
+    help: 'Se optimizará y convertirá automáticamente a WebP'
+  },
   {
     name: 'regionRuta',
     label: 'Región de la Ruta',
@@ -16,15 +29,59 @@ const FIELDS: FormField[] = [
     options: [
       { label: 'Ruta Sur Manu', value: 'Ruta Sur Manu' },
       { label: 'Ruta Norte', value: 'Ruta Norte' },
-      { label: 'Ruta Centro', value: 'Ruta Centro' }
+      { label: 'Ruta Centro', value: 'Ruta Centro' },
+      { label: 'Valle Sagrado', value: 'Valle Sagrado' }
     ]
   },
-  { name: 'duracion_dias', label: 'Duración (Días)', type: 'number', required: true, step: '1', placeholder: '4' },
-  { name: 'cupos_disponibles', label: 'Cupos Disponibles', type: 'number', required: true, step: '1', placeholder: '8' },
-  { name: 'precio_adulto', label: 'Precio por Adulto (PEN)', type: 'number', required: true, step: '1', prefix: 'S/' },
-  { name: 'precio_adulto_usd', label: 'Precio por Adulto (USD)', type: 'number', step: '1', prefix: '$' },
-  { name: 'nivelCaminata', label: 'Nivel de Caminata', type: 'text', placeholder: 'Fácil / Fotografía / Moderado' },
-  { name: 'descripcion', label: 'Descripción de la Expedición', type: 'textarea', placeholder: 'Resumen del viaje y objetivos biológicos...' }
+  {
+    name: 'duracion_dias',
+    label: 'Duración (Días)',
+    type: 'number',
+    required: true,
+    step: '1',
+    placeholder: '4'
+  },
+  {
+    name: 'cupos_disponibles',
+    label: 'Cupos Disponibles',
+    type: 'number',
+    required: true,
+    step: '1',
+    placeholder: '8'
+  },
+  {
+    name: 'precio_adulto',
+    label: 'Precio por Adulto (PEN S/.)',
+    type: 'number',
+    required: true,
+    step: '0.01',
+    prefix: 'S/'
+  },
+  {
+    name: 'precio_adulto_usd',
+    label: 'Precio por Adulto (USD $)',
+    type: 'number',
+    step: '0.01',
+    prefix: '$'
+  },
+  {
+    name: 'nivelCaminata',
+    label: 'Nivel de Exigencia',
+    type: 'select',
+    options: [
+      { label: 'Fácil / Familiar', value: 'Fácil' },
+      { label: 'Fotografía / Paso Lento', value: 'Fotografía' },
+      { label: 'Moderado', value: 'Moderado' },
+      { label: 'Exigente / Alta Montaña', value: 'Exigente' }
+    ]
+  },
+  {
+    name: 'descripcion',
+    label: 'Descripción del Itinerario y Objetivos',
+    type: 'textarea',
+    rows: 4,
+    placeholder: 'Resumen del viaje, puntos de avistamiento clave y especies objetivo...'
+  }
 ];
 
 export default function ToursPage() {
@@ -33,6 +90,24 @@ export default function ToursPage() {
   const [refreshKey, setRefreshKey] = useState(0);
 
   const columns: Column[] = [
+    {
+      header: 'Foto',
+      accessor: (item) => {
+        const photo = item.imageUrl || item.foto;
+        return photo ? (
+          <img
+            src={resolveMediaUrl(photo)}
+            alt={item.nombre}
+            className="w-14 h-10 object-cover rounded-lg border border-gray-200 shadow-2xs"
+            onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+          />
+        ) : (
+          <div className="w-14 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-[10px] text-gray-400 font-medium">
+            Sin foto
+          </div>
+        );
+      }
+    },
     { header: 'Tour Guiado', accessor: 'nombre', className: 'font-semibold text-gray-900' },
     { header: 'Región', accessor: 'regionRuta' },
     { header: 'Duración', accessor: (item) => `${item.duracion_dias || 1} días` },
@@ -72,7 +147,7 @@ export default function ToursPage() {
     <>
       <ResourceTable
         title="Tours & Expediciones"
-        description="Itinerarios programados y expediciones para ornitólogos y ecoturistas."
+        description="Itinerarios programados y expediciones ornitológicas con fotos de portada."
         endpoint="/tours"
         columns={columns}
         onNew={handleNew}
@@ -84,7 +159,7 @@ export default function ToursPage() {
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
         title={editingItem ? 'Editar Tour de Expedición' : 'Nuevo Tour de Expedición'}
-        subtitle="Configura itinerario, región y precios de la expedición"
+        subtitle="Configura foto de portada, itinerario, región y precios de la expedición"
         fields={FIELDS}
         initialData={editingItem}
         onSave={handleSave}

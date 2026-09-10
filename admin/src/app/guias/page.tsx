@@ -3,15 +3,51 @@
 import { useState } from 'react';
 import ResourceTable, { Column } from '@/components/ResourceTable';
 import CrudModal, { FormField } from '@/components/CrudModal';
-import { mutateApi } from '@/lib/api';
+import { mutateApi, resolveMediaUrl } from '@/lib/api';
 
 const FIELDS: FormField[] = [
-  { name: 'nombre', label: 'Nombre del Guía Especialista', type: 'text', required: true, placeholder: 'Ej. Juan Carlos Huamán' },
-  { name: 'especialidad', label: 'Especialidad', type: 'text', required: true, placeholder: 'Ej. Ornitología de Bosque Nuboso y Alta Montaña' },
-  { name: 'experiencia', label: 'Años de Experiencia', type: 'text', required: true, placeholder: 'Ej. 12 años en Cusco y Manu' },
-  { name: 'idiomas', label: 'Idiomas', type: 'text', required: true, placeholder: 'Ej. Español, Inglés, Quechua' },
-  { name: 'foto', label: 'URL de Fotografía', type: 'text', placeholder: 'https://ejemplo.com/guia.jpg' },
-  { name: 'descripcion', label: 'Biografía / Perfil Profesional', type: 'textarea', placeholder: 'Estudios, certificaciones y expediciones lideradas...' }
+  {
+    name: 'nombre',
+    label: 'Nombre del Guía Especialista',
+    type: 'text',
+    required: true,
+    placeholder: 'Ej. Juan Carlos Huamán',
+    colSpan: 2
+  },
+  {
+    name: 'foto',
+    label: 'Fotografía del Guía (Retrato)',
+    type: 'image',
+    help: 'Sube la foto del perfil del guía (se convertirá a WebP)'
+  },
+  {
+    name: 'especialidad',
+    label: 'Especialidad Principal',
+    type: 'text',
+    required: true,
+    placeholder: 'Ej. Ornitología de Bosque Nuboso y Alta Montaña'
+  },
+  {
+    name: 'experiencia',
+    label: 'Años / Trayectoria de Experiencia',
+    type: 'text',
+    required: true,
+    placeholder: 'Ej. 12 años en Cusco y Manu'
+  },
+  {
+    name: 'idiomas',
+    label: 'Idiomas Dominados',
+    type: 'text',
+    required: true,
+    placeholder: 'Ej. Español, Inglés, Quechua'
+  },
+  {
+    name: 'descripcion',
+    label: 'Biografía / Perfil Profesional',
+    type: 'textarea',
+    rows: 4,
+    placeholder: 'Estudios biológicos, certificaciones oficiales de montaña y expediciones lideradas...'
+  }
 ];
 
 export default function GuiasPage() {
@@ -20,6 +56,24 @@ export default function GuiasPage() {
   const [refreshKey, setRefreshKey] = useState(0);
 
   const columns: Column[] = [
+    {
+      header: 'Foto',
+      accessor: (item) => {
+        const photo = item.foto || item.imageUrl;
+        return photo ? (
+          <img
+            src={resolveMediaUrl(photo)}
+            alt={item.nombre}
+            className="w-10 h-10 object-cover rounded-full border border-gray-200 shadow-2xs"
+            onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+          />
+        ) : (
+          <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-[10px] text-gray-400 font-medium">
+            Sin foto
+          </div>
+        );
+      }
+    },
     { header: 'Guía Especialista', accessor: 'nombre', className: 'font-semibold text-gray-900' },
     { header: 'Especialidad', accessor: 'especialidad' },
     { header: 'Idiomas', accessor: 'idiomas' },
@@ -61,7 +115,7 @@ export default function GuiasPage() {
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
         title={editingItem ? 'Editar Guía Especialista' : 'Nuevo Guía Especialista'}
-        subtitle="Configura el perfil profesional del guía de campo"
+        subtitle="Configura foto de perfil WebP y trayectoria del guía de campo"
         fields={FIELDS}
         initialData={editingItem}
         onSave={handleSave}

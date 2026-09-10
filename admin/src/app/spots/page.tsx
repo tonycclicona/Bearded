@@ -3,13 +3,36 @@
 import { useState } from 'react';
 import ResourceTable, { Column } from '@/components/ResourceTable';
 import CrudModal, { FormField } from '@/components/CrudModal';
-import { mutateApi } from '@/lib/api';
+import { mutateApi, resolveMediaUrl } from '@/lib/api';
 
 const FIELDS: FormField[] = [
-  { name: 'title', label: 'Nombre del Escenario / Spot', type: 'text', required: true, placeholder: 'Ej. Mirador El Vuelo del Picaflor' },
-  { name: 'description', label: 'Descripción', type: 'textarea', placeholder: 'Describe el punto de observación, vegetación y entorno...' },
-  { name: 'benefits', label: 'Ventajas y Características', type: 'list', placeholder: 'Bebederos de néctar orgánico\nBancas de madera ergonómicas\nSombra natural' },
-  { name: 'imageUrl', label: 'URL de Foto / Imagen', type: 'text', placeholder: 'https://ejemplo.com/spot.jpg' }
+  {
+    name: 'title',
+    label: 'Nombre del Escenario / Spot',
+    type: 'text',
+    required: true,
+    placeholder: 'Ej. Mirador El Vuelo del Picaflor',
+    colSpan: 2
+  },
+  {
+    name: 'imageUrl',
+    label: 'Fotografía del Spot / Mirador',
+    type: 'image',
+    help: 'Sube la foto del bebedero o mirador (se optimizará a WebP)'
+  },
+  {
+    name: 'description',
+    label: 'Descripción del Punto de Observación',
+    type: 'textarea',
+    rows: 3,
+    placeholder: 'Describe el punto de observación, especies frecuentes, vegetación y entorno...'
+  },
+  {
+    name: 'benefits',
+    label: 'Ventajas y Características (un ítem por línea)',
+    type: 'list',
+    placeholder: 'Bebederos de néctar orgánico esterilizados\nBancas de madera ergonómicas para fotógrafos\nSombra natural de queñuas\nDistancia óptima de 2 metros para macrofotografía'
+  }
 ];
 
 export default function SpotsPage() {
@@ -18,6 +41,24 @@ export default function SpotsPage() {
   const [refreshKey, setRefreshKey] = useState(0);
 
   const columns: Column[] = [
+    {
+      header: 'Foto',
+      accessor: (item) => {
+        const photo = item.imageUrl || item.foto;
+        return photo ? (
+          <img
+            src={resolveMediaUrl(photo)}
+            alt={item.title || item.name}
+            className="w-14 h-10 object-cover rounded-lg border border-gray-200 shadow-2xs"
+            onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+          />
+        ) : (
+          <div className="w-14 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-[10px] text-gray-400 font-medium">
+            Sin foto
+          </div>
+        );
+      }
+    },
     {
       header: 'Escenario / Spot',
       accessor: (item) => item.title || item.name || 'Sin título',
@@ -72,7 +113,7 @@ export default function SpotsPage() {
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
         title={editingItem ? 'Editar Escenario / Spot' : 'Nuevo Escenario / Spot'}
-        subtitle="Configura los miradores y puntos de fotografía"
+        subtitle="Configura foto, miradores y puntos de fotografía ornitológica"
         fields={FIELDS}
         initialData={editingItem}
         onSave={handleSave}

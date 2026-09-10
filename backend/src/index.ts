@@ -1,6 +1,8 @@
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import path from 'path';
+import fs from 'fs';
 import { errorHandler } from './middleware/error-handler.js';
 import { ensureTablesExist } from './lib/init-db.js';
 import passesRouter from './routes/passes.js';
@@ -71,6 +73,17 @@ app.use('/auth', authRouter);
 // Upload routes (subida de imágenes y documentos)
 app.use('/api/upload', uploadRouter);
 app.use('/upload', uploadRouter);
+
+// Servir archivos subidos estáticamente con CORS habilitado
+const rootDir = fs.existsSync(path.resolve(process.cwd(), 'admin'))
+  ? process.cwd()
+  : path.resolve(process.cwd(), '..');
+const uploadsDir = path.resolve(rootDir, 'admin/uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+app.use('/uploads', express.static(uploadsDir));
+app.use('/api/uploads', express.static(uploadsDir));
 
 // Routes (compatibilidad dual: con /api/ y directa para subdominio api.)
 app.use('/api/passes', passesRouter);

@@ -3,15 +3,58 @@
 import { useState } from 'react';
 import ResourceTable, { Column } from '@/components/ResourceTable';
 import CrudModal, { FormField } from '@/components/CrudModal';
-import { mutateApi } from '@/lib/api';
+import { mutateApi, resolveMediaUrl } from '@/lib/api';
 
 const FIELDS: FormField[] = [
-  { name: 'title', label: 'Nombre de la Experiencia', type: 'text', required: true, placeholder: 'Ej. Fogata Andina & Astronomía Inca' },
-  { name: 'duration', label: 'Duración', type: 'text', required: true, placeholder: 'Ej. 2 horas' },
-  { name: 'price', label: 'Tarifa en Soles (PEN)', type: 'number', required: true, step: '1', prefix: 'S/' },
-  { name: 'priceUSD', label: 'Tarifa en Dólares (USD)', type: 'number', step: '1', prefix: '$' },
-  { name: 'description', label: 'Descripción', type: 'textarea', placeholder: 'Describe los momentos de la experiencia...' },
-  { name: 'included', label: 'Servicios Incluidos', type: 'list', placeholder: 'Guía bilingüe\nBebidas calientes y snacks\nTelescopio' }
+  {
+    name: 'title',
+    label: 'Nombre de la Experiencia',
+    type: 'text',
+    required: true,
+    placeholder: 'Ej. Fogata Andina & Astronomía Inca',
+    colSpan: 2
+  },
+  {
+    name: 'imageUrl',
+    label: 'Foto de Portada de la Experiencia',
+    type: 'image',
+    help: 'Sube la foto promocional (se optimizará a WebP)'
+  },
+  {
+    name: 'duration',
+    label: 'Duración',
+    type: 'text',
+    required: true,
+    placeholder: 'Ej. 2 horas / 1 noche'
+  },
+  {
+    name: 'price',
+    label: 'Tarifa en Soles (PEN S/.)',
+    type: 'number',
+    required: true,
+    step: '0.01',
+    prefix: 'S/'
+  },
+  {
+    name: 'priceUSD',
+    label: 'Tarifa en Dólares (USD $)',
+    type: 'number',
+    step: '0.01',
+    prefix: '$'
+  },
+  {
+    name: 'description',
+    label: 'Descripción de la Experiencia',
+    type: 'textarea',
+    rows: 3,
+    placeholder: 'Describe los momentos de la actividad, rituales, ambiente y recomendaciones...'
+  },
+  {
+    name: 'included',
+    label: 'Servicios Incluidos (un ítem por línea)',
+    type: 'list',
+    placeholder: 'Guía ornitólogo bilingüe\nBebidas calientes y snacks orgánicos\nTelescopio astronómico\nFogata comunal'
+  }
 ];
 
 export default function ExperiencesPage() {
@@ -20,6 +63,24 @@ export default function ExperiencesPage() {
   const [refreshKey, setRefreshKey] = useState(0);
 
   const columns: Column[] = [
+    {
+      header: 'Foto',
+      accessor: (item) => {
+        const photo = item.imageUrl || item.foto;
+        return photo ? (
+          <img
+            src={resolveMediaUrl(photo)}
+            alt={item.title}
+            className="w-14 h-10 object-cover rounded-lg border border-gray-200 shadow-2xs"
+            onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+          />
+        ) : (
+          <div className="w-14 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-[10px] text-gray-400 font-medium">
+            Sin foto
+          </div>
+        );
+      }
+    },
     { header: 'Experiencia', accessor: 'title', className: 'font-semibold text-gray-900' },
     { header: 'Duración', accessor: 'duration' },
     {
@@ -73,7 +134,7 @@ export default function ExperiencesPage() {
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
         title={editingItem ? 'Editar Experiencia' : 'Nueva Experiencia'}
-        subtitle="Configura los detalles de la actividad"
+        subtitle="Configura foto de portada, tarifas e inclusiones de la actividad"
         fields={FIELDS}
         initialData={editingItem}
         onSave={handleSave}

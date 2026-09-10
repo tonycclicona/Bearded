@@ -3,14 +3,26 @@
 import { useState } from 'react';
 import ResourceTable, { Column } from '@/components/ResourceTable';
 import CrudModal, { FormField } from '@/components/CrudModal';
-import { mutateApi } from '@/lib/api';
+import { mutateApi, resolveMediaUrl } from '@/lib/api';
 
 const FIELDS: FormField[] = [
-  { name: 'nombre', label: 'Nombre del Punto / Hito GIS', type: 'text', required: true, placeholder: 'Ej. Mirador Valle Sagrado - Sector Norte' },
-  { name: 'slug', label: 'Identificador URL (slug)', type: 'text', required: true, placeholder: 'mirador-valle-sagrado-norte' },
+  {
+    name: 'nombre',
+    label: 'Nombre del Punto / Hito GIS',
+    type: 'text',
+    required: true,
+    placeholder: 'Ej. Mirador Valle Sagrado - Sector Norte',
+    colSpan: 2
+  },
+  {
+    name: 'imageUrl',
+    label: 'Fotografía del Spot / Hito Geográfico',
+    type: 'image',
+    help: 'Sube una foto del punto o mirador (se optimizará a WebP)'
+  },
   {
     name: 'categoria',
-    label: 'Categoría',
+    label: 'Categoría del Punto',
     type: 'select',
     required: true,
     options: [
@@ -21,12 +33,49 @@ const FIELDS: FormField[] = [
       { label: 'Punto de Encuentro', value: 'LOGISTICA_PUNTO_ENCUENTRO' }
     ]
   },
-  { name: 'departamento', label: 'Departamento / Región', type: 'text', required: true, placeholder: 'Cusco' },
-  { name: 'latitud', label: 'Latitud GPS', type: 'number', required: true, step: '0.000001', placeholder: '-13.315000' },
-  { name: 'longitud', label: 'Longitud GPS', type: 'number', required: true, step: '0.000001', placeholder: '-72.155000' },
-  { name: 'altitudMsnm', label: 'Altitud (msnm)', type: 'number', step: '10', placeholder: '2870' },
-  { name: 'mejorTemporada', label: 'Mejor Temporada', type: 'text', placeholder: 'Todo el año / Mayo - Octubre' },
-  { name: 'descripcion', label: 'Descripción del Punto', type: 'textarea', placeholder: 'Punto estratégico de avistamiento temprano...' }
+  {
+    name: 'departamento',
+    label: 'Departamento / Región',
+    type: 'text',
+    required: true,
+    placeholder: 'Cusco'
+  },
+  {
+    name: 'latitud',
+    label: 'Latitud GPS (Decimal)',
+    type: 'number',
+    required: true,
+    step: '0.000001',
+    placeholder: '-13.315000'
+  },
+  {
+    name: 'longitud',
+    label: 'Longitud GPS (Decimal)',
+    type: 'number',
+    required: true,
+    step: '0.000001',
+    placeholder: '-72.155000'
+  },
+  {
+    name: 'altitudMsnm',
+    label: 'Altitud (msnm)',
+    type: 'number',
+    step: '10',
+    placeholder: '2870'
+  },
+  {
+    name: 'mejorTemporada',
+    label: 'Mejor Temporada de Visita',
+    type: 'text',
+    placeholder: 'Todo el año / Mayo - Octubre'
+  },
+  {
+    name: 'descripcion',
+    label: 'Descripción Detallada del Punto',
+    type: 'textarea',
+    rows: 3,
+    placeholder: 'Punto estratégico de avistamiento temprano con vista despejada a los árboles de queñua...'
+  }
 ];
 
 export default function PuntosGisPage() {
@@ -35,8 +84,33 @@ export default function PuntosGisPage() {
   const [refreshKey, setRefreshKey] = useState(0);
 
   const columns: Column[] = [
+    {
+      header: 'Foto',
+      accessor: (item) => {
+        const photo = item.imageUrl || item.foto;
+        return photo ? (
+          <img
+            src={resolveMediaUrl(photo)}
+            alt={item.nombre}
+            className="w-12 h-9 object-cover rounded-lg border border-gray-200 shadow-2xs"
+            onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+          />
+        ) : (
+          <div className="w-12 h-9 rounded-lg bg-gray-100 flex items-center justify-center text-[10px] text-gray-400 font-medium">
+            Sin foto
+          </div>
+        );
+      }
+    },
     { header: 'Punto / Hito', accessor: 'nombre', className: 'font-semibold text-gray-900' },
-    { header: 'Categoría', accessor: 'categoria' },
+    {
+      header: 'Categoría',
+      accessor: (item) => (
+        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-700">
+          {item.categoria?.replace(/_/g, ' ') || 'Punto GIS'}
+        </span>
+      )
+    },
     { header: 'Latitud', accessor: (item) => Number(item.latitud || 0).toFixed(5) },
     { header: 'Longitud', accessor: (item) => Number(item.longitud || 0).toFixed(5) },
     { header: 'Altitud', accessor: (item) => `${item.altitudMsnm || item.altitud || 2800} msnm` }
@@ -65,7 +139,7 @@ export default function PuntosGisPage() {
     <>
       <ResourceTable
         title="Plataforma GIS & Georreferenciación"
-        description="Puntos de control, miradores y nidos monitoreados con coordenadas satelitales."
+        description="Puntos de control, miradores y nidos monitoreados con coordenadas satelitales y fotos."
         endpoint="/puntos-gis"
         columns={columns}
         onNew={handleNew}
@@ -77,7 +151,7 @@ export default function PuntosGisPage() {
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
         title={editingItem ? 'Editar Punto GIS' : 'Nuevo Punto Georreferenciado'}
-        subtitle="Configura coordenadas GPS y parámetros del hito geográfico"
+        subtitle="Configura coordenadas GPS, fotos y parámetros del hito geográfico"
         fields={FIELDS}
         initialData={editingItem}
         onSave={handleSave}
