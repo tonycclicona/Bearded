@@ -56,3 +56,11 @@ if (fs.existsSync(distIndex) && !fs.existsSync(distServer)) {
   console.log('[build:backend] ✅ dist/server.js generado para paridad con Unu-Raymi.');
 }
 
+try {
+  console.log('[build:backend] Generating Prisma client...');
+  execSync('npx prisma generate --schema=prisma/schema.prisma', { cwd: ROOT, stdio: 'inherit' });
+  console.log('[build:backend] ✅ Prisma client generated successfully.');
+} catch (err) {
+  console.warn('[build:backend] Warning: prisma generate:', err.message);
+}
+

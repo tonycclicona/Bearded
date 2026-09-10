@@ -19,14 +19,40 @@ if (strpos($requestUri, '/api') !== 0) {
     $requestUri = '/api' . $requestUri;
 }
 
-$targets = [
-    'http://127.0.0.1:4000',
-    'http://127.0.0.1:3000',
-    'https://beardedmountaineerlodge.com'
+// Detectar puerto dinámico de Node.js si existe .node_port
+$detectedPort = null;
+$portCandidates = [
+    __DIR__ . '/.node_port',
+    dirname(__DIR__) . '/.node_port',
+    dirname(dirname(__DIR__)) . '/.node_port',
+    '/home/u251936581/domains/beardedmountaineerlodge.com/hbuilds/current/nodejs/.node_port'
 ];
+foreach ($portCandidates as $pf) {
+    if (file_exists($pf)) {
+        $p = trim(@file_get_contents($pf));
+        if (!empty($p) && is_numeric($p)) {
+            $detectedPort = $p;
+            break;
+        }
+    }
+}
+
+$targets = [];
+if ($detectedPort) {
+    $targets[] = "http://127.0.0.1:{$detectedPort}";
+    $targets[] = "http://localhost:{$detectedPort}";
+}
+$targets[] = 'http://127.0.0.1:4000';
+$targets[] = 'http://localhost:4000';
+$targets[] = 'http://127.0.0.1:3000';
+$targets[] = 'http://localhost:3000';
+
 $response = false;
 $httpCode = 0;
 $contentType = '';
+$lastError = '';
+$lastErrno = 0;
+$triedTargets = [];
 
 $headers = [];
 foreach (getallheaders() as $name => $value) {
@@ -69,22 +95,20 @@ if ($isMultipart) {
 
 foreach ($targets as $baseTarget) {
     $targetUrl = $baseTarget . $requestUri;
+    $triedTargets[] = $targetUrl;
     $ch = curl_init($targetUrl);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $_SERVER['REQUEST_METHOD']);
     curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
     curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+    curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
     curl_setopt($ch, CURLOPT_ENCODING, '');
-    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 2);
     curl_setopt($ch, CURLOPT_TIMEOUT, 30);
     
     $reqHeaders = $headers;
-    if (strpos($baseTarget, 'beardedmountaineerlodge.com') !== false) {
-        $reqHeaders[] = "Host: beardedmountaineerlodge.com";
-    } else {
-        $reqHeaders[] = "Host: api.beardedmountaineerlodge.com";
-    }
+    $reqHeaders[] = "Host: api.beardedmountaineerlodge.com";
 
     if ($isMultipart) {
         $filteredHeaders = array_filter($reqHeaders, function($h) {
@@ -103,6 +127,8 @@ foreach ($targets as $baseTarget) {
     $response = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+    $lastError = curl_error($ch);
+    $lastErrno = curl_errno($ch);
     curl_close($ch);
 
     $isHtml = (strpos(strtolower($contentType ?: ''), 'text/html') !== false);
@@ -112,9 +138,7 @@ foreach ($targets as $baseTarget) {
 }
 
 if ($httpCode > 0 && $response !== false && !$isHtml) {
-    if ($contentType) {
-        header("Content-Type: $contentType");
-    }
+    header("Content-Type: " . ($contentType ?: 'application/json; charset=utf-8'));
     http_response_code($httpCode);
     echo $response;
     exit(0);
@@ -124,8 +148,14 @@ header("Content-Type: application/json; charset=UTF-8");
 http_response_code(502);
 echo json_encode([
     "success" => false,
-    "error" => "El servidor Node.js de Bearded Mountaineer Lodge no está respondiendo en los puertos locales (4000/3000). Asegúrate de iniciar la aplicación Node.js en el panel de Hostinger.",
+    "error" => "El servidor Node.js de Bearded Mountaineer Lodge no está respondiendo en los puertos locales (4000/3000). Asegúrate de que la aplicación Node.js esté activa en Hostinger.",
     "path" => $requestUri,
+    "debug" => [
+        "detectedPort" => $detectedPort,
+        "lastError" => $lastError,
+        "lastErrno" => $lastErrno,
+        "triedTargets" => $triedTargets
+    ],
     "timestamp" => date("c")
-]);
+], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
 exit(0);

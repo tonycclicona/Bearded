@@ -51,21 +51,8 @@ const adminDir = path.resolve(__dirname, 'admin/out');
 console.log('> [Server] Frontend dir:', frontendDir);
 console.log('> [Server] Admin dir:', adminDir);
 
-// ── Sincronizar frontend/out a public_html en tiempo de ejecución ────────────
-try {
-  const pubTargets = [
-    path.resolve(__dirname, 'public_html'),
-    '/home/u251936581/domains/beardedmountaineerlodge.com/public_html'
-  ];
-  pubTargets.forEach(function(target) {
-    if (fs.existsSync(target) && fs.existsSync(frontendDir) && target !== frontendDir) {
-      fs.cpSync(frontendDir, target, { recursive: true });
-      console.log('> [Server] Synchronized frontend files to:', target);
-    }
-  });
-} catch (e) {
-  console.error('> [Server] Warning syncing to public_html:', e.message);
-}
+// Sincronización se realiza exclusivamente en postinstall.cjs durante el deploy
+
 
 // ── 1. CARGAR BACKEND API (ASÍNCRONO CON PATH TO FILE URL) ────────────────────
 process.env.UNIFIED_SERVER = 'true';
@@ -158,8 +145,15 @@ app.use(function(req, res) {
 
 // En entornos Hostinger LiteSpeed / Node.js
 const port = process.env.PORT || 4000;
-const server = app.listen(port, function() {
-  console.log('> [Server] Bearded Mountaineer Lodge corriendo en puerto:', port);
+const server = app.listen(port, '0.0.0.0', function() {
+  console.log('> [Server] Bearded Mountaineer Lodge corriendo en 0.0.0.0:' + port);
+  try {
+    fs.writeFileSync(path.resolve(__dirname, '.node_port'), String(port), 'utf8');
+    const apiPortFile = '/home/u251936581/domains/beardedmountaineerlodge.com/public_html/api/.node_port';
+    if (fs.existsSync(path.dirname(apiPortFile))) {
+      fs.writeFileSync(apiPortFile, String(port), 'utf8');
+    }
+  } catch (_) {}
 });
 
 server.on('error', function(err) {
