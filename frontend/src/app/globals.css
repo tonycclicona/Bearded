@@ -3,18 +3,18 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  color-scheme: dark;
-  --background: #100e0b;
-  --foreground: #e4ead9;
+  color-scheme: light;
+  --background: #f5f7f2;
+  --foreground: #141f17;
 
-  --primary: #dbe4d1;
+  --primary: #1b2a20;
   --primary-solid: #1b2a20;
-  --accent: #d3b26a;
-  --secondary: #9db48f;
-  --terracotta: #c98d5f;
+  --accent: #a07822;
+  --secondary: #3b5840;
+  --terracotta: #b25828;
 
-  --card-bg: rgba(19, 26, 22, 0.75);
-  --border-color: rgba(255, 255, 255, 0.12);
+  --card-bg: rgba(255, 255, 255, 0.90);
+  --border-color: rgba(20, 31, 23, 0.12);
 }
 
 .dark {
@@ -49,13 +49,14 @@
 
 /* Base color on BODY - blend modes composite against this */
 body {
-  background-color: #100e0b;
+  background-color: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 /* ==========================================================================
-   Aura Gradient: "Eclipse Bloom"
+   Aura Gradient: "Eclipse Bloom" (Light / Dark Adaptation)
    ========================================================================== */
 .aura-bg {
   position: relative;
@@ -64,12 +65,12 @@ body {
   /* NO background-color - layers blend against body */
 }
 
-/* Layer 1 - screen */
+/* Layer 1: multiply in light mode, screen in dark mode */
 .aura-layer-1 {
   position: absolute;
   inset: 0;
   background: radial-gradient(34% 34% at 68% 38%, rgba(55,122,119,0.34) 0%, rgba(28,75,74,0.20) 42%, transparent 78%);
-  mix-blend-mode: screen;
+  mix-blend-mode: multiply;
   filter: blur(200px);
   transform: translateZ(0);
   will-change: transform;
@@ -80,13 +81,16 @@ body {
     filter: blur(260px);
   }
 }
+.dark .aura-layer-1 {
+  mix-blend-mode: screen;
+}
 
-/* Layer 2 - screen */
+/* Layer 2: multiply in light mode, screen in dark mode */
 .aura-layer-2 {
   position: absolute;
   inset: 0;
   background: radial-gradient(22% 22% at 68% 38%, rgba(82,153,148,0.18) 0%, transparent 72%);
-  mix-blend-mode: screen;
+  mix-blend-mode: multiply;
   filter: blur(165px);
   opacity: 0.88;
   transform: translateZ(0);
@@ -98,14 +102,18 @@ body {
     filter: blur(238px);
   }
 }
+.dark .aura-layer-2 {
+  mix-blend-mode: screen;
+}
 
-/* Layer 3 - multiply */
+/* Layer 3: multiply */
 .aura-layer-3 {
   position: absolute;
   inset: 0;
   background: radial-gradient(18% 18% at 52% 48%, #020303 0%, #020303 62%, transparent 64%);
   mix-blend-mode: multiply;
   filter: blur(20px);
+  opacity: 0.15;
   transform: translateZ(0);
   will-change: transform;
   pointer-events: none;
@@ -115,14 +123,20 @@ body {
     filter: blur(29px);
   }
 }
+.dark .aura-layer-3 {
+  opacity: 1;
+}
 
 /* Film-grain overlay - SVG feTurbulence noise, overlay blend */
 .aura-grain {
   position: absolute;
   inset: 0;
   mix-blend-mode: overlay;
-  opacity: 0.85;
+  opacity: 0.35;
   pointer-events: none;
+}
+.dark .aura-grain {
+  opacity: 0.85;
 }
 
 /* Clases de utilidad para scroll suave y estética general */
