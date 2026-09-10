@@ -5,6 +5,7 @@ import { PhotoProduct } from '@/types';
 import { useCartStore } from '@/store/cart-store';
 import { Eye, ShoppingCart, Check } from 'lucide-react';
 import Image from 'next/image';
+import { resolveImageUrl } from '@/services/content.service';
 
 interface ImageCardProps {
   photo: PhotoProduct;
@@ -17,11 +18,11 @@ export default function ImageCard({ photo, onViewDetails, onOpenCart }: ImageCar
   const isInCart = items.some(item => item.product.id === photo.id);
 
   return (
-    <div className="group relative bg-bg-card border border-border-custom rounded-3xl overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
+    <div className="group relative bg-bg-card border border-border-custom rounded-3xl overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col justify-between h-full">
       {/* Imagen */}
       <div className="relative h-64 w-full bg-primary/10 overflow-hidden">
         <Image
-          src={photo.imageUrl}
+          src={resolveImageUrl(photo.imageUrl)}
           alt={photo.title}
           fill
           sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
