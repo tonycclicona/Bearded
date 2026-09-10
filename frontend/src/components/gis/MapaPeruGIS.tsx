@@ -226,7 +226,7 @@ export default function MapaPeruGIS() {
   const currentZoom = customZoom || REGION_CENTERS[selectedRuta].zoom;
 
   return (
-    <section id="mapa-gis" className="relative py-16 md:py-24 bg-background border-b border-border-custom overflow-hidden">
+    <section id="mapa-gis" className="relative py-16 md:py-24 bg-transparent border-b border-border-custom overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
 
         {/* Encabezado */}

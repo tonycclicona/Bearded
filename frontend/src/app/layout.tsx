@@ -41,10 +41,10 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${playfair.variable} ${inter.variable} scroll-smooth antialiased`}
     >
-      <body className="min-h-screen bg-background text-foreground font-sans flex flex-col">
+      <body className="min-h-screen bg-[#100e0b] text-foreground font-sans flex flex-col">
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('antigravity-theme');if(t!=='light'){document.documentElement.classList.add('dark')}}catch(e){}})();`,
+            __html: `(function(){try{document.documentElement.classList.add('dark')}catch(e){}})();`,
           }}
         />
         <ThemeInit />

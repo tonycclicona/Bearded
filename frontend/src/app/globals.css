@@ -3,34 +3,33 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  color-scheme: light;
-  --background: #faf9f6; /* Blanco roto / crema */
-  --foreground: #2c3e2b; /* Verde musgo oscuro */
+  color-scheme: dark;
+  --background: #100e0b;
+  --foreground: #e4ead9;
 
-  --primary: #2c3e2b;
-  --primary-solid: #2c3e2b; /* Relleno sólido de marca (navbar, featured, footer) */
-  --accent: #c5a85a; /* Dorado solar */
-  --secondary: #8fa882; /* Verde claro */
-  --terracotta: #8c6239; /* Terracota */
+  --primary: #dbe4d1;
+  --primary-solid: #1b2a20;
+  --accent: #d3b26a;
+  --secondary: #9db48f;
+  --terracotta: #c98d5f;
 
-  --card-bg: #ffffff;
-  --border-color: #e5e3dd;
+  --card-bg: rgba(19, 26, 22, 0.75);
+  --border-color: rgba(255, 255, 255, 0.12);
 }
 
 .dark {
-  /* Paleta nocturna profesional (naturaleza nocturna) */
   color-scheme: dark;
-  --background: #0b100e; /* Bosque profundo */
-  --foreground: #e4ead9; /* Bruma lunar */
+  --background: #100e0b;
+  --foreground: #e4ead9;
 
-  --primary: #dbe4d1; /* Salvia pálida: texto sobre superficies oscuras */
-  --primary-solid: #1b2a20; /* Verde bosque profundo: rellenos sólidos */
-  --accent: #d3b26a; /* Luna dorada */
-  --secondary: #9db48f; /* Musgo luminoso */
-  --terracotta: #c98d5f; /* Terracota brasa */
+  --primary: #dbe4d1;
+  --primary-solid: #1b2a20;
+  --accent: #d3b26a;
+  --secondary: #9db48f;
+  --terracotta: #c98d5f;
 
-  --card-bg: #131a16; /* Tarjeta nocturna */
-  --border-color: #232e27; /* Borde de bosque */
+  --card-bg: rgba(19, 26, 22, 0.75);
+  --border-color: rgba(255, 255, 255, 0.12);
 }
 
 @theme {
@@ -48,10 +47,136 @@
   --font-sans: var(--font-sans), sans-serif;
 }
 
+/* Base color on BODY - blend modes composite against this */
 body {
-  background-color: var(--background);
+  background-color: #100e0b;
   color: var(--foreground);
   font-family: var(--font-sans);
+}
+
+/* ==========================================================================
+   Aura Gradient: "Aurora Borealis"
+   ========================================================================== */
+.aura-bg {
+  position: relative;
+  overflow: hidden;
+  min-height: 100vh;
+  /* NO background-color - layers blend against body */
+}
+
+/* Layer 1 - screen */
+.aura-layer-1 {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(154deg, transparent 18%, rgba(12,72,61,0.06) 29%, rgba(0,229,255,0.40) 36%, rgb(255,255,255) 42%, rgba(73,207,158,0.32) 48%, rgba(38,158,119,0.22) 55%, rgba(0,183,255,0.30) 62%, rgba(15,76,65,0.08) 68%, transparent 82%);
+  mix-blend-mode: screen;
+  filter: blur(85px);
+  transform: translateZ(0);
+  will-change: transform;
+  pointer-events: none;
+}
+@media (min-width: 1024px) {
+  .aura-layer-1 {
+    filter: blur(122px);
+  }
+}
+
+/* Layer 2 - screen */
+.aura-layer-2 {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(128deg, transparent 28%, rgba(15,82,96,0.06) 38%, rgba(0,183,255,0.35) 43%, rgb(255,255,255) 48%, rgba(68,197,185,0.22) 52%, rgba(0,229,255,0.25) 57%, rgba(25,105,112,0.10) 62%, transparent 76%);
+  mix-blend-mode: screen;
+  filter: blur(75px);
+  opacity: 0.9;
+  transform: translateZ(0);
+  will-change: transform;
+  pointer-events: none;
+}
+@media (min-width: 1024px) {
+  .aura-layer-2 {
+    filter: blur(108px);
+  }
+}
+
+/* Layer 3 - screen */
+.aura-layer-3 {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 78% 20% at 51% 53%, rgba(65,183,155,0.24) 0%, rgba(30,102,91,0.10) 45%, transparent 82%);
+  mix-blend-mode: screen;
+  filter: blur(70px);
+  opacity: 0.9;
+  transform: translateZ(0);
+  will-change: transform;
+  pointer-events: none;
+}
+@media (min-width: 1024px) {
+  .aura-layer-3 {
+    filter: blur(101px);
+  }
+}
+
+/* Layer 4 - screen */
+.aura-layer-4 {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 48% 9% at 52% 50%, rgba(190,255,226,0.14) 0%, rgba(91,195,163,0.06) 45%, transparent 80%);
+  mix-blend-mode: screen;
+  filter: blur(175px);
+  transform: translateZ(0);
+  will-change: transform;
+  pointer-events: none;
+}
+@media (min-width: 1024px) {
+  .aura-layer-4 {
+    filter: blur(252px);
+  }
+}
+
+/* Layer 5 - multiply */
+.aura-layer-5 {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(1,5,13,0.90) 0%, rgba(2,7,16,0.58) 28%, rgba(3,9,20,0.20) 55%, transparent 78%);
+  mix-blend-mode: multiply;
+  filter: blur(80px);
+  opacity: 0.9;
+  transform: translateZ(0);
+  will-change: transform;
+  pointer-events: none;
+}
+@media (min-width: 1024px) {
+  .aura-layer-5 {
+    filter: blur(115px);
+  }
+}
+
+/* Layer 6 - screen */
+.aura-layer-6 {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 50% 28% at 72% 18%, rgba(89,62,151,0.10) 0%, rgba(57,44,100,0.04) 45%, transparent 82%);
+  mix-blend-mode: screen;
+  filter: blur(138px);
+  opacity: 0.7;
+  transform: translateZ(0);
+  will-change: transform;
+  pointer-events: none;
+}
+@media (min-width: 1024px) {
+  .aura-layer-6 {
+    filter: blur(198px);
+  }
+}
+
+/* Film-grain overlay - SVG feTurbulence noise, overlay blend */
+.aura-grain {
+  position: absolute;
+  inset: 0;
+  mix-blend-mode: overlay;
+  opacity: 0.85;
+  pointer-events: none;
 }
 
 /* Clases de utilidad para scroll suave y estética general */

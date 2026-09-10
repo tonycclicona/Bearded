@@ -15,7 +15,7 @@ export default function GuidesSection() {
   });
 
   return (
-    <section id="guias" className="py-20 md:py-28 bg-background border-b border-border-custom relative">
+    <section id="guias" className="py-20 md:py-28 bg-transparent border-b border-border-custom relative">
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
 
         {/* ENCABEZADO */}

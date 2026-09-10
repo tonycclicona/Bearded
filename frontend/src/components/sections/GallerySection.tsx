@@ -66,7 +66,7 @@ export default function GallerySection() {
   const hasWorkshopsCarousel = sortedWorkshops.length > 3;
 
   return (
-    <section id="galeria" className="py-24 bg-bg-card border-b border-border-custom relative overflow-hidden">
+    <section id="galeria" className="py-24 bg-transparent border-b border-border-custom relative overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
 
         {/* ENCABEZADO DE SECCIÓN */}

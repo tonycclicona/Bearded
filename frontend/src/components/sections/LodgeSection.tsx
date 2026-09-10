@@ -352,7 +352,7 @@ export default function LodgeSection() {
   const sortedExperiences = [...experiences].sort((a, b) => a.sortOrder - b.sortOrder);
 
   return (
-    <section id="lodge" className="py-14 md:py-16 lg:py-20 bg-background border-b border-border-custom overflow-hidden">
+    <section id="lodge" className="py-14 md:py-16 lg:py-20 bg-transparent border-b border-border-custom overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         {/* Encabezado */}
         <div className="text-center max-w-2xl mx-auto mb-8 lg:mb-10">

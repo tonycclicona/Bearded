@@ -139,7 +139,7 @@ export default function TaxonomySection() {
   return (
     <section
       id="taxonomia"
-      className="py-16 md:py-24 bg-bg-card border-b border-border-custom relative overflow-hidden"
+      className="py-16 md:py-24 bg-transparent border-b border-border-custom relative overflow-hidden"
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 relative">
 

@@ -35,7 +35,7 @@ export default function RoutesSection() {
   };
 
   return (
-    <section id="rutas" className="py-20 md:py-28 bg-bg-card border-b border-border-custom relative">
+    <section id="rutas" className="py-20 md:py-28 bg-transparent border-b border-border-custom relative">
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         
         {/* Encabezado */}
