@@ -1,7 +1,7 @@
 <?php
 // ==============================================================================
-// Bearded Mountaineer Lodge API Dynamic Reverse Proxy (LiteSpeed / PHP -> Node.js Gateway)
-// Homologado 100% con Unu-Raymi
+// Bearded Mountaineer Lodge API Dynamic Gateway Proxy
+// Homologado para Hostinger LiteSpeed / Node.js
 // ==============================================================================
 
 header("Access-Control-Allow-Origin: *");
@@ -14,12 +14,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit(0);
 }
 
+// Prevenir bucles de proxy infinitos
+if (isset($_SERVER['HTTP_X_BEARDED_GATEWAY'])) {
+    header("Content-Type: application/json; charset=UTF-8");
+    http_response_code(508);
+    echo json_encode(["success" => false, "error" => "Loop detected in API proxy"]);
+    exit(0);
+}
+
 $requestUri = $_SERVER['REQUEST_URI'];
 if (strpos($requestUri, '/api') !== 0) {
     $requestUri = '/api' . $requestUri;
 }
 
-// Detectar puerto dinámico de Node.js si existe .node_port
+// 1. Detectar puerto dinámico si existe .node_port
 $detectedPort = null;
 $portCandidates = [
     __DIR__ . '/.node_port',
@@ -37,6 +45,7 @@ foreach ($portCandidates as $pf) {
     }
 }
 
+// 2. Definir targets: puertos locales y como respaldo el host principal de Node.js
 $targets = [];
 if ($detectedPort) {
     $targets[] = "http://127.0.0.1:{$detectedPort}";
@@ -46,6 +55,7 @@ $targets[] = 'http://127.0.0.1:4000';
 $targets[] = 'http://localhost:4000';
 $targets[] = 'http://127.0.0.1:3000';
 $targets[] = 'http://localhost:3000';
+$targets[] = 'https://beardedmountaineerlodge.com';
 
 $response = false;
 $httpCode = 0;
@@ -61,6 +71,7 @@ foreach (getallheaders() as $name => $value) {
         $headers[] = "$name: $value";
     }
 }
+$headers[] = "X-Bearded-Gateway: 1";
 
 $isMultipart = !empty($_FILES) || (isset($_SERVER['CONTENT_TYPE']) && strpos(strtolower($_SERVER['CONTENT_TYPE']), 'multipart/form-data') !== false);
 $postFields = null;
@@ -105,10 +116,14 @@ foreach ($targets as $baseTarget) {
     curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
     curl_setopt($ch, CURLOPT_ENCODING, '');
     curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 2);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 10);
     
     $reqHeaders = $headers;
-    $reqHeaders[] = "Host: api.beardedmountaineerlodge.com";
+    if (strpos($baseTarget, 'beardedmountaineerlodge.com') !== false) {
+        $reqHeaders[] = "Host: beardedmountaineerlodge.com";
+    } else {
+        $reqHeaders[] = "Host: api.beardedmountaineerlodge.com";
+    }
 
     if ($isMultipart) {
         $filteredHeaders = array_filter($reqHeaders, function($h) {
@@ -148,7 +163,7 @@ header("Content-Type: application/json; charset=UTF-8");
 http_response_code(502);
 echo json_encode([
     "success" => false,
-    "error" => "El servidor Node.js de Bearded Mountaineer Lodge no está respondiendo en los puertos locales (4000/3000). Asegúrate de que la aplicación Node.js esté activa en Hostinger.",
+    "error" => "El servidor Node.js de Bearded Mountaineer Lodge no está respondiendo. Verifica que la aplicación Node.js esté activa en Hostinger.",
     "path" => $requestUri,
     "debug" => [
         "detectedPort" => $detectedPort,

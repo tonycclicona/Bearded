@@ -84,6 +84,13 @@ exit(0);
 
 const apiHtaccessContent = `<IfModule mod_rewrite.c>
 RewriteEngine On
+
+# 1. Si la peticion viene del dominio principal o de una llamada interna del gateway, dejar pasar directamente a Node.js
+RewriteCond %{HTTP_HOST} !^api\\. [NC,OR]
+RewriteCond %{HTTP:X-Bearded-Gateway} =1
+RewriteRule ^ - [L]
+
+# 2. Para el subdominio api., canalizar todo al index.php de esta carpeta
 RewriteRule ^index\\.php$ - [L]
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
