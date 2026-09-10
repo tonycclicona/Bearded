@@ -14,17 +14,8 @@ export function AuraBackground({ children, className = '' }: AuraBackgroundProps
       {/* Layer 2 - screen */}
       <div className="aura-layer-2" aria-hidden="true" />
 
-      {/* Layer 3 - screen */}
+      {/* Layer 3 - multiply */}
       <div className="aura-layer-3" aria-hidden="true" />
-
-      {/* Layer 4 - screen */}
-      <div className="aura-layer-4" aria-hidden="true" />
-
-      {/* Layer 5 - multiply */}
-      <div className="aura-layer-5" aria-hidden="true" />
-
-      {/* Layer 6 - screen */}
-      <div className="aura-layer-6" aria-hidden="true" />
 
       {/* Film-grain overlay - SVG feTurbulence noise, overlay blend */}
       <div className="aura-grain" aria-hidden="true">
