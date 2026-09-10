@@ -141,6 +141,8 @@ app.use('/checkout', checkoutRouter);
 
 app.use('/api/colibries', colibriesRouter);
 app.use('/colibries', colibriesRouter);
+app.use('/api/catalog', colibriesRouter);
+app.use('/catalog', colibriesRouter);
 
 app.use('/api/puntos-gis', puntosGisRouter);
 app.use('/puntos-gis', puntosGisRouter);

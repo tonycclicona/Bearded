@@ -176,6 +176,16 @@ export const LocalStore = {
             persistStore();
         }
         return deleted;
+    },
+    getSettings(key, defaultValue = {}) {
+        const store = loadStore();
+        return store[key] || defaultValue;
+    },
+    setSettings(key, value) {
+        const store = loadStore();
+        store[key] = { ...value, updatedAt: new Date().toISOString() };
+        persistStore();
+        return store[key];
     }
 };
 //# sourceMappingURL=store.js.map

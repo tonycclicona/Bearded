@@ -33,6 +33,30 @@ function run(cmd, subdir) {
   }
 }
 
+// ── 0. SALVAGUARDA Y PRESERVACIÓN INMUTABLE DE BASE DE DATOS Y UPLOADS ────────
+console.log('[postinstall] === 0/3 PRESERVING DATABASE & USER UPLOADS ===');
+try {
+  const backendDataDir = path.join(ROOT, 'backend/data');
+  const dbJsonPath = path.join(backendDataDir, 'db.json');
+  if (fs.existsSync(dbJsonPath)) {
+    const backupName = `db.backup.${Date.now()}.json`;
+    const backupPath = path.join(backendDataDir, backupName);
+    fs.copyFileSync(dbJsonPath, backupPath);
+    console.log(`[postinstall] 🛡️ Base de datos existente preservada. Backup creado: ${backupName}`);
+  } else {
+    console.log('[postinstall] ℹ️ Base de datos db.json no detectada; el backend inicializará una plantilla segura si es primera instalación.');
+  }
+
+  // Asegurar persistencia de carpetas de subidas de medios
+  const uploadsDir = path.join(ROOT, 'admin/uploads');
+  const rootUploadsDir = path.join(ROOT, 'uploads');
+  if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+  if (!fs.existsSync(rootUploadsDir)) fs.mkdirSync(rootUploadsDir, { recursive: true });
+  console.log('[postinstall] 🛡️ Carpetas de uploads verificadas e intactas.');
+} catch (backupErr) {
+  console.warn('[postinstall] Warning en salvaguarda de base de datos:', backupErr.message);
+}
+
 // ── 1. COMPILAR BACKEND ─────────────────────────────────────────────────────────
 console.log('[postinstall] === 1/3 BACKEND setup ===');
 try {

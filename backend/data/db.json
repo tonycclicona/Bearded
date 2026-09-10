@@ -1,6 +1,24 @@
 {
   "passes": [
     {
+      "title": "prueba",
+      "price": 124,
+      "priceUSD": 35,
+      "showPEN": true,
+      "showUSD": true,
+      "description": "prueba",
+      "features": [
+        "Acceso a observatorios y bebederos",
+        "Guía de campo digital",
+        "Café e infusión local"
+      ],
+      "featured": false,
+      "sortOrder": 1,
+      "id": "pass-1789054973951",
+      "createdAt": "2026-09-10T15:42:53.951Z",
+      "updatedAt": "2026-09-10T15:42:53.951Z"
+    },
+    {
       "id": "pass-1",
       "title": "Pase Diario - Jardín Sagrado",
       "price": 25,
@@ -632,5 +650,12 @@
       "orden": 3,
       "activo": true
     }
-  ]
+  ],
+  "catalog_settings": {
+    "pdfUrl": "/uploads/catalogo-aves-bearded-lodge.pdf",
+    "videoUrl": "/uploads/video-catalogo.webm",
+    "title": "Catálogo Oficial de Aves del Santuario",
+    "description": "Descarga nuestro catálogo ornitológico oficial en PDF con la taxonomía y avifauna del Valle Sagrado.",
+    "updatedAt": "2026-09-10T16:46:53.782Z"
+  }
 }

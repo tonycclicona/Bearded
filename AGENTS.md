@@ -84,3 +84,9 @@ Antigravity/
 4. **Admin:** Si no existe `admin/out`, compila y distribuye a `public_html/admin/`.
 5. **Reinicio LiteSpeed:** Actualiza la marca de tiempo en `tmp/restart.txt` para forzar la recarga del proceso Node.js sin requerir reinicio manual del servidor.
 
+### 3. Regla Inmutable de Base de Datos y Uploads en Despliegues (Hostinger)
+- **CERO BORRADO DE BD:** Bajo NINGUNA circunstancia se debe ejecutar `prisma migrate reset`, `db push --force-reset` ni eliminar/reemplazar `backend/data/db.json` o tablas en MySQL/PostgreSQL. Contienen información crítica de producción (reservas, tours, rutas, spots, etc.).
+- **Backup Preventivo:** `postinstall.cjs` genera una copia de seguridad `db.backup.[timestamp].json` antes de cualquier paso de compilación.
+- **Persistencia de Archivos Subidos:** Los directorios `uploads/` y `admin/uploads/` nunca deben ser purgados ni sobrescritos en los despliegues.
+
+

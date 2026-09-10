@@ -8,7 +8,7 @@ import GisMap from '@/components/GisMap';
 export interface FormField {
   name: string;
   label: string;
-  type: 'text' | 'number' | 'textarea' | 'checkbox' | 'select' | 'list' | 'image' | 'gallery' | 'audio' | 'gis_picker';
+  type: 'text' | 'number' | 'textarea' | 'checkbox' | 'select' | 'list' | 'image' | 'gallery' | 'audio' | 'pdf' | 'video' | 'gis_picker';
   placeholder?: string;
   required?: boolean;
   options?: { label: string; value: string | number }[];
@@ -163,6 +163,8 @@ export default function CrudModal({
                 field.type === 'image' ||
                 field.type === 'gallery' ||
                 field.type === 'audio' ||
+                field.type === 'pdf' ||
+                field.type === 'video' ||
                 field.type === 'textarea' ||
                 field.type === 'list' ||
                 field.type === 'gis_picker';
@@ -199,8 +201,14 @@ export default function CrudModal({
                 );
               }
 
-              // Media: Image, Gallery, Audio
-              if (field.type === 'image' || field.type === 'gallery' || field.type === 'audio') {
+              // Media: Image, Gallery, Audio, PDF, Video
+              if (
+                field.type === 'image' ||
+                field.type === 'gallery' ||
+                field.type === 'audio' ||
+                field.type === 'pdf' ||
+                field.type === 'video'
+              ) {
                 return (
                   <div key={field.name} className={isWide ? 'md:col-span-2' : ''}>
                     <MediaUpload

@@ -61,26 +61,37 @@ const uploadHandler = upload.fields([
     { name: 'imagen', maxCount: 20 },
     { name: 'imagenes', maxCount: 20 },
     { name: 'gallery', maxCount: 20 },
-    { name: 'audio', maxCount: 5 }
+    { name: 'audio', maxCount: 5 },
+    { name: 'pdf', maxCount: 5 },
+    { name: 'video', maxCount: 5 }
 ]);
 /**
  * Optimiza una imagen a formato WebP (1200px max, calidad 80, rotación EXIF)
+ * Si es GIF animado, lo convierte a WebP animado optimizado.
  */
 async function optimizeImage(filePath, filename) {
     const ext = path.extname(filename).toLowerCase();
-    // No procesar SVGs ni GIFs animados con resize estático
-    if (ext === '.svg' || ext === '.gif') {
+    // No procesar SVGs con sharp
+    if (ext === '.svg') {
         return filename;
     }
     const webpFilename = `${path.basename(filename, ext)}.webp`;
     const destPath = path.join(uploadsDir, webpFilename);
     try {
-        await sharp(filePath)
-            .rotate()
-            .resize({ width: 1200, withoutEnlargement: true })
-            .webp({ quality: 80 })
-            .toFile(destPath);
-        // Si el nombre cambió (ej: de .jpg a .webp), eliminar el original
+        if (ext === '.gif') {
+            // Conversión de animación GIF a Animated WebP optimizado
+            await sharp(filePath, { animated: true })
+                .webp({ quality: 80, effort: 4 })
+                .toFile(destPath);
+        }
+        else {
+            await sharp(filePath)
+                .rotate()
+                .resize({ width: 1200, withoutEnlargement: true })
+                .webp({ quality: 80 })
+                .toFile(destPath);
+        }
+        // Si el nombre cambió (ej: de .jpg o .gif a .webp), eliminar el original
         if (destPath !== filePath && fs.existsSync(filePath)) {
             try {
                 fs.unlinkSync(filePath);

@@ -26,9 +26,17 @@ export interface EspecieColibri {
   fotoPrincipal: string;
   galeriaFotos?: string | null;
   audioCantoUrl?: string | null;
+  videoUrl?: string | null;
   hotspots?: PuntoGIS[];
   createdAt?: string | Date;
   updatedAt?: string | Date;
+}
+
+export interface CatalogSettings {
+  pdfUrl?: string;
+  videoUrl?: string;
+  title?: string;
+  description?: string;
 }
 
 export interface PuntoGIS {

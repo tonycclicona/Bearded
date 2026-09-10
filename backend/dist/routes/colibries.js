@@ -4,6 +4,33 @@ import { AppResponse } from '../utils/response.js';
 import { AppError } from '../utils/errors.js';
 import { LocalStore } from '../lib/store.js';
 const router = Router();
+// GET /api/colibries/catalog-settings
+router.get('/catalog-settings', (_req, res) => {
+    const settings = LocalStore.getSettings('catalog_settings', {
+        pdfUrl: '',
+        videoUrl: '',
+        title: 'Catálogo Oficial de Aves del Santuario',
+        description: 'Descarga nuestro catálogo ornitológico oficial en PDF con la taxonomía y avifauna del Valle Sagrado.'
+    });
+    res.json(AppResponse.success(settings));
+});
+// POST & PUT /api/colibries/catalog-settings
+const saveCatalogSettings = (req, res) => {
+    const payload = req.body || {};
+    const current = LocalStore.getSettings('catalog_settings', {
+        pdfUrl: '',
+        videoUrl: '',
+        title: 'Catálogo Oficial de Aves del Santuario',
+        description: 'Descarga nuestro catálogo ornitológico oficial en PDF con la taxonomía y avifauna del Valle Sagrado.'
+    });
+    const updated = LocalStore.setSettings('catalog_settings', {
+        ...current,
+        ...payload
+    });
+    res.json(AppResponse.success(updated));
+};
+router.post('/catalog-settings', saveCatalogSettings);
+router.put('/catalog-settings', saveCatalogSettings);
 // GET /api/colibries
 router.get('/', async (req, res, _next) => {
     try {

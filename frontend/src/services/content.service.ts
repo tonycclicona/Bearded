@@ -9,7 +9,8 @@ import {
   EspecieColibri,
   PuntoGIS,
   Tour,
-  Guia
+  Guia,
+  CatalogSettings
 } from '@/types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? '/api' : 'http://localhost:3001/api');
@@ -158,6 +159,25 @@ export class ContentService {
       return await fetchApi<PhotoWorkshopPackage>(`workshops/${id}`);
     } catch {
       return null;
+    }
+  }
+
+  // Configuración del Catálogo (Brochure PDF & Video)
+  static async getCatalogSettings(): Promise<CatalogSettings> {
+    try {
+      return await fetchApi<CatalogSettings>('colibries/catalog-settings', {
+        pdfUrl: '',
+        videoUrl: '',
+        title: 'Catálogo Oficial de Aves del Santuario',
+        description: 'Descarga nuestro catálogo ornitológico oficial en PDF con la taxonomía y avifauna del Valle Sagrado.'
+      });
+    } catch {
+      return {
+        pdfUrl: '',
+        videoUrl: '',
+        title: 'Catálogo Oficial de Aves del Santuario',
+        description: 'Descarga nuestro catálogo ornitológico oficial en PDF.'
+      };
     }
   }
 }

@@ -210,5 +210,17 @@ export const LocalStore = {
       persistStore();
     }
     return deleted;
+  },
+
+  getSettings(key: string, defaultValue: any = {}): any {
+    const store = loadStore();
+    return (store as any)[key] || defaultValue;
+  },
+
+  setSettings(key: string, value: any): any {
+    const store = loadStore();
+    (store as any)[key] = { ...value, updatedAt: new Date().toISOString() };
+    persistStore();
+    return (store as any)[key];
   }
 };

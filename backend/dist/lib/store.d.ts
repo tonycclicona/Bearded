@@ -21,6 +21,8 @@ export declare const LocalStore: {
     create(collection: string, data: any): any;
     update(collection: string, id: any, changes: any, key?: string): any;
     delete(collection: string, id: any, key?: string): boolean;
+    getSettings(key: string, defaultValue?: any): any;
+    setSettings(key: string, value: any): any;
 };
 export {};
 //# sourceMappingURL=store.d.ts.map
