@@ -34,11 +34,7 @@ if (tscPath) {
     console.warn('[build:backend] Warning: Direct tsc compilation failed:', err.message);
   }
 } else {
-  try {
-    console.log('[build:backend] Attempting npx tsc...');
-    execSync(`npx --no-install tsc --project "${tsconfig}"`, { stdio: 'inherit' });
-    compiled = true;
-  } catch (_) {}
+  // En producción de Hostinger, si tsc no está en PATH ni en node_modules, se usa dist/index.js precompilado
 }
 
 if (!compiled) {

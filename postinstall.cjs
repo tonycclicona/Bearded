@@ -69,24 +69,10 @@ function copyToAllPublicHtml(srcDir, label) {
 // ── 1. BUILD BACKEND ──────────────────────────────────────────────────────────
 console.log('[postinstall] === 1/3 BACKEND setup ===');
 try {
-  const schema = path.join(ROOT, 'backend/prisma/schema.prisma');
-  if (fs.existsSync(schema)) {
-    try {
-      execSync(`npx prisma generate --schema="${schema}"`, { stdio: 'inherit' });
-      console.log('[postinstall] ✅ Prisma Client generado.');
-    } catch (e) {
-      console.warn('[postinstall] ⚠️  Prisma generate aviso:', e.message);
-    }
-
-    if (process.env.DATABASE_URL && !process.env.DATABASE_URL.includes('dummy')) {
-      try {
-        console.log('[postinstall] Sincronizando esquema MySQL con Prisma db push...');
-        execSync(`npx prisma db push --schema="${schema}" --accept-data-loss`, { stdio: 'inherit', env: process.env });
-        console.log('[postinstall] ✅ Base de datos MySQL sincronizada exitosamente.');
-      } catch (dbErr) {
-        console.warn('[postinstall] ⚠️ Aviso en prisma db push (se ejecutará auto-init en arranque):', dbErr.message);
-      }
-    }
+  const nodeModulesPath = path.join(ROOT, 'node_modules');
+  if (process.platform === 'linux' && fs.existsSync(nodeModulesPath)) {
+    execSync(`find "${nodeModulesPath}" -name "schema-engine*" -exec chmod +x {} + 2>/dev/null || true`, { stdio: 'ignore' });
+    execSync(`find "${nodeModulesPath}" -name "query-engine*" -exec chmod +x {} + 2>/dev/null || true`, { stdio: 'ignore' });
   }
 } catch (_) {}
 
@@ -200,12 +186,13 @@ foreach ($targets as $baseTarget) {
     $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
     curl_close($ch);
 
-    if ($httpCode >= 200 && $httpCode < 500 && $response !== false) {
+    $isHtml = (strpos(strtolower($contentType ?: ''), 'text/html') !== false);
+    if ($httpCode >= 200 && $httpCode < 500 && $response !== false && !$isHtml) {
         break;
     }
 }
 
-if ($httpCode > 0 && $response !== false) {
+if ($httpCode > 0 && $response !== false && !$isHtml) {
     if ($contentType) {
         header("Content-Type: $contentType");
     }
@@ -295,18 +282,23 @@ try {
 RewriteEngine On
 RewriteBase /
 
-# 1. Rutas de API y Admin: dejar pasar a Node.js / Passenger DIRECTAMENTE (nunca interceptar con fallback SPA)
+# 1. Rutas de API y Admin: dejar pasar a Node.js / Passenger DIRECTAMENTE
 RewriteCond %{REQUEST_URI} ^/api [NC,OR]
 RewriteCond %{REQUEST_URI} ^/admin [NC]
 RewriteRule ^ - [L]
 
-# 2. Rutas existentes fisicamente (imagenes, assets, chunks JS, etc.)
+# 2. Rutas existentes físicamente (imágenes, assets, chunks JS, etc.)
 RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d
 RewriteRule ^ - [L]
 
-# 3. Fallback SPA Frontend (Next.js SSG)
+# 3. Fallback SPA Frontend (EXCLUSIVAMENTE si NO es /api ni /admin)
+RewriteCond %{REQUEST_URI} !^/api [NC]
+RewriteCond %{REQUEST_URI} !^/admin [NC]
 RewriteRule ^index\\.html$ - [L]
+
+RewriteCond %{REQUEST_URI} !^/api [NC]
+RewriteCond %{REQUEST_URI} !^/admin [NC]
 RewriteRule . /index.html [L]
 </IfModule>
 `;

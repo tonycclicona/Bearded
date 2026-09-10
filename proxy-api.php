@@ -105,12 +105,13 @@ foreach ($targets as $baseTarget) {
     $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
     curl_close($ch);
 
-    if ($httpCode >= 200 && $httpCode < 500 && $response !== false) {
+    $isHtml = (strpos(strtolower($contentType ?: ''), 'text/html') !== false);
+    if ($httpCode >= 200 && $httpCode < 500 && $response !== false && !$isHtml) {
         break;
     }
 }
 
-if ($httpCode > 0 && $response !== false) {
+if ($httpCode > 0 && $response !== false && !$isHtml) {
     if ($contentType) {
         header("Content-Type: $contentType");
     }
