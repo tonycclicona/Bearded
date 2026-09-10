@@ -63,3 +63,24 @@ Antigravity/
 - `GET /admin/experiences` — Manage experiences
 - `GET /admin/photos` — Manage photos
 - `GET /admin/workshops` — Manage workshops
+
+## 🚀 Arquitectura de Despliegue y Dominios (Hostinger LiteSpeed)
+### 1. Topología de Red y Dominios
+- **Frontend Principal:** `https://beardedmountaineerlodge.com`
+  - Contenido: Next.js SSG (`frontend/out`) servido directamente desde `public_html/`.
+  - Fallback SPA controlado por `.htaccess` raíz.
+- **Panel de Administración:** `https://admin.beardedmountaineerlodge.com`
+  - Contenido: Next.js SSG (`admin/out`) servido desde `public_html/admin/`.
+  - Autenticación: `localStorage` + `sessionStorage` + cookie (`SameSite=Lax`). Sin dependencias de scripts síncronos en `<head>`.
+  - CRUD interactivo: Todos los módulos cuentan con `CrudModal.tsx` para alta, edición y baja directa.
+- **Backend API REST:** `https://api.beardedmountaineerlodge.com`
+  - Motor: Express 5 + Node.js 22 ejecutándose en puerto local (4000/3000) en el panel de aplicaciones Node de Hostinger.
+  - Proxy Reverso: Gestionado mediante `public_html/api/index.php` + `public_html/api/.htaccess` para canalizar peticiones al Node.js interno con headers `X-Forwarded-*`.
+
+### 2. Motor de Build y Automatización (`postinstall.cjs`)
+1. **Backend:** Compila TypeScript con `scripts/build.cjs` hacia `backend/dist`. Genera cliente dinámico de Prisma y sanitización de payloads contra el esquema de base de datos.
+2. **API Proxy:** Escribe `index.php` y `.htaccess` en `public_html/api/`.
+3. **Frontend:** Si no existe `frontend/out`, compila y distribuye a `public_html/`.
+4. **Admin:** Si no existe `admin/out`, compila y distribuye a `public_html/admin/`.
+5. **Reinicio LiteSpeed:** Actualiza la marca de tiempo en `tmp/restart.txt` para forzar la recarga del proceso Node.js sin requerir reinicio manual del servidor.
+
