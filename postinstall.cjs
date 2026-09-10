@@ -211,4 +211,12 @@ RewriteRule ^(.*)$ /index.html [L]
   console.error('[postinstall] Warning admin copy:', e.message);
 }
 
+// Trigger de reinicio para LiteSpeed / CloudLinux Node.js Runner
+try {
+  const tmpDir = path.join(ROOT, 'tmp');
+  if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+  fs.writeFileSync(path.join(tmpDir, 'restart.txt'), String(Date.now()));
+  console.log('[postinstall] ✅ Trigger de reinicio creado en tmp/restart.txt');
+} catch (_) {}
+
 console.log('\n[postinstall] ✅ Build y distribución completadas exclusivamente en el directorio autorizado.\n');
