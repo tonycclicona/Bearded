@@ -9,7 +9,7 @@ import { getCookie } from '@/lib/api';
 export default function LayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const isLoginPage = pathname === '/login' || pathname.startsWith('/login');
+  const isLoginPage = pathname === '/login' || pathname.startsWith('/login') || pathname.includes('login');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [authorized, setAuthorized] = useState(false);
 
@@ -17,19 +17,7 @@ export default function LayoutContent({ children }: { children: React.ReactNode 
     const token = getCookie('session_token');
 
     if (isLoginPage) {
-      if (token) {
-        // Verificar si el token guardado aún es válido
-        fetcher('/auth/me')
-          .then(() => {
-            router.push('/');
-          })
-          .catch(() => {
-            removeCookie('session_token');
-            setAuthorized(true);
-          });
-      } else {
-        setAuthorized(true);
-      }
+      setAuthorized(true);
       return;
     }
 
@@ -38,13 +26,12 @@ export default function LayoutContent({ children }: { children: React.ReactNode 
       return;
     }
 
-    // Validar token activo con el backend
+    // Validar token activo con el backend de forma segura
     fetcher('/auth/me')
       .then(() => {
         setAuthorized(true);
       })
-      .catch((err) => {
-        console.warn('Sesión inválida o expirada:', err);
+      .catch(() => {
         removeCookie('session_token');
         router.push('/login');
       });

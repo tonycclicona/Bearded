@@ -103,7 +103,8 @@ export async function mutateApi<T = any>(
     if (res.status === 401 || res.status === 403) {
       removeCookie('session_token');
       if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
-        window.location.href = '/admin/login';
+        const isSubdomain = window.location.hostname.startsWith('admin.');
+        window.location.href = isSubdomain ? '/login' : '/admin/login';
       }
     }
     throw new Error(data.error || data.message || `Error ${res.status}`);
