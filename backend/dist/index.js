@@ -1,6 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import path from 'path';
+import fs from 'fs';
 import { errorHandler } from './middleware/error-handler.js';
 import { ensureTablesExist } from './lib/init-db.js';
 import passesRouter from './routes/passes.js';
@@ -18,10 +20,43 @@ import guiasRouter from './routes/guias.js';
 import bookingsRouter from './routes/bookings.js';
 import authRouter from './routes/auth.js';
 import uploadRouter from './routes/upload.js';
+// Cargar variables de entorno de forma resiliente
+function loadEnvFile(filePath) {
+    if (fs.existsSync(filePath)) {
+        try {
+            const content = fs.readFileSync(filePath, 'utf8');
+            content.split('\n').forEach((line) => {
+                const trimmed = line.trim();
+                if (trimmed && !trimmed.startsWith('#')) {
+                    const eq = trimmed.indexOf('=');
+                    if (eq !== -1) {
+                        const key = trimmed.substring(0, eq).trim();
+                        let val = trimmed.substring(eq + 1).trim();
+                        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+                            val = val.substring(1, val.length - 1);
+                        }
+                        if (key === 'PORT' && process.env.PORT)
+                            return;
+                        if (!process.env[key])
+                            process.env[key] = val;
+                    }
+                }
+            });
+        }
+        catch (_) { }
+    }
+}
+loadEnvFile(path.resolve(process.cwd(), '.env'));
+loadEnvFile(path.resolve(process.cwd(), '.env.production'));
+loadEnvFile(path.resolve(process.cwd(), '../.env'));
+loadEnvFile(path.resolve(process.cwd(), '../.env.production'));
+if (!process.env.DATABASE_URL) {
+    process.env.DATABASE_URL = 'mysql://root:password@localhost:3306/bearded_lodge';
+}
 const app = express();
 app.disable('x-powered-by');
 app.set('trust proxy', true);
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 4000;
 // Inicialización de tablas MySQL bajo demanda/arranque (Patrón Unu-Raymi)
 ensureTablesExist().catch((err) => {
     console.warn('[init-db] Error en arranque:', err.message);
@@ -32,22 +67,17 @@ app.use(helmet({
 }));
 // CORS resiliente (Patrón Unu-Raymi — nunca bloquea con 500 origin checks)
 app.use(cors({
-    origin: (origin, callback) => {
-        if (!origin)
-            return callback(null, true);
-        if (origin.includes('beardedmountaineerlodge.com') ||
-            origin.includes('localhost') ||
-            origin.includes('127.0.0.1')) {
-            return callback(null, true);
-        }
-        return callback(null, true);
-    },
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-    allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization', 'Cookie'],
-    credentials: true
+    origin: true,
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
 }));
-// Preflight inmediato para peticiones OPTIONS (Compatible con Express 5)
+// Pre-flight OPTIONS explícito
 app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
     if (req.method === 'OPTIONS') {
         res.sendStatus(200);
         return;
@@ -62,6 +92,16 @@ app.use('/auth', authRouter);
 // Upload routes (subida de imágenes y documentos)
 app.use('/api/upload', uploadRouter);
 app.use('/upload', uploadRouter);
+// Servir archivos subidos estáticamente con CORS habilitado
+const rootDir = fs.existsSync(path.resolve(process.cwd(), 'admin'))
+    ? process.cwd()
+    : path.resolve(process.cwd(), '..');
+const uploadsDir = path.resolve(rootDir, 'admin/uploads');
+if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+}
+app.use('/uploads', express.static(uploadsDir));
+app.use('/api/uploads', express.static(uploadsDir));
 // Routes (compatibilidad dual: con /api/ y directa para subdominio api.)
 app.use('/api/passes', passesRouter);
 app.use('/passes', passesRouter);
@@ -77,6 +117,8 @@ app.use('/api/workshops', workshopsRouter);
 app.use('/workshops', workshopsRouter);
 app.use('/api/hummingbird-spots', spotsRouter);
 app.use('/hummingbird-spots', spotsRouter);
+app.use('/api/spots', spotsRouter);
+app.use('/spots', spotsRouter);
 app.use('/api/checkout', checkoutRouter);
 app.use('/checkout', checkoutRouter);
 app.use('/api/colibries', colibriesRouter);
@@ -106,52 +148,33 @@ app.get(['/', '/api'], (_req, res) => {
             photos: '/api/photos',
             workshops: '/api/workshops',
             spots: '/api/spots',
+            hummingbirdSpots: '/api/hummingbird-spots',
+            checkout: '/api/checkout',
             colibries: '/api/colibries',
             puntosGis: '/api/puntos-gis',
             tours: '/api/tours',
             guias: '/api/guias',
-            bookings: '/api/bookings',
-            checkout: '/api/checkout'
-        },
-        environment: process.env.NODE_ENV || 'production',
-        timestamp: new Date().toISOString()
+            bookings: '/api/bookings'
+        }
     });
 });
-app.get(['/api/health', '/health'], (_req, res) => {
-    res.status(200).json({
-        success: true,
-        message: 'Bearded Mountaineer Lodge API está funcionando correctamente.',
-        environment: process.env.NODE_ENV || 'production',
-        timestamp: new Date().toISOString()
-    });
+app.get(['/health', '/api/health'], (_req, res) => {
+    res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
 });
-// Endpoint para forzar sincronización / verificación de base de datos MySQL (Patrón Unu-Raymi)
-app.get(['/api/db-sync', '/db-sync'], async (_req, res) => {
-    try {
-        await ensureTablesExist();
-        res.json({
-            success: true,
-            message: 'Esquema y tablas MySQL de Bearded verificadas y sincronizadas exitosamente.',
-            timestamp: new Date().toISOString()
-        });
-    }
-    catch (err) {
-        const message = err instanceof Error ? err.message : 'Error en sincronización';
-        res.status(500).json({ success: false, error: message });
-    }
-});
-// Manejador 404 para endpoints de API no encontrados
+// Fallback 404 para rutas no contempladas
 app.use((req, res) => {
     res.status(404).json({
         success: false,
-        error: `Ruta ${req.method} ${req.path} no encontrada en Bearded API.`
+        error: `Ruta ${req.method} ${req.originalUrl} no encontrada en Bearded API.`
     });
 });
-// Error handling
+// Manejador canónico de errores
 app.use(errorHandler);
-if (process.env.UNIFIED_SERVER !== 'true') {
+// Iniciar servidor solo si se ejecuta directamente
+const isDirectRun = process.env.UNIFIED_SERVER !== 'true';
+if (isDirectRun) {
     app.listen(PORT, () => {
-        console.log(`Server running on http://localhost:${PORT}`);
+        console.log(`[API] Servidor Express activo en puerto local ${PORT}`);
     });
 }
 export default app;

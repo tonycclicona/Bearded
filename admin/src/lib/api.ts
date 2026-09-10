@@ -13,6 +13,23 @@ export function resolveMediaUrl(url?: string): string {
   return `${base}${cleanPath}`;
 }
 
+export function extractErrorMessage(data: any, fallback: string): string {
+  if (!data) return fallback;
+  if (typeof data === 'string') return data;
+  if (typeof data.error === 'string') return data.error;
+  if (data.error && typeof data.error.message === 'string') return data.error.message;
+  if (data.error && typeof data.error.code === 'string') {
+    return `${data.error.code}: ${data.error.message || ''}`;
+  }
+  if (typeof data.message === 'string') return data.message;
+  if (typeof data.details === 'string') return data.details;
+  if (typeof data.error === 'object' && data.error !== null) {
+    try {
+      return JSON.stringify(data.error);
+    } catch (_) {}
+  }
+  return fallback;
+}
 
 export function getCookie(name: string): string | null {
   if (typeof window === 'undefined') return null;
@@ -71,7 +88,8 @@ export async function fetcher<T = any>(endpoint: string): Promise<T> {
   
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
-    const error = new Error(errorData.error || errorData.message || `Error ${res.status}: ${res.statusText}`);
+    const message = extractErrorMessage(errorData, `Error ${res.status}: ${res.statusText}`);
+    const error = new Error(message);
     (error as any).status = res.status;
     throw error;
   }
@@ -102,7 +120,8 @@ export async function mutateApi<T = any>(
   const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
-    throw new Error(data.error || data.message || `Error ${res.status}`);
+    const message = extractErrorMessage(data, `Error ${res.status}`);
+    throw new Error(message);
   }
 
   return data;
@@ -124,7 +143,8 @@ export async function uploadApi<T = any>(endpoint: string, formData: FormData): 
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new Error(data.error || data.message || `Error al subir archivo`);
+    const message = extractErrorMessage(data, 'Error al subir archivo');
+    throw new Error(message);
   }
   return data;
 }

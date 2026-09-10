@@ -109,7 +109,15 @@ export default function CrudModal({
       await onSave(payload);
       onClose();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Error al guardar los datos');
+      const msg =
+        err instanceof Error
+          ? err.message
+          : typeof err === 'string'
+          ? err
+          : typeof err === 'object' && err !== null
+          ? (err as any).message || JSON.stringify(err)
+          : 'Error al guardar los datos';
+      setError(msg);
     } finally {
       setSaving(false);
     }

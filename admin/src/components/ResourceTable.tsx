@@ -63,7 +63,15 @@ export default function ResourceTable<T extends Record<string, any>>({
       await mutateApi(`${endpoint}/${id}`, { method: 'DELETE' });
       setItems((prev) => prev.filter((item) => item[idKey] !== id));
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Error al eliminar el registro');
+      const msg =
+        err instanceof Error
+          ? err.message
+          : typeof err === 'string'
+          ? err
+          : typeof err === 'object' && err !== null
+          ? (err as any).message || JSON.stringify(err)
+          : 'Error al eliminar el registro';
+      alert(msg);
     }
   };
 
