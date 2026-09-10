@@ -3,11 +3,12 @@
 import React, { useState, useEffect } from 'react';
 import { X, Save, AlertCircle } from 'lucide-react';
 import MediaUpload from '@/components/MediaUpload';
+import GisMap from '@/components/GisMap';
 
 export interface FormField {
   name: string;
   label: string;
-  type: 'text' | 'number' | 'textarea' | 'checkbox' | 'select' | 'list' | 'image' | 'gallery' | 'audio';
+  type: 'text' | 'number' | 'textarea' | 'checkbox' | 'select' | 'list' | 'image' | 'gallery' | 'audio' | 'gis_picker';
   placeholder?: string;
   required?: boolean;
   options?: { label: string; value: string | number }[];
@@ -16,6 +17,8 @@ export interface FormField {
   prefix?: string;
   rows?: number;
   colSpan?: 1 | 2;
+  latField?: string;
+  lngField?: string;
 }
 
 interface CrudModalProps {
@@ -46,6 +49,8 @@ export default function CrudModal({
 
     const data: Record<string, any> = {};
     fields.forEach((field) => {
+      if (field.type === 'gis_picker') return;
+
       if (initialData && initialData[field.name] !== undefined && initialData[field.name] !== null) {
         if (field.type === 'list') {
           const val = initialData[field.name];
@@ -81,6 +86,8 @@ export default function CrudModal({
       const payload: Record<string, any> = {};
 
       fields.forEach((field) => {
+        if (field.type === 'gis_picker') return;
+
         const val = formData[field.name];
         if (field.type === 'number') {
           payload[field.name] = val !== '' && !isNaN(Number(val)) ? parseFloat(val) : 0;
@@ -149,7 +156,40 @@ export default function CrudModal({
                 field.type === 'gallery' ||
                 field.type === 'audio' ||
                 field.type === 'textarea' ||
-                field.type === 'list';
+                field.type === 'list' ||
+                field.type === 'gis_picker';
+
+              // GIS Map Picker interactivo
+              if (field.type === 'gis_picker') {
+                const latKey = field.latField || 'latitud';
+                const lngKey = field.lngField || 'longitud';
+                const latVal = Number(formData[latKey]) || -13.315;
+                const lngVal = Number(formData[lngKey]) || -72.155;
+
+                return (
+                  <div key={field.name} className="md:col-span-2 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="block font-bold text-gray-700 uppercase tracking-wider text-[11px]">
+                        {field.label}
+                      </label>
+                      <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                        OpenStreetMap & Satélite
+                      </span>
+                    </div>
+                    <GisMap
+                      mode="picker"
+                      lat={latVal}
+                      lng={lngVal}
+                      height="300px"
+                      onChange={(newLat, newLng) => {
+                        handleChange(latKey, newLat);
+                        handleChange(lngKey, newLng);
+                      }}
+                    />
+                    {field.help && <p className="text-[11px] text-gray-400">{field.help}</p>}
+                  </div>
+                );
+              }
 
               // Media: Image, Gallery, Audio
               if (field.type === 'image' || field.type === 'gallery' || field.type === 'audio') {

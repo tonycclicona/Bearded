@@ -19,6 +19,7 @@ interface ResourceTableProps<T = any> {
   onNew?: () => void;
   idKey?: keyof T;
   refreshKey?: number | string;
+  onDataLoaded?: (items: T[]) => void;
 }
 
 export default function ResourceTable<T extends Record<string, any>>({
@@ -29,7 +30,8 @@ export default function ResourceTable<T extends Record<string, any>>({
   onEdit,
   onNew,
   idKey = 'id' as keyof T,
-  refreshKey
+  refreshKey,
+  onDataLoaded
 }: ResourceTableProps<T>) {
   const [items, setItems] = useState<T[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,7 +43,9 @@ export default function ResourceTable<T extends Record<string, any>>({
     setError(null);
     try {
       const data = await fetcher(endpoint);
-      setItems(Array.isArray(data) ? data : []);
+      const arr = Array.isArray(data) ? data : [];
+      setItems(arr);
+      if (onDataLoaded) onDataLoaded(arr);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Error al cargar los datos');
     } finally {
