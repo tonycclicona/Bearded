@@ -11,12 +11,13 @@ export function errorHandler(err, _req, res, _next) {
             }
         });
     }
-    return res.status(500).json({
+    const statusCode = err.status || err.statusCode || 500;
+    return res.status(statusCode).json({
         data: null,
         error: {
-            code: 'INTERNAL_ERROR',
-            message: 'Error interno del servidor',
-            statusCode: 500
+            code: err.code || 'INTERNAL_ERROR',
+            message: err.message || 'Error interno del servidor',
+            statusCode
         }
     });
 }

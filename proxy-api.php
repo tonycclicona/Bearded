@@ -65,13 +65,37 @@ $lastErrno = 0;
 $triedTargets = [];
 
 $headers = [];
-foreach (getallheaders() as $name => $value) {
-    $lower = strtolower($name);
-    if ($lower !== 'host' && $lower !== 'accept-encoding' && $lower !== 'content-length') {
-        $headers[] = "$name: $value";
+$hasContentType = false;
+$hasAuth = false;
+
+if (function_exists('getallheaders')) {
+    foreach (getallheaders() as $name => $value) {
+        $lower = strtolower($name);
+        if ($lower === 'content-type') $hasContentType = true;
+        if ($lower === 'authorization') $hasAuth = true;
+        if ($lower !== 'host' && $lower !== 'accept-encoding' && $lower !== 'content-length') {
+            $headers[] = "$name: $value";
+        }
     }
 }
+
+// Respaldo de Authorization si no vino en getallheaders (común en PHP FastCGI/LiteSpeed)
+if (!$hasAuth) {
+    if (isset($_SERVER['HTTP_AUTHORIZATION'])) {
+        $headers[] = "Authorization: " . $_SERVER['HTTP_AUTHORIZATION'];
+    } else if (isset($_SERVER['REDIRECT_HTTP_AUTHORIZATION'])) {
+        $headers[] = "Authorization: " . $_SERVER['REDIRECT_HTTP_AUTHORIZATION'];
+    }
+}
+
+// Respaldo de Content-Type desde $_SERVER
+if (!$hasContentType && isset($_SERVER['CONTENT_TYPE']) && !empty($_SERVER['CONTENT_TYPE'])) {
+    $headers[] = "Content-Type: " . $_SERVER['CONTENT_TYPE'];
+    $hasContentType = true;
+}
+
 $headers[] = "X-Bearded-Gateway: 1";
+$headers[] = "Expect:"; // Evitar bloqueo de Expect: 100-continue en cURL
 
 $isMultipart = !empty($_FILES) || (isset($_SERVER['CONTENT_TYPE']) && strpos(strtolower($_SERVER['CONTENT_TYPE']), 'multipart/form-data') !== false);
 $postFields = null;
@@ -102,6 +126,12 @@ if ($isMultipart) {
     }
 } else if (in_array($_SERVER['REQUEST_METHOD'], ['POST', 'PUT', 'PATCH', 'DELETE'])) {
     $body = file_get_contents('php://input');
+    if (!$hasContentType && !empty($body)) {
+        $headers[] = "Content-Type: application/json";
+    }
+    if ($body !== null && strlen($body) > 0) {
+        $headers[] = "Content-Length: " . strlen($body);
+    }
 }
 
 foreach ($targets as $baseTarget) {
