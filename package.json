@@ -2,7 +2,7 @@
   "name": "antigravity",
   "version": "1.0.0",
   "private": true,
-  "main": "backend/dist/index.js",
+  "main": "server.js",
   "workspaces": [
     "admin",
     "backend",
@@ -18,7 +18,7 @@
     "build:frontend": "npm run build --workspace=frontend",
     "build:all": "node postinstall.cjs",
     "deploy": "node postinstall.cjs",
-    "start": "node backend/dist/index.js",
+    "start": "node server.js",
     "typecheck": "npm run typecheck --workspaces",
     "db:migrate": "npm run db:migrate --workspace=backend",
     "db:push": "npm run db:push --workspace=backend",

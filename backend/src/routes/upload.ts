@@ -5,16 +5,23 @@ import fs from 'fs';
 import { AppResponse } from '../utils/response.js';
 import { AppError } from '../utils/errors.js';
 
-// Import dinámico y resiliente de sharp para evitar caídas si la dependencia nativa no está presente
+// Import dinámico y resiliente de sharp bajo demanda (sin top-level await para compatibilidad CJS/Passenger)
 let sharpModule: ((input: string | Buffer, options?: Record<string, unknown>) => {
   webp: (options?: Record<string, unknown>) => { toFile: (dest: string) => Promise<unknown> };
   rotate: () => { resize: (options?: Record<string, unknown>) => { webp: (options?: Record<string, unknown>) => { toFile: (dest: string) => Promise<unknown> } } };
 }) | null = null;
-try {
-  const mod = await import('sharp');
-  sharpModule = (mod.default || mod) as unknown as typeof sharpModule;
-} catch (_) {
-  console.warn('[UPLOAD] Sharp no disponible en el entorno; las imágenes se guardarán en su formato original.');
+let sharpChecked = false;
+
+async function getSharp() {
+  if (sharpChecked) return sharpModule;
+  sharpChecked = true;
+  try {
+    const mod = await import('sharp');
+    sharpModule = (mod.default || mod) as unknown as typeof sharpModule;
+  } catch (_) {
+    console.warn('[UPLOAD] Sharp no disponible en el entorno; las imágenes se guardarán en su formato original.');
+  }
+  return sharpModule;
 }
 
 const router = Router();
@@ -85,8 +92,9 @@ const uploadHandler = upload.fields([
  */
 async function optimizeImage(filePath: string, filename: string): Promise<string> {
   const ext = path.extname(filename).toLowerCase();
+  const sharp = await getSharp();
   // No procesar SVGs ni optimizar si sharp no está disponible
-  if (!sharpModule || ext === '.svg') {
+  if (!sharp || ext === '.svg') {
     return filename;
   }
 
@@ -96,11 +104,11 @@ async function optimizeImage(filePath: string, filename: string): Promise<string
   try {
     if (ext === '.gif') {
       // Conversión de animación GIF a Animated WebP optimizado
-      await sharpModule(filePath, { animated: true })
+      await sharp(filePath, { animated: true })
         .webp({ quality: 80, effort: 4 })
         .toFile(destPath);
     } else {
-      await sharpModule(filePath)
+      await sharp(filePath)
         .rotate()
         .resize({ width: 1200, withoutEnlargement: true })
         .webp({ quality: 80 })

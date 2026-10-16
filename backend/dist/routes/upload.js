@@ -4,14 +4,21 @@ import path from 'path';
 import fs from 'fs';
 import { AppResponse } from '../utils/response.js';
 import { AppError } from '../utils/errors.js';
-// Import dinámico y resiliente de sharp para evitar caídas si la dependencia nativa no está presente
+// Import dinámico y resiliente de sharp bajo demanda (sin top-level await para compatibilidad CJS/Passenger)
 let sharpModule = null;
-try {
-    const mod = await import('sharp');
-    sharpModule = (mod.default || mod);
-}
-catch (_) {
-    console.warn('[UPLOAD] Sharp no disponible en el entorno; las imágenes se guardarán en su formato original.');
+let sharpChecked = false;
+async function getSharp() {
+    if (sharpChecked)
+        return sharpModule;
+    sharpChecked = true;
+    try {
+        const mod = await import('sharp');
+        sharpModule = (mod.default || mod);
+    }
+    catch (_) {
+        console.warn('[UPLOAD] Sharp no disponible en el entorno; las imágenes se guardarán en su formato original.');
+    }
+    return sharpModule;
 }
 const router = Router();
 // Directorio canónico único de subidas (servido por api.beardedmountaineerlodge.com)
@@ -75,8 +82,9 @@ const uploadHandler = upload.fields([
  */
 async function optimizeImage(filePath, filename) {
     const ext = path.extname(filename).toLowerCase();
+    const sharp = await getSharp();
     // No procesar SVGs ni optimizar si sharp no está disponible
-    if (!sharpModule || ext === '.svg') {
+    if (!sharp || ext === '.svg') {
         return filename;
     }
     const webpFilename = `${path.basename(filename, ext)}.webp`;
@@ -84,12 +92,12 @@ async function optimizeImage(filePath, filename) {
     try {
         if (ext === '.gif') {
             // Conversión de animación GIF a Animated WebP optimizado
-            await sharpModule(filePath, { animated: true })
+            await sharp(filePath, { animated: true })
                 .webp({ quality: 80, effort: 4 })
                 .toFile(destPath);
         }
         else {
-            await sharpModule(filePath)
+            await sharp(filePath)
                 .rotate()
                 .resize({ width: 1200, withoutEnlargement: true })
                 .webp({ quality: 80 })
