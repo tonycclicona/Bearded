@@ -13,22 +13,20 @@ import {
   CatalogSettings
 } from '@/types';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? '/api' : 'http://localhost:3001/api');
-const ADMIN_URL = process.env.NEXT_PUBLIC_ADMIN_URL || (typeof window !== 'undefined' ? '' : 'http://localhost:3002');
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 
+  (typeof window !== 'undefined' && window.location.hostname.includes('beardedmountaineerlodge.com')
+    ? 'https://api.beardedmountaineerlodge.com/api'
+    : 'http://localhost:4000/api');
 
 export function resolveImageUrl(url: string | null | undefined): string {
   if (!url) return '';
   if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:') || url.startsWith('data:')) {
     return url;
   }
-  if (url.startsWith('/admin/uploads/') || url.startsWith('/uploads/')) {
-    const cleanPath = url.startsWith('/admin/uploads/') ? url : `/admin${url}`;
-    if (ADMIN_URL && !ADMIN_URL.includes('localhost') && typeof window !== 'undefined') {
-      return `${ADMIN_URL}${cleanPath}`;
-    }
-    return cleanPath;
-  }
-  return url;
+  const apiBase = API_URL.replace(/\/api\/?$/, '');
+  const stripped = url.replace(/^\/admin/, '');
+  const cleanPath = stripped.startsWith('/') ? stripped : `/${stripped}`;
+  return `${apiBase}${cleanPath}`;
 }
 
 export const resolveAudioUrl = resolveImageUrl;

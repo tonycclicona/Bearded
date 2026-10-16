@@ -30,7 +30,7 @@ const env = {
   NEXT_TELEMETRY_DISABLED: '1'
 };
 if (!env.NEXT_PUBLIC_API_URL) {
-  env.NEXT_PUBLIC_API_URL = '/api';
+  env.NEXT_PUBLIC_API_URL = 'https://api.beardedmountaineerlodge.com/api';
 }
 
 if (nextBin) {

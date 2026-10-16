@@ -2,7 +2,7 @@
   "name": "antigravity",
   "version": "1.0.0",
   "private": true,
-  "main": "server.js",
+  "main": "backend/dist/index.js",
   "workspaces": [
     "admin",
     "backend",
@@ -10,7 +10,6 @@
   ],
   "scripts": {
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:admin\" \"npm run dev:frontend\"",
-    "dev:all": "concurrently \"npm run dev:backend\" \"npm run dev:admin\" \"npm run dev:frontend\" \"node server.js\"",
     "dev:backend": "npm run dev --workspace=backend",
     "dev:admin": "npm run dev --workspace=admin",
     "dev:frontend": "npm run dev --workspace=frontend",
@@ -19,7 +18,7 @@
     "build:frontend": "npm run build --workspace=frontend",
     "build:all": "node postinstall.cjs",
     "deploy": "node postinstall.cjs",
-    "start": "node server.js",
+    "start": "node backend/dist/index.js",
     "typecheck": "npm run typecheck --workspaces",
     "db:migrate": "npm run db:migrate --workspace=backend",
     "db:push": "npm run db:push --workspace=backend",

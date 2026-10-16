@@ -53,6 +53,8 @@ backend/prisma/*.js.map
 # Uploaded media (runtime content)
 admin/uploads/*
 !admin/uploads/.gitkeep
+uploads/*
+!uploads/.gitkeep
 
 # Misc
 *.zip

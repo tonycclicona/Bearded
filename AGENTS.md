@@ -11,19 +11,19 @@
 ## 📁 Estructura del Proyecto
 ```
 Antigravity/
-├── admin/             # Next.js 16 (App Router) SSG -> admin/out
-├── backend/           # Express 5 REST API + Prisma -> backend/dist
-├── frontend/          # Next.js 16 (App Router) SSG -> frontend/out
-├── server.js          # Unified Node.js Gateway & Server
-├── postinstall.cjs    # Build & Hostinger LiteSpeed Deployment Engine
+├── admin/             # Next.js 16 (App Router) SSG -> admin/out (admin.beardedmountaineerlodge.com)
+├── backend/           # Express 5 REST API + Prisma -> backend/dist (api.beardedmountaineerlodge.com)
+├── frontend/          # Next.js 16 (App Router) SSG -> frontend/out (beardedmountaineerlodge.com)
+├── uploads/           # Directorio canónico único de subida de medios
+├── postinstall.cjs    # Motor de build y preservación de DB para la App Node.js
 └── .agent/rules/      # Reglas de desarrollo
 ```
 
 ## 🔒 Servicios Canónicos
-- `packages/shared/src/utils/errors.ts` — Clase `AppError`
-- `packages/shared/src/utils/response.ts` — Clase `AppResponse`
-- `apps/backend/src/lib/prisma.ts` — Cliente Prisma (única instancia)
-- `apps/backend/src/lib/auth.ts` — Lógica de JWT
+- `backend/src/utils/errors.ts` — Clase `AppError`
+- `backend/src/utils/response.ts` — Clase `AppResponse`
+- `backend/src/lib/prisma.ts` — Cliente Prisma (única instancia)
+- `backend/src/lib/auth.ts` — Lógica de JWT
 
 ## 📐 Patrones Obligatorios
 - **DB:** Prisma `findMany`/`findUnique` con `select` explícito. NUNCA `select: *`.
@@ -46,47 +46,51 @@ Antigravity/
 - **APIs Públicas** → `.agent/rules/architecture.md`
 
 ## 🌐 Endpoints Principales
-### Backend API (`apps/backend`)
+### Backend API (`https://api.beardedmountaineerlodge.com`)
 - `GET /api/passes` — Hummingbird passes
 - `GET /api/routes` — Avian routes
 - `GET /api/rooms` — Lodge rooms
 - `GET /api/experiences` — Lodge experiences
 - `GET /api/photos` — Photo products
 - `GET /api/workshops` — Photo workshops
+- `GET /api/spots` — Hummingbird spots
 - `POST /api/checkout` — Process checkout
+- `POST /api/upload` — Media uploads
+- `GET /uploads/:filename` — Servir archivos estáticos subidos
 
-### Admin Panel (`apps/admin`)
-- `GET /admin` — Dashboard
-- `GET /admin/passes` — Manage passes
-- `GET /admin/routes` — Manage routes
-- `GET /admin/rooms` — Manage rooms
-- `GET /admin/experiences` — Manage experiences
-- `GET /admin/photos` — Manage photos
-- `GET /admin/workshops` — Manage workshops
+### Admin Panel (`https://admin.beardedmountaineerlodge.com`)
+- `GET /` — Dashboard
+- `GET /passes` — Manage passes
+- `GET /routes` — Manage routes
+- `GET /rooms` — Manage rooms
+- `GET /experiences` — Manage experiences
+- `GET /photos` — Manage photos
+- `GET /workshops` — Manage workshops
 
-## 🚀 Arquitectura de Despliegue y Dominios (Hostinger LiteSpeed)
+## 🚀 Arquitectura de Despliegue y Dominios (Hostinger Web Business)
 ### 1. Topología de Red y Dominios
 - **Frontend Principal:** `https://beardedmountaineerlodge.com`
-  - Contenido: Next.js SSG (`frontend/out`) servido directamente desde `public_html/`.
-  - Fallback SPA controlado por `.htaccess` raíz.
+  - Tipo: PHP / HTML estático.
+  - Contenido: Next.js SSG (`frontend/out`) exportado a la carpeta `public_html/` del dominio principal.
+  - Enrutamiento: Controlado por `frontend/.htaccess` con fallback SPA.
 - **Panel de Administración:** `https://admin.beardedmountaineerlodge.com`
-  - Contenido: Next.js SSG (`admin/out`) servido desde `public_html/admin/`.
-  - Autenticación: `localStorage` + `sessionStorage` + cookie (`SameSite=Lax`). Sin dependencias de scripts síncronos en `<head>`.
-  - CRUD interactivo: Todos los módulos cuentan con `CrudModal.tsx` para alta, edición y baja directa.
+  - Tipo: PHP / HTML estático.
+  - Contenido: Next.js SSG (`admin/out`) exportado a la carpeta `public_html/` del subdominio admin.
+  - Enrutamiento: Controlado por `admin/.htaccess` con fallback SPA.
+  - Autenticación: `localStorage` + `sessionStorage` + cookie (`SameSite=Lax`).
 - **Backend API REST:** `https://api.beardedmountaineerlodge.com`
-  - Motor: Express 5 + Node.js 22 ejecutándose en puerto local (4000/3000) en el panel de aplicaciones Node de Hostinger.
-  - Proxy Reverso: Gestionado mediante `public_html/api/index.php` + `public_html/api/.htaccess` para canalizar peticiones al Node.js interno con headers `X-Forwarded-*`.
+  - Tipo: Web App Node.js (Node 22 LTS).
+  - Raíz del proyecto en Hostinger: Carpeta del subdominio `api` (o directorio de la app Node).
+  - Archivo de inicio: `backend/dist/index.js` (o `npm start`).
+  - Carpeta única de medios: `uploads/` (servida directamente en `/uploads/*`).
 
 ### 2. Motor de Build y Automatización (`postinstall.cjs`)
-1. **Backend:** Compila TypeScript con `scripts/build.cjs` hacia `backend/dist`. Genera cliente dinámico de Prisma y sanitización de payloads contra el esquema de base de datos.
-2. **API Proxy:** Escribe `index.php` y `.htaccess` en `public_html/api/`.
-3. **Frontend:** Si no existe `frontend/out`, compila y distribuye a `public_html/`.
-4. **Admin:** Si no existe `admin/out`, compila y distribuye a `public_html/admin/`.
-5. **Reinicio LiteSpeed:** Actualiza la marca de tiempo en `tmp/restart.txt` para forzar la recarga del proceso Node.js sin requerir reinicio manual del servidor.
+1. **Preservación Inmutable:** Genera copia de seguridad `db.backup.[timestamp].json` antes de cualquier compilación.
+2. **Directorio de Medios:** Verifica y asegura la existencia de `uploads/`.
+3. **Backend:** Compila TypeScript mediante `backend/scripts/build.cjs` hacia `backend/dist/index.js`.
+4. **Reinicio LiteSpeed:** Actualiza `tmp/restart.txt` para forzar la recarga automática del proceso Node.js en Hostinger.
 
-### 3. Regla Inmutable de Base de Datos y Uploads en Despliegues (Hostinger)
-- **CERO BORRADO DE BD:** Bajo NINGUNA circunstancia se debe ejecutar `prisma migrate reset`, `db push --force-reset` ni eliminar/reemplazar `backend/data/db.json` o tablas en MySQL/PostgreSQL. Contienen información crítica de producción (reservas, tours, rutas, spots, etc.).
+### 3. Regla Inmutable de Base de Datos y Uploads en Despliegues
+- **CERO BORRADO DE BD:** Bajo NINGUNA circunstancia se debe ejecutar `prisma migrate reset`, `db push --force-reset` ni eliminar/reemplazar `backend/data/db.json` o tablas en MySQL/PostgreSQL. Contienen información crítica de producción.
 - **Backup Preventivo:** `postinstall.cjs` genera una copia de seguridad `db.backup.[timestamp].json` antes de cualquier paso de compilación.
-- **Persistencia de Archivos Subidos:** Los directorios `uploads/` y `admin/uploads/` nunca deben ser purgados ni sobrescritos en los despliegues.
-
-
+- **Persistencia de Archivos Subidos:** La carpeta `uploads/` nunca debe ser purgada ni sobrescrita.

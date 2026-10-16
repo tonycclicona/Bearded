@@ -9,23 +9,27 @@ export function resolveMediaUrl(url?: string): string {
     return url;
   }
   const base = API_BASE_URL.replace(/\/api\/?$/, '');
-  const cleanPath = url.startsWith('/') ? url : `/${url}`;
+  const stripped = url.replace(/^\/admin/, '');
+  const cleanPath = stripped.startsWith('/') ? stripped : `/${stripped}`;
   return `${base}${cleanPath}`;
 }
 
-export function extractErrorMessage(data: any, fallback: string): string {
+export function extractErrorMessage(data: unknown, fallback: string): string {
   if (!data) return fallback;
   if (typeof data === 'string') return data;
-  if (typeof data.error === 'string') return data.error;
-  if (data.error && typeof data.error.message === 'string') return data.error.message;
-  if (data.error && typeof data.error.code === 'string') {
-    return `${data.error.code}: ${data.error.message || ''}`;
+  const record = data as Record<string, unknown>;
+  if (typeof record.error === 'string') return record.error;
+  if (record.error && typeof (record.error as Record<string, unknown>).message === 'string') {
+    return (record.error as Record<string, unknown>).message as string;
   }
-  if (typeof data.message === 'string') return data.message;
-  if (typeof data.details === 'string') return data.details;
-  if (typeof data.error === 'object' && data.error !== null) {
+  if (record.error && typeof (record.error as Record<string, unknown>).code === 'string') {
+    return `${(record.error as Record<string, unknown>).code}: ${(record.error as Record<string, unknown>).message || ''}`;
+  }
+  if (typeof record.message === 'string') return record.message;
+  if (typeof record.details === 'string') return record.details;
+  if (typeof record.error === 'object' && record.error !== null) {
     try {
-      return JSON.stringify(data.error);
+      return JSON.stringify(record.error);
     } catch (_) {}
   }
   return fallback;
