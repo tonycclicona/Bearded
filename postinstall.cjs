@@ -1,6 +1,6 @@
 // ==============================================================================
-// postinstall.cjs — Bearded Mountaineer Lodge Backend Build Engine
-// Dedicated Node.js App for api.beardedmountaineerlodge.com
+// postinstall.cjs — Bearded Mountaineer Lodge Build & Deployment Engine
+// Dedicated Hostinger Web Business Automation
 // ==============================================================================
 
 'use strict';
@@ -12,7 +12,7 @@ const { execSync } = require('child_process');
 const ROOT = process.cwd();
 
 console.log('\n[postinstall] ==========================================');
-console.log('[postinstall] Starting Bearded API Backend Build');
+console.log('[postinstall] Starting Bearded Build & Hostinger Deployment');
 console.log('[postinstall] CWD:', ROOT);
 console.log('[postinstall] ==========================================\n');
 
@@ -32,7 +32,7 @@ function run(cmd, subdir) {
 }
 
 // ── 0. SALVAGUARDA INMUTABLE DE BASE DE DATOS Y CARPETAS DE SUBIDA ────────────
-console.log('[postinstall] === 0/2 PRESERVING DATABASE & USER UPLOADS ===');
+console.log('[postinstall] === 0/3 PRESERVING DATABASE & USER UPLOADS ===');
 try {
   const backendDataDir = path.join(ROOT, 'backend/data');
   const dbJsonPath = path.join(backendDataDir, 'db.json');
@@ -64,7 +64,7 @@ try {
 }
 
 // ── 1. COMPILAR BACKEND ─────────────────────────────────────────────────────────
-console.log('[postinstall] === 1/2 BACKEND setup ===');
+console.log('[postinstall] === 1/3 BACKEND setup ===');
 try {
   const nodeModulesPath = path.join(ROOT, 'node_modules');
   if (process.platform === 'linux' && fs.existsSync(nodeModulesPath)) {
@@ -75,8 +75,58 @@ try {
 
 run('node scripts/build.cjs', 'backend');
 
-// ── 2. TRIGGER DE REINICIO LITESPEED / CLOUDLINUX NODE.JS RUNNER ──────────────
-console.log('[postinstall] === 2/2 LITESPEED RESTART TRIGGER ===');
+// ── 2. SINCRONIZACIÓN AUTOMÁTICA EN HOSTINGER (SI EXISTE EL DIRECTORIO DESTINO) ──
+console.log('[postinstall] === 2/3 HOSTINGER STATIC ASSETS SYNC ===');
+const CANONICAL_PUBLIC_HTML = '/home/u251936581/domains/beardedmountaineerlodge.com/public_html';
+const ADMIN_PUBLIC_HTML = '/home/u251936581/domains/admin.beardedmountaineerlodge.com/public_html';
+const srcFrontendOut = path.join(ROOT, 'frontend/out');
+const srcAdminOut = path.join(ROOT, 'admin/out');
+
+if (fs.existsSync(CANONICAL_PUBLIC_HTML)) {
+  if (fs.existsSync(srcFrontendOut)) {
+    try {
+      console.log(`[postinstall] 🚀 Sincronizando Frontend en: ${CANONICAL_PUBLIC_HTML}`);
+      fs.cpSync(srcFrontendOut, CANONICAL_PUBLIC_HTML, { recursive: true });
+      const rootIndexPhp = path.join(CANONICAL_PUBLIC_HTML, 'index.php');
+      if (fs.existsSync(rootIndexPhp)) {
+        try { fs.unlinkSync(rootIndexPhp); } catch (_) {}
+      }
+      console.log(`[postinstall] ✅ Frontend exportado a: ${CANONICAL_PUBLIC_HTML}`);
+    } catch (err) {
+      console.warn('[postinstall] Warning copiando frontend a public_html:', err.message);
+    }
+  }
+
+  // Sincronizar admin a public_html/admin como fallback
+  if (fs.existsSync(srcAdminOut)) {
+    try {
+      const adminDest = path.join(CANONICAL_PUBLIC_HTML, 'admin');
+      if (!fs.existsSync(adminDest)) fs.mkdirSync(adminDest, { recursive: true });
+      fs.cpSync(srcAdminOut, adminDest, { recursive: true });
+      const adminDefaultPhp = path.join(adminDest, 'default.php');
+      if (fs.existsSync(adminDefaultPhp)) {
+        try { fs.unlinkSync(adminDefaultPhp); } catch (_) {}
+      }
+      console.log(`[postinstall] ✅ Admin exportado a: ${adminDest}`);
+    } catch (err) {
+      console.warn('[postinstall] Warning copiando admin a public_html/admin:', err.message);
+    }
+  }
+}
+
+// Sincronizar al subdominio dedicado admin si existe
+if (fs.existsSync(ADMIN_PUBLIC_HTML) && fs.existsSync(srcAdminOut)) {
+  try {
+    console.log(`[postinstall] 🚀 Sincronizando Admin en subdominio dedicado: ${ADMIN_PUBLIC_HTML}`);
+    fs.cpSync(srcAdminOut, ADMIN_PUBLIC_HTML, { recursive: true });
+    console.log(`[postinstall] ✅ Admin exportado a subdominio: ${ADMIN_PUBLIC_HTML}`);
+  } catch (err) {
+    console.warn('[postinstall] Warning copiando admin a subdominio admin:', err.message);
+  }
+}
+
+// ── 3. TRIGGER DE REINICIO LITESPEED / CLOUDLINUX NODE.JS RUNNER ──────────────
+console.log('[postinstall] === 3/3 LITESPEED RESTART TRIGGER ===');
 try {
   const tmpDir = path.join(ROOT, 'tmp');
   if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
@@ -86,4 +136,4 @@ try {
   console.warn('[postinstall] Warning al crear tmp/restart.txt:', tmpErr.message);
 }
 
-console.log('\n[postinstall] ✅ Compilación y preparación del Backend completadas con éxito.\n');
+console.log('\n[postinstall] ✅ Compilación y sincronización de Bearded completadas con éxito.\n');

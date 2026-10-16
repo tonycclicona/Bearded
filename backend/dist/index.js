@@ -93,12 +93,16 @@ app.use('/auth', authRouter);
 app.use('/api/upload', uploadRouter);
 app.use('/upload', uploadRouter);
 // Servir archivos subidos estáticamente con CORS habilitado
-const rootDir = fs.existsSync(path.resolve(process.cwd(), 'admin'))
-    ? process.cwd()
-    : path.resolve(process.cwd(), '..');
-const uploadsDir = path.resolve(rootDir, 'admin/uploads');
+const uploadsDir = process.env.UPLOADS_DIR
+    ? path.resolve(process.env.UPLOADS_DIR)
+    : path.resolve(process.cwd(), 'uploads');
 if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir, { recursive: true });
+    try {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+    catch (err) {
+        console.error('[SERVER] Error al crear directorio de subidas:', err);
+    }
 }
 app.use('/uploads', express.static(uploadsDir));
 app.use('/api/uploads', express.static(uploadsDir));

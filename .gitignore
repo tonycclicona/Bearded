@@ -55,6 +55,7 @@ admin/uploads/*
 !admin/uploads/.gitkeep
 uploads/*
 !uploads/.gitkeep
+backend/data/db.backup.*.json
 
 # Misc
 *.zip

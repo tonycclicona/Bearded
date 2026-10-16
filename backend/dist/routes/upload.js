@@ -2,25 +2,29 @@ import { Router } from 'express';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import sharp from 'sharp';
 import { AppResponse } from '../utils/response.js';
 import { AppError } from '../utils/errors.js';
-const router = Router();
-// Directorio canónico de subidas
-const rootDir = fs.existsSync(path.resolve(process.cwd(), 'admin'))
-    ? process.cwd()
-    : path.resolve(process.cwd(), '..');
-export const uploadsDir = path.resolve(rootDir, 'admin/uploads');
-if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir, { recursive: true });
+// Import dinámico y resiliente de sharp para evitar caídas si la dependencia nativa no está presente
+let sharpModule = null;
+try {
+    const mod = await import('sharp');
+    sharpModule = (mod.default || mod);
 }
-// También sincronizar a root/uploads si existe para acceso directo
-const secondaryUploadsDir = path.resolve(rootDir, 'uploads');
-if (!fs.existsSync(secondaryUploadsDir)) {
+catch (_) {
+    console.warn('[UPLOAD] Sharp no disponible en el entorno; las imágenes se guardarán en su formato original.');
+}
+const router = Router();
+// Directorio canónico único de subidas (servido por api.beardedmountaineerlodge.com)
+export const uploadsDir = process.env.UPLOADS_DIR
+    ? path.resolve(process.env.UPLOADS_DIR)
+    : path.resolve(process.cwd(), 'uploads');
+if (!fs.existsSync(uploadsDir)) {
     try {
-        fs.mkdirSync(secondaryUploadsDir, { recursive: true });
+        fs.mkdirSync(uploadsDir, { recursive: true });
     }
-    catch (_) { }
+    catch (err) {
+        console.error('[UPLOAD] Error al crear directorio de subidas:', err);
+    }
 }
 const storage = multer.diskStorage({
     destination: (_req, _file, cb) => {
@@ -66,13 +70,13 @@ const uploadHandler = upload.fields([
     { name: 'video', maxCount: 5 }
 ]);
 /**
- * Optimiza una imagen a formato WebP (1200px max, calidad 80, rotación EXIF)
+ * Optimiza una imagen a formato WebP (1200px max, calidad 80, rotación EXIF) si sharp está disponible.
  * Si es GIF animado, lo convierte a WebP animado optimizado.
  */
 async function optimizeImage(filePath, filename) {
     const ext = path.extname(filename).toLowerCase();
-    // No procesar SVGs con sharp
-    if (ext === '.svg') {
+    // No procesar SVGs ni optimizar si sharp no está disponible
+    if (!sharpModule || ext === '.svg') {
         return filename;
     }
     const webpFilename = `${path.basename(filename, ext)}.webp`;
@@ -80,12 +84,12 @@ async function optimizeImage(filePath, filename) {
     try {
         if (ext === '.gif') {
             // Conversión de animación GIF a Animated WebP optimizado
-            await sharp(filePath, { animated: true })
+            await sharpModule(filePath, { animated: true })
                 .webp({ quality: 80, effort: 4 })
                 .toFile(destPath);
         }
         else {
-            await sharp(filePath)
+            await sharpModule(filePath)
                 .rotate()
                 .resize({ width: 1200, withoutEnlargement: true })
                 .webp({ quality: 80 })
@@ -95,13 +99,6 @@ async function optimizeImage(filePath, filename) {
         if (destPath !== filePath && fs.existsSync(filePath)) {
             try {
                 fs.unlinkSync(filePath);
-            }
-            catch (_) { }
-        }
-        // Copiar al directorio secundario para redundancia
-        if (fs.existsSync(secondaryUploadsDir)) {
-            try {
-                fs.copyFileSync(destPath, path.join(secondaryUploadsDir, webpFilename));
             }
             catch (_) { }
         }
@@ -137,19 +134,13 @@ router.post('/', (req, res, next) => {
                 if (file.mimetype.startsWith('image/')) {
                     finalFilename = await optimizeImage(filePath, file.filename);
                 }
-                else if (fs.existsSync(secondaryUploadsDir)) {
-                    try {
-                        fs.copyFileSync(filePath, path.join(secondaryUploadsDir, file.filename));
-                    }
-                    catch (_) { }
-                }
                 const url = `/uploads/${finalFilename}`;
                 return {
                     url,
                     filename: finalFilename,
                     originalName: file.originalname,
                     size: file.size,
-                    mimetype: file.mimetype.startsWith('image/') ? 'image/webp' : file.mimetype
+                    mimetype: file.mimetype.startsWith('image/') && finalFilename.endsWith('.webp') ? 'image/webp' : file.mimetype
                 };
             }));
             const primary = processedResults[0];
